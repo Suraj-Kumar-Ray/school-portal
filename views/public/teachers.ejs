@@ -1,0 +1,58 @@
+<%- include('../partials/public_nav', { title }) %>
+  <div class="page-head">
+    <h1>👩‍🏫 Our Teachers</h1>
+    <p>Every class has its own class teacher — see their profile, qualification, experience and rating. Parents always know who is teaching their child.</p>
+  </div>
+
+  <div class="teacher-grid">
+    <% teachers.forEach(t => { %>
+    <div class="teacher-card">
+      <div class="teacher-top">
+        <% if (t.photo) { %>
+          <img src="<%= t.photo %>" alt="<%= t.full_name %>" class="teacher-photo" loading="lazy">
+        <% } else { %>
+          <div class="teacher-photo teacher-photo-initials"><%= t.full_name.split(' ').filter(w => !/^(mrs|mr|ms|dr|smt|shri)\.?$/i.test(w)).map(w => w[0]).join('').slice(0, 2).toUpperCase() %></div>
+        <% } %>
+        <div class="teacher-heading">
+          <div class="teacher-name"><%= t.full_name %></div>
+          <div class="teacher-role">
+            <% if (t.subject) { %>📘 <%= t.subject %> Teacher<% } else { %>🏫 Class Teacher<% } %>
+            · <%= t.class_name %><%= t.section ? ' ' + t.section : '' %>
+          </div>
+          <div class="teacher-rating" title="<%= t.rating %> out of 5">
+            <span class="stars">
+              <% const filled = Math.round(t.rating); for (let s = 1; s <= 5; s++) { %>
+                <span class="<%= s <= filled ? 'star-on' : 'star-off' %>">★</span>
+              <% } %>
+            </span>
+            <b><%= Number(t.rating).toFixed(1) %></b>
+            <span class="text-muted">/ 5</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="teacher-facts">
+        <div class="teacher-fact">
+          <span class="teacher-fact-label">🎓 Qualification</span>
+          <b><%= t.qualification || '—' %></b>
+        </div>
+        <div class="teacher-fact">
+          <span class="teacher-fact-label">⏳ Experience</span>
+          <b><%= t.experience_years ? t.experience_years + ' years' : '—' %></b>
+        </div>
+      </div>
+
+      <% if (t.bio) { %><p class="teacher-bio"><%= t.bio %></p><% } %>
+    </div>
+    <% }) %>
+    <% if (!teachers.length) { %>
+    <div class="empty">Teacher details coming soon.</div>
+    <% } %>
+  </div>
+
+  <p class="text-muted mt-3" style="text-align:center; font-size:13px;">💡 For exact subject timings and the day-wise teacher list, log in to the <b>Parent Portal → Timetable</b>.</p>
+
+  <div style="text-align:center; margin-top:14px;">
+    <a href="/apply" class="btn btn-primary">Apply for Admission</a>
+  </div>
+<%- include('../partials/public_footer') %>

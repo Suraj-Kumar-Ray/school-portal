@@ -1,0 +1,38 @@
+<%#
+  Scroll to top — one round button in the bottom-right, for the office's and a teacher's long lists.
+  Included once, from `partials/footer.ejs`, so every signed-in section carries the same control
+  instead of one page owning its own copy.
+
+  The school asked for this after a 336-student list: hundreds of cards tall, and a thumb can flick
+  for a long time. It shows itself only once the page is scrolled past 200px — at the top there is
+  nothing to go back to, so it stays out of the way (which also keeps a short screen uncluttered).
+
+  Styling and the reasons behind it (right corner, 78px above the bar, the bottom room that keeps
+  the last row tappable) live in `public/css/style.css` under `.scroll-jump`; `smoke-scroll-jump.js`
+  guards all of it.
+%>
+<button type="button" class="scroll-jump no-print" id="scrollJump" aria-label="Scroll to top" title="Go to the top">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+</button>
+<script>
+  // Back to the top, once there is something above to go back to. The position is read in a
+  // requestAnimationFrame-throttled scroll listener so a long list scrolls smoothly.
+  (function () {
+    var btn = document.getElementById('scrollJump');
+    if (!btn) return;
+    function sync() {
+      var y = window.scrollY || document.documentElement.scrollTop || 0;
+      btn.classList.toggle('show', y > 200);
+    }
+    var queued = false;
+    function onScroll() {
+      if (queued) return;
+      queued = true;
+      window.requestAnimationFrame(function () { queued = false; sync(); });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    btn.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    sync();
+  })();
+</script>

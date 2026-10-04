@@ -1,0 +1,75 @@
+<%- include('../partials/header') %>
+  <div class="page-head flex-between">
+    <div>
+      <h1>🏫 About School</h1>
+      <p>School information shown on the public "About Us" page. Edit it here — saving updates the public page instantly.</p>
+    </div>
+    <a href="/about" target="_blank" class="btn btn-outline btn-sm">👀 View public about page →</a>
+  </div>
+
+  <% if (saved) { %><div class="alert success">✅ About page content saved. The public about page is updated.</div><% } %>
+
+  <form method="POST" action="/admin/about">
+    <div class="panel">
+      <div class="panel-head"><h3>Main story</h3><span class="text-muted">School introduction — shown first on the About page</span></div>
+      <div class="panel-body">
+        <div class="form-group mb-3">
+          <label for="about-intro">About text (introduction)</label>
+          <textarea id="about-intro" name="intro" rows="5" required><%= about.intro %></textarea>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="about-established">Established (year)</label>
+            <input type="text" id="about-established" name="established" value="<%= about.established %>" required>
+          </div>
+          <div class="form-group">
+            <label for="about-affiliation">Affiliation / board &amp; medium</label>
+            <input type="text" id="about-affiliation" name="affiliation" value="<%= about.affiliation %>" required>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🎯 Mission &amp; Vision</h3></div>
+      <div class="panel-body">
+        <div class="form-group mb-3">
+          <label for="about-mission">Mission</label>
+          <textarea id="about-mission" name="mission" rows="3" required><%= about.mission %></textarea>
+        </div>
+        <div class="form-group">
+          <label for="about-vision">Vision</label>
+          <textarea id="about-vision" name="vision" rows="3" required><%= about.vision %></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>👩‍🏫 Principal</h3></div>
+      <div class="panel-body">
+        <div class="form-group mb-3">
+          <label for="about-principal-name">Principal name</label>
+          <input type="text" id="about-principal-name" name="principalName" value="<%= about.principalName %>" required>
+        </div>
+        <div class="form-group">
+          <label for="about-principal-msg">Principal's message</label>
+          <textarea id="about-principal-msg" name="principalMessage" rows="4" required><%= about.principalMessage %></textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🛠️ Facilities</h3><span class="text-muted">One facility per line — shown as chips on the page</span></div>
+      <div class="panel-body">
+        <div class="form-group">
+          <label for="about-facilities">Facilities (one per line)</label>
+          <textarea id="about-facilities" name="facilities" rows="9"><%= about.facilities %></textarea>
+        </div>
+        <div class="flex-between" style="margin-top:14px;">
+          <p class="text-muted" style="margin:0; font-size:13px;">💡 Basic contact details, timings and address come from <code>src/config.js</code>.</p>
+          <button class="btn btn-primary" type="submit">💾 Save About Page</button>
+        </div>
+      </div>
+    </div>
+  </form>
+<%- include('../partials/footer') %>

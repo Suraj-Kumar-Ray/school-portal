@@ -1,0 +1,365 @@
+<%#
+  ============================================================================
+  teacher_profile_cards.ejs — the teacher's own record, in cards
+  ============================================================================
+
+  ONE block, shown in TWO places (school's request, 2026-09-18):
+
+    • `/teacher/profile` — the full page, which also prints the section tiles
+      (`withSections`),
+    • `/teacher` (his dashboard) — the FIRST block, straight under the page title.
+
+  Both read the same shape, built once in `permissions.profileFor(teacher)`, so the
+  dashboard can never show a login name, a class or a count the profile page disagrees
+  with. Read-only everywhere: no form, no input, no button that writes — the office is
+  the only writer of every field here (see src/routes/teacher.js).
+
+  WHAT CHANGES vs WHAT STAYS — the school's own rule (2026-09-18):
+    • **subject and class change** (a teacher is moved to another class or given another
+      subject), so they are printed in the slim `.pf-assign` strip ABOVE the profile
+      card — outside it, where a later change cannot disturb the card,
+    • **everything else is permanent** (photo, name, qualification, experience, rating,
+      bio; then in the grid: at a glance · login · school record · classes) and lives
+      inside the cards.
+
+  Locals (all built by `permissions.profileFor(teacher)`): teacher, initials, myCls, classes,
+          scope, permCount, permTotal — plus, for the full page, withSections, accessible,
+          allSections, permChangedAt. `myCls` is the class he is CLASS-TEACHER OF and is
+          deliberately not named `cls`, which the dashboard uses for the class being looked at.
+          `credInHeader` (dashboard only) says the login chip is printed beside the page title
+          instead — the same chip, from partials/teacher_credentials.ejs.
+%>
+<%# EJS has no default locals: the dashboard passes `credInHeader`, the profile page does not. %>
+<% const credInHead = (typeof credInHeader !== 'undefined') && !!credInHeader; %>
+<%# DASHBOARD = SHORT (school's request, 2026-09-19: take everything below At a glance off the
+    dashboard — keep it on its own page, the page has become very long). The dashboard
+    prints ONLY the hero card, the assign strip and the At a glance card; the 🔑 login,
+    🎓 record, 🏫 classes and 🗓 week cards live on the My Profile page alone. %>
+<% const dashOnly = (typeof dashboardOnly !== 'undefined') && !!dashboardOnly; %>
+<%# the 🔔's count comes from `profileFor` (which always passes it) — `bellUnread` is a NEW
+    name because re-declaring an incoming EJS local in the same scope is a TDZ error, and a
+    caller that somehow predates it must 0 out, not 500 the page %>
+<% const bellUnread = (typeof teacherUnread !== 'undefined' && Number(teacherUnread)) || 0; %>
+
+<%# ---- the permanent profile: what parents see, and what the office writes ---- %>
+<div class="card pf-hero">
+  <%# ---- 🔔 the office bell (school's request, 2026-09-19): sits at the hero card's TOP
+      RIGHT, over the name. It counts the school's messages this teacher has not opened yet
+      (`teacherUnread`), BLINKS while any are waiting, and RINGS (Web Audio, no file) the
+      moment a new one arrives. Tapping it opens /teacher/messages — the only page that
+      clears the count. The card is read-only; the bell is a doorway, not a control. ---- %>
+  <% if (bellUnread > 0) { %>
+  <a href="/teacher/messages" class="pf-bell" id="pfBell" data-count="<%= bellUnread %>"
+     aria-label="<%= bellUnread %> message<%= bellUnread === 1 ? '' : 's' %> from the school office — open your inbox"
+     title="<%= bellUnread %> message<%= bellUnread === 1 ? '' : 's' %> waiting from the school office">
+    <span class="pf-bell-ico" aria-hidden="true">🔔</span>
+    <span class="pf-bell-badge"><%= bellUnread %></span>
+  </a>
+  <% } else { %>
+  <a href="/teacher/messages" class="pf-bell is-quiet" id="pfBell" data-count="0"
+     aria-label="No new messages from the school office"
+     title="No new messages from the school office">
+    <span class="pf-bell-ico" aria-hidden="true">🔔</span>
+  </a>
+  <% } %>
+  <div class="pf-hero-row">
+    <% if (teacher.photo) { %>
+      <img src="<%= teacher.photo %>" alt="<%= teacher.full_name %>" class="pf-hero-photo">
+    <% } else { %>
+      <span class="pf-hero-photo pf-hero-photo-ph"><%= initials %></span>
+    <% } %>
+    <div class="pf-hero-info">
+      <b class="pf-hero-name"><%= teacher.full_name %></b>
+      <span class="pf-hero-role"><%= myCls.label %> · class teacher</span>
+      <div class="pf-hero-facts">
+        <%# each fact is a soft colour pill — one colour per kind of fact (see .pf-fact--*) %>
+        <% if (teacher.qualification) { %>
+          <span class="pf-fact pf-fact--qual"><span class="pf-fact-ico">🎓</span><%= teacher.qualification %></span>
+        <% } %>
+        <% if (teacher.experience_years) { %>
+          <span class="pf-fact pf-fact--exp"><span class="pf-fact-ico">⏳</span><%= teacher.experience_years %> years of teaching</span>
+        <% } %>
+        <% if (teacher.rating) { %>
+          <span class="pf-fact pf-fact--rate"><span class="pf-fact-ico">⭐</span><%= Number(teacher.rating).toFixed(1) %> / 5</span>
+        <% } %>
+        <span class="pf-fact pf-fact--phone"><span class="pf-fact-ico">📞</span><%= teacher.phone || teacher.user_phone || 'Ask the office to add the phone' %></span>
+      </div>
+    </div>
+  </div>
+  <%# the bio sits BELOW the row, full card width — inside the info column it left a dead
+      strip under the photo (school's request, 2026-09-19: “cover that space”) %>
+  <% if (teacher.bio) { %><p class="pf-bio">“<%= teacher.bio %>”</p><% } %>
+</div>
+
+<%# ---- the changeable pair (subject · class): OUTSIDE the card, directly BELOW it ---- %>
+<div class="pf-assign">
+  <span class="pf-assign-item pf-assign-item--sub">
+    <span class="pf-assign-label">📚 Teaching</span>
+    <b><%= teacher.subject || 'All subjects (class teacher)' %></b>
+  </span>
+  <span class="pf-assign-item pf-assign-item--cls">
+    <span class="pf-assign-label">🏫 Class</span>
+    <b><%= myCls.label %></b>
+  </span>
+  <%# never names the office's panel by name: a teacher must not learn where /admin lives (see
+      .freebuff/smoke-teacher-access.js, “the dashboard never mentions the office panel”) %>
+  <span class="pf-assign-note">A change here is a change to your work — the school office sets it.</span>
+</div>
+
+<%# ---- the permanent details, one card each ---- %>
+<% const openKeys = accessible.map(a => a.key); %>
+<div class="pf-grid">
+<%# 📊 At a glance is the FIRST card of the grid, directly above 🔑 My login (school's
+    request, 2026-09-19: “put this just above My login”) — and the school then folded the
+    7 section cards INTO it (same day: “put all the cards you made inside At a glance”),
+    so the panel now reads: the three numbers, the 7 section cards, then the note. %>
+  <div class="panel pf-card pf-card--glance">
+    <%# the two counters ride in the HEADING (school's request, 2026-09-19: “in dono ko At a
+        glance ke side me do, highlight kar ke”) — two coloured pills beside the title, big
+        number on top, label under it. The old three-tile row inside the body is gone: these
+        two pills carry it, and the login state was already the 🔑 My login card's own line. %>
+    <div class="panel-head">
+      <h3>📊 At a glance</h3>
+      <div class="pf-glance-pills">
+        <span class="pf-glance-pill pf-glance-pill--sections<%= permCount ? '' : ' is-off' %>">
+          <b><%= permCount %><span>/<%= permTotal %></span></b>
+          <small>Sections open</small>
+        </span>
+        <span class="pf-glance-pill pf-glance-pill--classes">
+          <b><%= classes.length %></b>
+          <small>Classes you may work on</small>
+        </span>
+      </div>
+    </div>
+    <div class="panel-body">
+      <%# the 7 section cards live INSIDE At a glance (2026-09-19) — one panel opens the whole
+          picture: the numbers, then every section with its open/closed state. The same rule
+          holds: an OPEN one is a tappable doorway, a CLOSED one is dimmed and not a link. %>
+      <div class="pf-sections">
+        <% allSections.forEach(s => { const open = openKeys.includes(s.key); %>
+          <% if (open) { %>
+            <a href="/teacher/<%= s.key %>" class="pf-sec pf-sec-open">
+              <span class="pf-sec-ico"><%= s.icon %></span>
+              <b class="pf-sec-name"><%= s.label %></b>
+              <small class="pf-sec-hint"><%= s.hint %></small>
+              <span class="pf-sec-chip badge green">✅ Open</span>
+            </a>
+          <% } else { %>
+            <div class="pf-sec pf-sec-closed" aria-disabled="true">
+              <span class="pf-sec-ico"><%= s.icon %></span>
+              <b class="pf-sec-name"><%= s.label %></b>
+              <small class="pf-sec-hint"><%= s.hint %></small>
+              <span class="pf-sec-chip badge">🔒 Closed</span>
+            </div>
+          <% } %>
+        <% }) %>
+      </div>
+      <p class="pf-note">
+        <%= permCount ? 'Tap any open section on your dashboard to start work.' : 'Nothing is open yet — the office opens one section at a time.' %>
+      </p>
+    </div>
+  </div>
+
+  <% if (!dashOnly) { %>
+  <div class="panel pf-card pf-card--login">
+    <div class="panel-head">
+      <h3>🔑 My login</h3>
+      <%# On the dashboard the school asked for the chip BESIDE the page title instead, so it is
+          not printed here twice — the note below points at it. Everywhere else it rides at this
+          card's top right, in its own warm colour (see partials/teacher_credentials.ejs). %>
+      <% if (!credInHead) { %><%- include('./teacher_credentials') %><% } %>
+    </div>
+    <div class="panel-body">
+      <div class="pf-list">
+        <div class="pf-row">
+          <span class="pf-label">🔓 Login open</span>
+          <span class="pf-value">
+            <% if (teacher.can_login) { %>
+              <span class="badge green">Open</span> — you can sign in
+            <% } else { %>
+              <span class="badge red">Closed</span> — switched off by the office
+            <% } %>
+          </span>
+        </div>
+      </div>
+      <p class="pf-note">
+        <%= credInHead
+              ? 'Tap the 👁 beside the page title to check your own password.'
+              : 'Tap the 👁 to check your own password.' %>
+        Do not share this login with anyone — everything done with it is recorded against your name.
+      </p>
+    </div>
+  </div>
+
+  <%# his permanent record keeps its OWN card in the grid (school's request, 2026-09-18 — it was
+      tried inside the hero card under the bio first, and the school asked for it back out). %>
+  <%# his permanent details, one coloured tile each (school's request, 2026-09-18: “make it
+      attractive, give it colour, and it must read well on a phone”). The icon sits in its own
+      chip, so the label stays a label and the value is never squeezed — on a phone the tiles are
+      one per line, chip left, label + value beside it, nothing truncated. %>
+  <div class="panel pf-card pf-card--record">
+    <div class="panel-head">
+      <h3>🎓 My school record</h3>
+      <span class="pf-rec-tag">🔒 set by the office</span>
+    </div>
+    <div class="panel-body">
+      <div class="pf-details">
+        <div class="pf-detail pf-detail--name">
+          <span class="pf-detail-ico">👤</span>
+          <span class="pf-detail-text"><small>Full name</small><b><%= teacher.full_name %></b></span>
+        </div>
+        <div class="pf-detail pf-detail--phone">
+          <span class="pf-detail-ico">📞</span>
+          <span class="pf-detail-text"><small>Phone</small><b><%= teacher.phone || teacher.user_phone || '—' %></b></span>
+        </div>
+        <div class="pf-detail pf-detail--qual">
+          <span class="pf-detail-ico">🎓</span>
+          <span class="pf-detail-text"><small>Qualification</small><b><%= teacher.qualification || '—' %></b></span>
+        </div>
+        <div class="pf-detail pf-detail--exp">
+          <span class="pf-detail-ico">⏳</span>
+          <span class="pf-detail-text"><small>Experience</small><b><%= teacher.experience_years ? teacher.experience_years + ' years' : '—' %></b></span>
+        </div>
+        <div class="pf-detail pf-detail--rate">
+          <span class="pf-detail-ico">⭐</span>
+          <span class="pf-detail-text">
+            <small>Rating on the website</small>
+            <b>
+              <% if (teacher.rating) { %>
+                <%= Number(teacher.rating).toFixed(1) %> / 5
+                <span class="pf-stars" aria-hidden="true"><% for (let i = 1; i <= 5; i++) { %><i class="<%= i <= Math.round(Number(teacher.rating)) ? 'on' : '' %>">★</i><% } %></span>
+              <% } else { %>—<% } %>
+            </b>
+          </span>
+        </div>
+      </div>
+      <p class="pf-rec-note">These are the lines parents read on the school website. If one is wrong, ask the office to correct it.</p>
+    </div>
+  </div>
+
+  <div class="panel pf-card pf-card--classes">
+    <div class="panel-head">
+      <h3>🏫 My classes</h3>
+      <span class="text-muted"><%= classes.length %> class<%= classes.length === 1 ? '' : 'es' %> open to you</span>
+    </div>
+    <div class="panel-body">
+      <%# the count is already in the heading above, and the chips below name every class — a
+          “May work on · 1 class” row said the same thing a third time (school's request,
+          2026-09-19: make the cards compact, do not repeat a detail on its own line). %>
+      <div class="pf-chips" style="margin-top:0;">
+        <% classes.forEach(c => { %>
+          <span class="pf-chip<%= c.own ? ' pf-chip-own' : '' %>">
+            <%= c.label %><% if (c.own) { %> <small>class teacher</small><% } %>
+          </span>
+        <% }) %>
+      </div>
+      <p class="pf-note">
+        <%= scope %> — a class that is not in this list never opens for your login.
+      </p>
+    </div>
+  </div>
+
+  <%# ---- 🗓 MY WEEK — generated, never typed twice (school's request, 2026-09-19) ----
+      The office writes ONE timetable per class with the teacher's name on every period;
+      `timetable.forTeacher` turns those class grids into HIS week. A period with no
+      class of his at that hour prints as the school's “leisure” — a FREE period. The
+      full day-by-day list lives on /teacher/timetable (his own portal page, where he
+      also writes homework); this card is the week at a glance: the count, the free
+      count, and which day is heaviest. ---- %>
+  <div class="panel pf-card pf-card--week">
+    <div class="panel-head">
+      <h3>🗓 My week — from the office's timetables</h3>
+      <span class="text-muted">generated automatically</span>
+    </div>
+    <div class="panel-body">
+      <% if (myWeek && myWeek.totalHours) { %>
+        <%# the homework written for each period he teaches, day → period → note (the same
+            rows the parents' timetable reads) — written from his timetable page or by the office %>
+        <% const myWeekHomework = (typeof hwWeekFor !== 'undefined' && hwWeekFor) ? hwWeekFor : {}; %>
+        <div class="pf-week-stats">
+          <div class="pf-stat">
+            <b><%= myWeek.count %></b>
+            <small>Periods to teach this week</small>
+          </div>
+          <div class="pf-stat pf-stat--free">
+            <b><%= myWeek.free %></b>
+            <small>Free (leisure) periods</small>
+          </div>
+          <div class="pf-stat">
+            <b><%= myWeek.totalHours %></b>
+            <small>School hours Mon–Sat</small>
+          </div>
+        </div>
+        <%# one row per day: the day, then the periods that carry his name — or a calm
+            “free day”. A long week reads in seconds. %>
+        <div class="pf-week-list">
+          <% myWeek.days.forEach(dayName => {
+               const daySlots = myWeek.week[dayName] || {};
+               const busy = Object.keys(daySlots).map(Number).filter(p => daySlots[p] && daySlots[p].busy);
+          %>
+            <div class="pf-week-row<%= busy.length ? '' : ' pf-week-row-free' %>">
+              <span class="pf-week-day"><%= ttShort(dayName) %></span>
+              <span class="pf-week-cells">
+                <% if (!busy.length) { %>
+                  <span class="pf-week-free">😌 Free day — no period carries your name</span>
+                <% } else { %>
+                  <% busy.forEach(p => { const s = daySlots[p]; const hwNote = (myWeekHomework[dayName] && myWeekHomework[dayName][p]) || null; %>
+                    <span class="pf-week-slot c-<%= s.color %><%= hwNote ? ' has-hw' : '' %>">
+                      <b><%= s.subject %></b>
+                      <small><%= s.classLabel %> · P<%= p %><%= s.timeLabel ? ' · ' + s.timeLabel : '' %></small>
+                      <% if (hwNote) { %><small class="pf-week-hw" title="Homework given for this period">📝 <%= hwNote.note %></small><% } %>
+                    </span>
+                  <% }) %>
+                <% } %>
+              </span>
+            </div>
+          <% }) %>
+        </div>
+        <p class="pf-note">
+          This week is built from the class timetables the school office writes — every
+          period that carries your name on a class grid shows here automatically. A period
+          without your name is your free (leisure) time. Change a class's timetable and
+          this week changes with it — nothing to update twice.
+        </p>
+      <% } else { %>
+        <p class="pf-note">The office has not filled a timetable with your name yet — once it does, your week appears here by itself.</p>
+      <% } %>
+    </div>
+  </div>
+<% } %><%# end of !dashOnly — the login/record/classes/week cards stay on My Profile alone %>
+</div>
+
+<%# ---- the section tiles: only on the full My Profile page. The dashboard prints the SAME
+    list lower down as tappable tiles (its “What I can open” panel), so repeating it here
+    would show one list twice. ---- %>
+<% if (typeof withSections !== 'undefined' && withSections) { %>
+<div class="panel">
+  <div class="panel-head">
+    <h3>📋 What my login can open</h3>
+    <span class="text-muted"><%= permCount %> of <%= permTotal %> sections</span>
+  </div>
+  <div class="panel-body">
+    <div class="teacher-tiles">
+      <% allSections.forEach(s => { %>
+        <% const open = accessible.some(a => a.key === s.key); %>
+        <div class="teacher-tile pf-tile<%= open ? ' pf-tile-open' : ' pf-tile-off' %>">
+          <span class="teacher-tile-icon"><%= s.icon %></span>
+          <b><%= s.label %></b>
+          <small><%= s.hint %></small>
+          <span class="pf-tile-chip">
+            <% if (open) { %>
+              <span class="badge green">✅ Open</span>
+            <% } else { %>
+              <span class="badge">🔒 Closed</span>
+            <% } %>
+          </span>
+        </div>
+      <% }) %>
+    </div>
+    <p class="pf-note" style="margin-top:14px;">
+      <%= permChangedAt ? 'The office last changed your access on ' + fmtShortDate(permChangedAt) + '.' : 'The office has not changed your access yet.' %>
+      To open a closed section, ask the school office — it is switched on for your login from their side.
+    </p>
+  </div>
+</div>
+<% } %>

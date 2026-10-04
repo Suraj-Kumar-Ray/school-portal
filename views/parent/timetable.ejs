@@ -1,0 +1,347 @@
+<%- include('../partials/header', { title }) %>
+<%# what a slot is (subject period · assembly · lunch · games…). Same list the office edits. %>
+<% const kindOf = (key) => kinds.find(k => k.key === key) || kinds.find(k => k.key === 'class'); %>
+
+  <div class="tt-top">
+    <%# ---- the child card, in the SAME format as the Result page's (2026-09-18) ----------
+        One card, two sides: the child on the left (photo · name · Class badge · Roll No. ·
+        the photo hint), the class teacher's chip on the RIGHT side — the layout the school
+        asked for after seeing the Performance card. Every child of a class sees the SAME
+        teacher: looked up by the child's class alone (Admin → Teachers). The full short
+        profile (qualification, experience, rating) lives in the chip's title; no bio here. %>
+    <div class="kid-card tt-kid-card">
+      <%# the child's own photo leads the card, as on every page — the watch goes AFTER the
+          name (2026-09-18), a small clock chip that opens the day. %>
+      <% if (child.photo) { %>
+        <img src="<%= child.photo %>" alt="<%= child.full_name %>" class="kid-photo">
+      <% } else { %>
+        <span class="kid-photo kid-photo-ph"><%= child.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+      <% } %>
+      <div class="kid-info">
+        <span class="kid-name-row">
+          <b><%= child.full_name %></b>
+          <span class="tt-clock-chip" title="Time Table">🕒</span>
+        </span>
+        <span class="kid-meta">
+          <span class="badge blue"><%= child.class_name %><%= child.section ? ' ' + child.section : '' %></span>
+          <% if (child.roll_no) { %><span class="kid-roll">Roll No. <%= child.roll_no %></span><% } %>
+        </span>
+        <% if (!child.photo) { %><small class="kid-hint">📷 The school office will add the photo</small><% } %>
+      </div>
+
+      <% if (classTeacher) { %>
+        <div class="tt-teacher tt-teacher-side"
+             title="<%= classTeacher.name %> — <%= classTeacher.role %><% if (classTeacher.classLabel) { %> of <%= classTeacher.classLabel %><% } %><% if (classTeacher.qualification) { %> · 🎓 <%= classTeacher.qualification %><% } %><% if (classTeacher.experience_years) { %> · ⏳ <%= classTeacher.experience_years %> years<% } %><% if (classTeacher.rating) { %> · ⭐ <%= Number(classTeacher.rating).toFixed(1) %>/5<% } %>">
+          <% if (classTeacher.photo) { %>
+            <img src="<%= classTeacher.photo %>" alt="<%= classTeacher.name %>" class="tt-teacher-photo">
+          <% } else { %>
+            <span class="tt-teacher-photo tt-teacher-initial"><%= classTeacher.initial %></span>
+          <% } %>
+          <span class="tt-teacher-text">
+            <b><%= classTeacher.name %></b>
+            <small>👩‍🏫 Class teacher<% if (classTeacher.rating) { %> · ★ <%= Number(classTeacher.rating).toFixed(1) %><% } %></small>
+          </span>
+        </div>
+      <% } %>
+    </div>
+    <h1 class="tt-title">🕒 Time Table</h1>
+    <p class="tt-sub">Every period with its time and teacher — the homework sits on the period's own card</p>
+  </div>
+
+  <%- include('../partials/child_picker', { children, childId }) %>
+
+  <%# ================= EXAM DAYS =================
+      While the office has exam mode ON and this class has papers, the exam date-sheet is
+      shown INSTEAD of the weekly grid (services/exam_timetable.js). Nothing is deleted —
+      switching exam mode off brings the normal timetable straight back. %>
+  <% if (exam && exam.showing === 'exam') { %>
+    <div class="exam-banner">
+      <span class="exam-banner-ico">📝</span>
+      <div>
+        <b><%= exam.label %> — exam time table</b>
+        <small>The regular weekly timetable is paused until the exams are over.</small>
+      </div>
+    </div>
+
+    <% if (exam.note) { %><div class="exam-note"><%= exam.note %></div><% } %>
+
+    <% if (exam.next) { %>
+      <div class="exam-next">
+        <span class="exam-next-ico">⏭</span>
+        <div class="exam-next-text">
+          <b><%= exam.next.subject %></b>
+          <small><%= exam.next.isToday ? 'Today' : (exam.next.isTomorrow ? 'Tomorrow' : exam.next.dateLong) %><% if (exam.next.timeLabel) { %> · 🕗 <%= exam.next.timeLabel %><% } %></small>
+        </div>
+        <span class="exam-next-tag">Next paper</span>
+      </div>
+    <% } else if (exam.papers.length) { %>
+      <div class="exam-note">🎉 All papers are over. Thank you!</div>
+    <% } %>
+
+    <div class="exam-day-list">
+      <% exam.days.forEach(d => { %>
+        <div class="exam-day-card<%= d.isToday ? ' is-today' : '' %><%= d.isPast ? ' is-past' : '' %>">
+          <div class="exam-day-head">
+            <b><%= d.isToday ? 'Today' : d.dateShort %></b>
+            <span><%= d.dateLong %></span>
+          </div>
+          <% d.papers.forEach(p => { %>
+            <div class="exam-paper">
+              <span class="exam-paper-dot"></span>
+              <div class="exam-paper-body">
+                <b><%= p.subject %></b>
+                <% if (p.note) { %><small><%= p.note %></small><% } %>
+              </div>
+              <span class="exam-paper-time"><%= p.timeLabel || '—' %></span>
+            </div>
+          <% }) %>
+        </div>
+      <% }) %>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-body">
+        <p class="text-muted" style="margin:0; font-size:13px;">
+          📝 <%= exam.papers.length %> paper<%= exam.papers.length === 1 ? '' : 's' %> on <%= exam.days.length %> day<%= exam.days.length === 1 ? '' : 's' %>.
+          A question? <a href="/parent/messages">📬 Message the school</a>.
+        </p>
+      </div>
+    </div>
+  <% } else { %>
+
+  <%# ---- the exam is over / not on: the normal weekly timetable ---- %>
+  <% if (exam && exam.on && exam.showing !== 'exam') { %>
+    <div class="exam-note">📝 Exam mode is on, but no paper is listed for this class yet — the school office will add the date-sheet. Meanwhile here is the regular timetable.</div>
+  <% } %>
+
+  <%# ---- day chips: tap a day to see its periods ----
+      A CLOSED day (Sunday, or a date the office marked a holiday) says so instead of its
+      period count, so the whole week reads at a glance: “Thu 17 🎉 Holiday”. ---- %>
+  <div class="tt-days">
+    <% strip.forEach(d => { %>
+      <a href="/parent/timetable?day=<%= d.name %><%= children.length > 1 ? '&child=' + child.id : '' %>"
+         class="tt-day <%= (viewing && viewing.name === d.name) ? 'active' : '' %> <%= d.isToday ? 'today' : '' %><%= d.isClosed ? ' tt-day-off' : '' %>"
+         <% if (d.holiday) { %>title="<%= d.holidayName %> — school closed"<% } %>>
+        <span class="tt-day-name"><%= d.short %></span>
+        <span class="tt-day-num"><%= d.date %></span>
+        <% if (d.isClosed) { %>
+          <span class="tt-day-cnt tt-hol-long">Holiday</span>
+          <span class="tt-day-cnt tt-hol-short">Off</span>
+        <% } else { %>
+          <span class="tt-day-cnt"><%= counts[d.name] || 0 %></span>
+        <% } %>
+        <% if (d.isToday) { %><span class="tt-day-dot" title="Today"></span><% } %>
+        <% if (d.holiday) { %><span class="tt-day-mark" title="<%= d.holidayName %>">🎉</span><% } %>
+      </a>
+    <% }) %>
+    <%# ---- the weekly holiday sits at the end of the row, warm coloured ---- %>
+    <a href="/parent/timetable?day=Sunday<%= children.length > 1 ? '&child=' + child.id : '' %>"
+       class="tt-day tt-day-holiday <%= (viewing && viewing.name === 'Sunday') ? 'active' : '' %> <%= sunday.isToday ? 'today' : '' %>">
+      <span class="tt-day-name"><%= sunday.short %></span>
+      <span class="tt-day-num"><%= sunday.date %></span>
+      <%# small phones have room for one short word only, so the label swaps %>
+      <span class="tt-day-cnt tt-hol-long" title="Sunday — holiday">Holiday</span>
+      <span class="tt-day-cnt tt-hol-short" title="Sunday — holiday">Off</span>
+    </a>
+  </div>
+
+  <%# ---- the day the parent is looking at (today by default) ---- %>
+  <div class="tt-day-head">
+    <div class="tt-day-head-left">
+      <% if (showingHoliday) { %>
+        <b><%= holidayIsToday ? 'Today' : 'Sunday' %></b>
+        <span><%= holidayLabel %></span>
+      <% } else { %>
+        <b><%= selected && selected.isToday ? 'Today' : (selected ? selected.name : day) %></b>
+        <span><%= selected ? selected.long : day %></span>
+      <% } %>
+    </div>
+    <div class="tt-day-head-right">
+      <% if (showingHoliday) { %>
+        <span class="badge red">HOLIDAY</span>
+      <% } else { %>
+        <% if (selected && selected.isToday) { %><span class="badge green">TODAY</span><% } %>
+        <span class="tt-count"><%= periods.length %> period<%= periods.length === 1 ? '' : 's' %></span>
+      <% } %>
+      <%# back to the day that is actually running — shown whenever the parent is not on it %>
+      <% if (viewingOtherDay || (isSunday && !showingHoliday) || (showingHoliday && !holidayIsToday)) { %>
+        <a class="tt-today-link" href="/parent/timetable<%= children.length > 1 ? '?child=' + child.id : '' %>">↩ <%= isSunday ? 'Today' : 'Today (' + todayName + ')' %></a>
+      <% } %>
+    </div>
+  </div>
+
+  <%# ---- A DAY THE SCHOOL IS SHUT — Sunday, or a festival the office marked ----------------
+      School's request (2026-09-17): “Suppose today is Vishwakarma Puja — the timetable
+      should show a holiday and ‘Happy Vishwakarma Puja’.” The wish (greeting) is the
+      office's own line, typed on Admin → Holidays; when they leave it empty the card names
+      the holiday instead. The Sunday wordings are unchanged on purpose (parents know them).
+      The reason and the “opens again” day both come from services/holidays.js. ---- %>
+  <% if (showingHoliday && holidayCard) { %>
+    <div class="tt-holiday<%= holidayCard.greeting ? ' has-wish' : '' %>">
+      <span class="tt-holiday-ico">🎉</span>
+      <% if (holidayCard.isSunday && !holidayCard.greeting) { %>
+        <% if (holidayCard.isToday) { %>
+          <b>It's Sunday — school is closed today.</b>
+          <small>
+            Enjoy the holiday!
+            <% if (openAgain) { %>The school opens again on <b><%= openAgain.long %></b>.<% } %>
+          </small>
+        <% } else { %>
+          <b>Sunday is a holiday — the school stays closed.</b>
+          <small>Every Sunday is a day off for the children and the staff.</small>
+        <% } %>
+      <% } else { %>
+        <b><%= holidayCard.greeting || ('Holiday: ' + holidayCard.name) %></b>
+        <small>
+          School stays closed <%= holidayCard.isToday ? 'today' : 'on ' + holidayCard.label %>
+          for <b><%= holidayCard.name %></b>.
+          <% if (openAgain) { %>The school opens again on <b><%= openAgain.long %></b>.<% } %>
+        </small>
+        <% if (holidayCard.note) { %><small class="tt-holiday-note"><%= holidayCard.note %></small><% } %>
+      <% } %>
+      <small class="tt-holiday-hint">Tap any day above to see that day's periods.</small>
+    </div>
+  <% } %>
+
+  <%# ---- period cards ---- %>
+  <% if (!showingHoliday && periods.length) { %>
+    <div class="tt-cards">
+      <% periods.forEach(p => { %>
+        <%# a break is NOT a class: it shows its own kind and never a made-up teacher %>
+        <article class="tt-card c-<%= p.color %><%= p.isBreak ? ' tt-card-break' : '' %>">
+          <div class="tt-card-head">
+            <span class="tt-subject"><span class="tt-emoji"><%= p.emoji %></span> <%= p.subject %></span>
+            <span class="tt-pnum">Period <%= p.period %></span>
+          </div>
+          <div class="tt-card-foot">
+            <span class="tt-chip">🕗 <%= p.timeLabel || '—' %></span>
+            <% if (p.isBreak) { %>
+              <span class="tt-chip tt-chip-note"><%= p.kindNote || p.kindLabel %></span>
+            <% } else if (p.kindNote) { %>
+              <span class="tt-chip tt-chip-teacher">👨‍🏫 <%= p.teacher || 'Class teacher' %></span>
+              <span class="tt-chip tt-chip-note"><%= p.kindNote %></span>
+            <% } else { %>
+              <span class="tt-chip tt-chip-teacher">👨‍🏫 <%= p.teacher || 'Class teacher' %></span>
+            <% } %>
+          </div>
+          <%# ---- HOMEWORK (2026-09-18): what was given in this period -------------------------
+              The class teacher writes it from his portal, the office from the admin panel
+              (services/homework.js). An empty note still says the standing line, so a parent
+              NEVER reads a blank; a break has no homework to check. Today's note carries the
+              “new” dot; an older one says its day quietly. ---- %>
+          <% const hwRow = (homeworkDay && homeworkDay[p.period]) || null; %>
+          <% if (!p.isBreak && hwRow) { %>
+            <div class="tt-hw<%= hwRow.isToday ? ' is-new' : '' %>">
+              <span class="tt-hw-ico">📝</span>
+              <span class="tt-hw-body">
+                <b>Homework<%= hwRow.isToday ? '' : ' · ' + hwRow.givenOn %></b>
+                <small><%= hwRow.note %></small>
+              </span>
+              <%# ---- the school's mark on THIS child (2026-09-18) -------------------------
+                  The class teacher (or the office) said the truth about him: ✕ he came
+                  without the homework, ✓ he did it. NO mark → nothing printed here at all —
+                  a parent is never shown a claim no teacher made. ---- %>
+              <% const hwMark = (homeworkMarks && homeworkMarks[p.period]) || null; %>
+              <% if (hwMark) { %>
+                <span class="tt-hw-mark <%= hwMark.status === 'done' ? 'is-done' : 'is-not' %>"
+                      title="<%= hwMark.status === 'done' ? 'Homework done' : 'Homework not done' %> — marked by <%= hwMark.markedBy || 'school' %><%= hwMark.markedOn ? ' on ' + hwMark.markedOn : '' %>">
+                  <%= hwMark.status === 'done' ? '✓' : '✕' %>
+                </span>
+                <%# the school's ask (2026-09-19): a parent must READ the ✕, not decode it —
+                    so a not-done mark says the DAY it is for when the parent is looking at
+                    another day (the previous day's slip). Today's own marks stay just ✕/✓. %>
+                <% if (hwMark.status !== 'done' && selected && !selected.isToday) { %>
+                  <span class="tt-hw-day-tag"> <%= selected.name %> </span>
+                <% } %>
+              <% } %>
+            </div>
+          <% } %>
+        </article>
+      <% }) %>
+    </div>
+  <% } else if (!showingHoliday) { %>
+    <div class="tt-empty">
+      <span class="tt-empty-ico">🎈</span>
+      <b>No periods listed for <%= day %></b>
+      <small>Tap another day above to see its periods.</small>
+    </div>
+  <% } %>
+
+  <%# ---- what is coming: the next few holidays, so a parent can plan the week ---- %>
+  <% if (upcomingHolidays && upcomingHolidays.length) { %>
+    <div class="panel tt-hol-list">
+      <div class="panel-head">
+        <h3>🎉 Coming holidays</h3>
+        <span class="panel-head-note">the school stays closed on these days</span>
+      </div>
+      <div class="panel-body">
+        <ul class="tt-hol-items">
+          <% upcomingHolidays.forEach(h => { %>
+            <li<%= h.date === todayISO ? ' class="is-today"' : '' %>>
+              <%# “Thu, 17 Sept” already says the weekday and the date, and the line on the right
+                  says how far off it is — the long date underneath was the same words a third
+                  time. It is only printed when the holiday is in ANOTHER year, which is the
+                  one thing the short date cannot say. -- %>
+              <span class="tt-hol-date">
+                <b><%= h.dateShort %></b>
+                <% if (h.date.slice(0, 4) !== todayISO.slice(0, 4)) { %><small><%= h.dateLong %></small><% } %>
+              </span>
+              <span class="tt-hol-name">
+                <b><%= h.name %></b>
+                <% if (h.greeting) { %><small><%= h.greeting %></small><% } %>
+              </span>
+              <span class="tt-hol-when"><%= h.when %></span>
+            </li>
+          <% }) %>
+        </ul>
+      </div>
+    </div>
+  <% } %>
+
+  <%# ---- the whole week, for when a parent wants the full picture ---- %>
+  <details class="tt-week">
+    <summary>📋 See the whole week (Mon – Sat)</summary>
+    <div class="tt-week-body">
+      <div class="table-wrap">
+        <table class="tt-grid">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <% days.forEach(d => { %><th><%= shorts[d] %></th><% }) %>
+            </tr>
+          </thead>
+          <tbody>
+            <% gridPeriods.forEach(p => { %>
+              <tr>
+                <td class="tt-grid-period">
+                  <b><%= p %></b>
+                  <% const t = timeByPeriod.get(p); if (t) { %><small><%= t.label %></small><% } %>
+                </td>
+                <% days.forEach(d => { const slot = grid[d] && grid[d][p]; const meta = slot ? kindOf(slot.kind || 'class') : null; %>
+                  <td>
+                    <% if (slot) { %>
+                      <span class="tt-cell<%= meta.break ? ' tt-cell-break' : '' %>">
+                        <span class="tt-subject"><%= meta.break ? meta.emoji + ' ' : '' %><%= slot.subject %></span>
+                        <span class="tt-teacher"><%= meta.break ? meta.label : (slot.teacher || '') %></span>
+                      </span>
+                    <% } else { %><span class="text-muted">—</span><% } %>
+                  </td>
+                <% }) %>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <p class="tt-note tt-note-inline">🕗 Period times are set by the school office (Admin → Time table).</p>
+    </div>
+  </details>
+
+  <div class="panel" style="margin-top:14px">
+    <div class="panel-body">
+      <p class="text-muted" style="margin:0; font-size:13px;">👨‍🏫 A question about a subject or a teacher? <a href="/parent/messages">📬 Message the school</a>.</p>
+    </div>
+  </div>
+
+  <% } %><%# /exam branch %>
+
+<%- include('../partials/footer') %>

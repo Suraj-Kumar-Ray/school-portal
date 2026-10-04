@@ -1,0 +1,196 @@
+<%- include('../partials/public_nav', { title }) %>
+  <div class="page-head">
+    <h1>📞 Contact Us</h1>
+    <p>Call, email, or send us a message — we usually reply the same day.</p>
+  </div>
+
+  <% if (sent) { %><div class="alert success">✅ <b>Message sent!</b> Thank you for contacting us — the school office will get back to you soon.</div><% } %>
+  <% if (error) { %><div class="alert error"><b>⚠️ Please fix the mistake below:</b> <%= error %></div><% } %>
+
+  <!-- 1. SCHOOL TIMINGS -->
+  <div class="panel">
+    <div class="panel-head"><h3><%= ct.ctTimingsHeading %></h3></div>
+    <div class="panel-body">
+      <table>
+        <tbody>
+          <% [1,2,3].forEach(n => {
+               const lbl = ct['ctTime' + n + 'Label'], val = ct['ctTime' + n + 'Value'];
+               if (!lbl || !val) return;
+          %>
+          <tr><td><%= lbl %></td><td class="text-right"><b><%= val %></b></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+      <% if (ct.ctTimeNote) { %><p class="text-muted" style="margin:10px 0 0; font-size:13.5px;"><%= ct.ctTimeNote %></p><% } %>
+    </div>
+  </div>
+
+  <!-- 2. PHONE / WHATSAPP (simple icons) -->
+  <div class="panel">
+    <div class="panel-head"><h3><%= ct.ctPhoneHeading %></h3></div>
+    <div class="panel-body">
+      <div class="phone-chips">
+        <% (ct.phones || school.schoolPhones).forEach(p => {
+             const num = p.number || p;
+             const digits = String(num).replace(/\D/g, '');
+             const waDigits = digits.length === 10 ? '91' + digits : digits;
+        %>
+          <a href="tel:<%= digits %>" title="Call <%= num %>">📱 <%= num %></a>
+          <% if (p.whatsapp) { %>
+          <a href="https://wa.me/<%= waDigits %>" target="_blank" rel="noopener" class="wa-chip" title="Chat on WhatsApp">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="#25D366" style="vertical-align:middle;"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            WhatsApp
+          </a>
+          <% } %>
+        <% }) %>
+      </div>
+      <% if (ct.ctPhoneNote) { %><p class="text-muted"><%= ct.ctPhoneNote %></p><% } %>
+    </div>
+  </div>
+
+  <!-- EMAIL (below phone) -->
+  <div class="panel">
+    <div class="panel-head"><h3>✉️ Email</h3></div>
+    <div class="panel-body">
+      <% school.schoolEmails.forEach(e => { %>
+        <p style="font-size:15.5px; font-weight:600; margin:6px 0;"><a href="mailto:<%= e %>" style="color:var(--primary-dark); text-decoration:none;">✉️ <%= e %></a></p>
+      <% }) %>
+      <p class="text-muted">General enquiries &amp; admissions · We typically respond within 24 hours during working days.</p>
+    </div>
+  </div>
+
+  <!-- 3. MESSAGE FORM -->
+  <div class="panel">
+    <div class="panel-head"><h3><%= ct.ctMsgHeading %></h3><span class="text-muted"><%= ct.ctMsgNote %></span></div>
+    <div class="panel-body">
+      <form method="POST" action="/contact" id="contactForm" novalidate
+            data-confirm-title="Send this message?"
+            data-confirm-msg="Do you really want to send this message to the school office?"
+            data-confirm-ok="Yes, send">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="c-name">Your name *</label>
+            <input type="text" id="c-name" name="name" placeholder="e.g. Rakesh Kumar" required>
+            <small class="field-error" data-for="name"></small>
+          </div>
+          <div class="form-group">
+            <label for="c-phone">Mobile number *</label>
+            <input type="tel" id="c-phone" name="phone" placeholder="10-digit mobile number" inputmode="numeric" required>
+            <small class="field-error" data-for="phone"></small>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="c-email">Email (optional)</label>
+            <input type="email" id="c-email" name="email" placeholder="name@gmail.com">
+            <small class="field-error" data-for="email"></small>
+          </div>
+          <div class="form-group">
+            <label for="c-subject">Subject *</label>
+            <input type="text" id="c-subject" name="subject" placeholder="e.g. Admission enquiry for Class 3" required>
+            <small class="field-error" data-for="subject"></small>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="c-message">Your message *</label>
+          <textarea id="c-message" name="message" rows="5" placeholder="Write your question or message here..." required></textarea>
+          <small class="field-error" data-for="message"></small>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+          <p class="text-muted" style="margin:0; font-size:12.5px;">🔒 Your details only go to the school office.</p>
+          <button type="submit" class="btn btn-primary btn-lg">📨 Send Message</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. GOOGLE MAP (bottom) -->
+  <% if (ct.ctMapShow === '1') { %>
+  <div class="panel" style="padding:0; overflow:hidden; border-radius:12px;">
+    <div class="panel-head"><h3><%= ct.ctMapHeading %></h3></div>
+    <div style="width:100%; height:350px;">
+      <iframe src="https://www.google.com/maps?q=<%= encodeURIComponent(ct.ctMapQuery || 'Demo Town, Demo District, Bihar') %>&output=embed"
+        width="100%" height="350" style="border:0; display:block;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    </div>
+    <div class="panel-body" style="padding:16px 20px;">
+      <p style="margin:0 0 4px;"><b><%= ct.ctMapAddress %></b></p>
+      <a href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(ct.ctMapQuery || 'Demo Town, Demo District, Bihar') %>"
+         target="_blank" rel="noopener"
+         style="display:inline-flex; align-items:center; gap:6px; margin-top:10px; padding:8px 16px; background:#1a73e8; color:#fff; border-radius:8px; font-weight:600; font-size:14px; text-decoration:none;">
+        📍 Open in Google Maps
+      </a>
+    </div>
+  </div>
+  <% } %>
+
+  <div style="text-align:center; margin-top:8px;">
+    <a href="/apply" class="btn btn-primary">Apply for Admission</a>
+  </div>
+
+  <script>
+    (function () {
+      var form = document.getElementById('contactForm');
+      if (!form) return;
+      var phone = document.getElementById('c-phone');
+
+      function setErr(name, msg) {
+        var slot = form.querySelector('.field-error[data-for="' + name + '"]');
+        var input = form.querySelector('[name="' + name + '"]');
+        if (slot) slot.textContent = msg || '';
+        if (input) input.classList.toggle('input-invalid', !!msg);
+      }
+      function clearErrs() {
+        form.querySelectorAll('.field-error').forEach(function (s) { s.textContent = ''; });
+        form.querySelectorAll('.input-invalid').forEach(function (i) { i.classList.remove('input-invalid'); });
+      }
+      function isBlank(v) { return !v || !v.trim(); }
+      function nameOk(v) { return /^[A-Za-z][A-Za-z .'-]{1,79}$/.test(v.trim()); }
+      function emailOk(v) { return /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(v.trim()); }
+      function phoneOk(v) { return /^[6-9][0-9]{9}$/.test(v); }
+
+      phone.addEventListener('input', function () {
+        phone.value = phone.value.replace(/\D/g, '').slice(0, 10);
+      });
+
+      function validate(showAll) {
+        clearErrs();
+        var bad = [];
+        function mark(name, msg) { setErr(name, msg); bad.push(name); }
+
+        var nm = form.name.value;
+        if (isBlank(nm)) mark('name', '⚠ Please enter your name');
+        else if (!nameOk(nm)) mark('name', '⚠ Name should use letters only');
+
+        var ph = phone.value;
+        if (isBlank(ph)) mark('phone', '⚠ Mobile number is required (10 digits)');
+        else if (ph.length !== 10) mark('phone', '⚠ Only ' + ph.length + ' digits entered — 10 digits needed');
+        else if (!phoneOk(ph)) mark('phone', '⚠ Number should start with 6, 7, 8 or 9');
+
+        var em = form.email.value;
+        if (!isBlank(em) && !emailOk(em)) mark('email', '⚠ Invalid email — enter it like rahul@gmail.com');
+
+        if (isBlank(form.subject.value)) mark('subject', '⚠ Please write a short subject');
+
+        var msg = form.message.value;
+        if (isBlank(msg)) mark('message', '⚠ Please write your message');
+        else if (msg.trim().length < 10) mark('message', '⚠ Message at least 10 characters please');
+
+        return bad;
+      }
+
+      ['name', 'email', 'subject'].forEach(function (n) {
+        var el = form.querySelector('[name="' + n + '"]');
+        if (el) el.addEventListener('blur', function () { validate(false); });
+      });
+
+      form.addEventListener('submit', function (e) {
+        var bad = validate(true);
+        if (bad.length) {
+          e.preventDefault();
+          var first = form.querySelector('.input-invalid');
+          if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); first.focus({ preventScroll: true }); }
+        }
+      });
+    })();
+  </script>
+<%- include('../partials/public_footer') %>

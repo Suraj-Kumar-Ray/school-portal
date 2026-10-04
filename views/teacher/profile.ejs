@@ -1,0 +1,19 @@
+<%- include('../partials/header', { title }) %>
+  <%# the “View only” badge rides WITH the title (school's request, 2026-09-19: “a bit more
+      compact for the phone view”) — it used to take a line of its own under the title %>
+  <div class="page-head pf-page-head">
+    <div class="pf-head-line">
+      <h1>🪪 My Profile</h1>
+      <span class="badge blue">🔒 View only</span>
+    </div>
+    <p>Your own record at the school — <b>exactly what the office has set for you</b>.</p>
+  </div>
+
+  <%#
+    The cards themselves live in ONE partial, because the teacher's dashboard shows the very
+    same block under its title (school's request, 2026-09-18) — one file, so the two can never
+    drift apart. `withSections` adds the section tiles, which only this page prints: the
+    dashboard already carries the same list as tappable tiles in its own panel.
+  %>
+  <%- include('../partials/teacher_profile_cards', { withSections: true }) %>
+<%- include('../partials/footer') %>

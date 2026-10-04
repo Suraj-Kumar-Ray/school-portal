@@ -1,0 +1,19 @@
+<%# ---- THE APP'S FRONT IMAGE (school's request, 2026-09-18) ---------------------------------
+    “Opening the app should show an update and everything should update — even the app's front
+    image.” Android draws its own splash from the INSTALLED app's icon, which can only change when
+    Android updates that install; this screen is drawn by the page itself, so it is always the
+    latest crest, the latest name and the latest colours the moment the HTML arrives.
+
+    Shown by public/js/app-update.js and only when the app is opened AS an app
+    (`display-mode: standalone`, or iOS `navigator.standalone`) — or when a page is opened with
+    `?launch=1`, which is how the office (and the smoke tests) can look at it in a plain browser.
+    It starts `hidden`, so with JavaScript off nobody is ever stuck behind it. ---- %>
+<div class="app-launch no-print" id="appLaunch" hidden aria-hidden="true">
+  <div class="app-launch-inner">
+    <img src="<%= school.logo %>" alt="" class="app-launch-logo" width="120" height="120">
+    <b class="app-launch-name"><%= school.schoolName %></b>
+    <span class="app-launch-sub"><%= school.schoolTypeLine %></span>
+    <span class="app-launch-bar" aria-hidden="true"><i></i></span>
+    <span class="app-launch-hint">Starting the app…</span>
+  </div>
+</div>

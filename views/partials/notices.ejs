@@ -1,0 +1,43 @@
+<%#
+  NOTICES — drawn as one card per notice, the same shape everywhere a parent reads them
+  (§2a18's card language). The card answers, in order: that this is from the school, WHO it
+  is for (all classes or this child's class), whether it is fresh, when it was posted, then
+  the title and the notice itself.
+
+  Needs: `notices` (from `portals.getClassNotices`, which stamps each row with `isNew`), and
+  optionally `seeAll` = `{ href, count }` — the HOME page passes it (it shows only a few and
+  links to /parent/notices), while the notices page itself does not (it IS the whole list).
+%>
+<div class="panel">
+  <%
+    const fresh = notices.filter(n => n.isNew).length;
+    const more = (typeof seeAll !== 'undefined' && seeAll) ? seeAll : null;
+  %>
+  <div class="panel-head">
+    <h3>📢 Notices <% if (fresh) { %><span class="nav-badge"><%= fresh %> new</span><% } %></h3>
+    <% if (more) { %>
+      <a href="<%= more.href %>" class="panel-more">See all <%= more.count %> →</a>
+    <% } else { %>
+      <span class="badge gray"><%= notices.length %></span>
+    <% } %>
+  </div>
+  <div class="panel-body">
+    <% if (!notices.length) { %>
+      <div class="empty">No notices yet. School announcements appear here.</div>
+    <% } else { %>
+      <% notices.forEach(n => { %>
+      <article class="notice-item notice-card<%= n.isNew ? ' is-new' : '' %><%= n.audience === 'teachers' ? ' is-staff' : '' %>">
+        <div class="nc-from">
+          <span class="nc-who"><span class="nc-ico"><%= n.audience === 'teachers' ? '👔' : '📢' %></span> <%= n.audience === 'teachers' ? 'Staff notice' : 'School notice' %></span>
+          <span class="nc-audience"><%= n.class_name ? 'For ' + n.class_name : 'For all classes' %></span>
+          <% if (n.isNew) { %><span class="new-flag">New</span><% } %>
+          <span class="nc-when"><%= fmtDate(n.created_at) %> <span class="tz-tag">IST</span></span>
+        </div>
+        <div class="nc-title"><%= n.title %></div>
+        <p class="nc-body"><%= n.body %></p>
+        <% if (n.posted_by) { %><div class="nc-by">Posted by <%= n.posted_by %></div><% } %>
+      </article>
+      <% }) %>
+    <% } %>
+  </div>
+</div>

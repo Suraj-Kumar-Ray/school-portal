@@ -1,0 +1,439 @@
+<%- include('../partials/header', { title }) %>
+
+<div class="page-head">
+  <h1>🏆 Class Toppers</h1>
+  <p class="text-muted">These toppers show on the landing page — 3 per class. Change a whole class (names, percentages, photos) and press one Save button. Changes appear on the website immediately.</p>
+</div>
+
+<% if (flash.saved) { %><div class="alert success">✅ Saved — the website is updated.</div><% } %>
+<% if (flash.removed) { %><div class="alert success">🗑️ Removed.</div><% } %>
+<% if (flash.error) { %><div class="alert error">⚠️ <%= flash.error %></div><% } %>
+
+<div class="panel">
+  <div class="panel-head"><h3>➕ Add a class</h3></div>
+  <div class="panel-body">
+    <form method="POST" action="/admin/toppers/classes/add" class="topper-add-form">
+      <div>
+        <label>Class name</label>
+        <input list="classNames" name="class_name" placeholder="e.g. Class 5" required style="max-width:180px">
+        <datalist id="classNames">
+          <% classNames.forEach(cn => { %><option value="<%= cn %>"><% }) %>
+        </datalist>
+      </div>
+      <div>
+        <label>1st topper name</label>
+        <input name="name" placeholder="Student name" required style="max-width:220px">
+      </div>
+      <div style="align-self:flex-end">
+        <button class="btn btn-primary">Add Class Card</button>
+      </div>
+    </form>
+    <p class="text-muted" style="margin:8px 0 0; font-size:12.5px">The card opens with all 3 ranks ready — fill the names, percentages and photos, then press the class's Save button once.</p>
+  </div>
+</div>
+
+<% groups.forEach(g => {
+     const first = g.toppers[0];
+     const byRank = {};
+     g.toppers.forEach(t => { byRank[t.rank_no] = t; });
+     const formId = 'topperForm' + first.id;
+     const rankLabels = ['🥇 1st', '🥈 2nd', '🥉 3rd'];
+%>
+<div class="panel topper-class-panel" id="topper-<%= first.id %>">
+  <div class="panel-head">
+    <h3>🎓 <%= g.class_name %></h3>
+  </div>
+  <div class="panel-body">
+    <%# the page itself lists the names that are about to be removed (see the script at the
+        bottom), so the shared asker stays out of the way %>
+    <form method="POST" action="/admin/toppers/class/save" id="<%= formId %>" class="topper-class-form"
+          data-confirm="own" data-class="<%= g.class_name %>">
+      <input type="hidden" name="class_name" value="<%= g.class_name %>">
+      <div class="topper-edit-grid">
+        <% [1, 2, 3].forEach((rank, i) => { const t = byRank[rank] || null; const slot = 'photo-' + formId + '-' + rank; %>
+        <div class="topper-edit-card rank<%= rank %><%= t && t.photo ? ' has-photo' : '' %>" data-rank="<%= rank %>">
+          <div class="te-rank-label"><%= rankLabels[i] %></div>
+          <div class="te-flex">
+            <!-- click the photo to choose one; hover it for Edit / Delete -->
+            <span class="te-photo-wrap">
+              <label class="te-photo-box" title="Click to choose a photo">
+                <input type="file" accept="image/*" class="photo-file" data-rank="<%= rank %>" style="display:none;">
+                <% if (t && t.photo) { %>
+                  <img class="te-photo" alt="" src="<%= t.photo %>">
+                  <span class="te-photo-ph" style="display:none"><%= t.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+                <% } else { %>
+                  <img class="te-photo" alt="" style="display:none">
+                  <span class="te-photo-ph"><%= t ? t.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '+' %></span>
+                <% } %>
+              </label>
+              <span class="te-photo-actions">
+                <button type="button" class="te-photo-edit" data-rank="<%= rank %>" title="Change photo" aria-label="Change photo">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/></svg>
+                </button>
+                <button type="button" class="te-photo-remove photo-remove" data-rank="<%= rank %>" title="Delete photo" aria-label="Delete photo">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/></svg>
+                </button>
+              </span>
+            </span>
+          </div>
+          <input type="hidden" name="photo" data-rank="<%= rank %>" id="<%= slot %>" value="">
+          <input type="hidden" name="removePhoto" class="photo-remove-flag" data-rank="<%= rank %>" value="0">
+          <label>Name
+            <input name="name" value="<%= t ? t.name : '' %>" data-original="<%= t ? t.name : '' %>" maxlength="80" placeholder="Student name">
+          </label>
+          <label>Percentage (%)
+            <input name="percentage" type="number" min="0" max="100" step="0.01" value="<%= t ? t.percentage : '' %>" placeholder="e.g. 94.6">
+          </label>
+        </div>
+        <% }) %>
+      </div>
+    </form>
+    <!-- both actions live at the bottom of the card; Save stays rightmost -->
+    <div class="topper-foot">
+      <form method="POST" action="/admin/toppers/classes/delete" onsubmit="return confirm('Delete the <%= g.class_name %> topper card completely?');">
+        <input type="hidden" name="class_name" value="<%= g.class_name %>">
+        <button class="btn btn-danger btn-sm">🗑️ Delete Card</button>
+      </form>
+      <button type="submit" form="<%= formId %>" class="btn btn-primary topper-save-btn">💾 Save <%= g.class_name %></button>
+    </div>
+  </div>
+</div>
+<% }) %>
+
+<!-- ✂️ Crop before upload — choose how much of the photo fits the circle -->
+<div class="cr-overlay" id="crOverlay" hidden>
+  <div class="cr-modal" role="dialog" aria-modal="true" aria-labelledby="crTitle">
+    <div class="cr-head">
+      <h3 id="crTitle">✂️ Crop photo</h3>
+      <button type="button" class="cr-x" id="crClose" aria-label="Close">✕</button>
+    </div>
+    <div class="cr-body">
+      <div class="cr-stage">
+        <div class="cr-viewport" id="crViewport">
+          <img id="crImg" alt="">
+          <span class="cr-circle"></span>
+        </div>
+      </div>
+      <div class="cr-side">
+        <p class="cr-prev-label">Circle preview</p>
+        <canvas id="crPrev" width="180" height="180"></canvas>
+        <p><b>Dashed circle = website view.</b> Drag the photo to move it, pinch or use the slider to zoom, then press <b>Use this photo</b>.</p>
+      </div>
+    </div>
+    <div class="cr-zoom-row">
+      <span aria-hidden="true">🔍</span>
+      <input type="range" id="crZoom" min="1" max="3" step="0.01" value="1" aria-label="Zoom">
+      <button type="button" class="cr-reset" id="crReset">↺ Center</button>
+    </div>
+    <div class="cr-foot">
+      <button type="button" class="btn" id="crCancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="crApply">✔ Use this photo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Each class is ONE form. Photos are cropped + resized in the browser and kept
+  // in a hidden field, so names + percentages + photos save with the same click.
+  var noHover = !!(window.matchMedia && window.matchMedia('(hover: none)').matches);
+
+  /* ============ photo cropper: pick how much of the photo shows ============ */
+  var cropper = (function () {
+    var overlay = document.getElementById('crOverlay');
+    if (!overlay) return null;
+    var vp = document.getElementById('crViewport');
+    var img = document.getElementById('crImg');
+    var zoomEl = document.getElementById('crZoom');
+    var prevCv = document.getElementById('crPrev');
+    var OUT = 400, MAXZ = 3;
+
+    var target = null;
+    var st = { w: 0, h: 0, view: 0, base: 1, zoom: 1, ox: 0, oy: 0 };
+    var drag = null, pinch = null, pts = {};
+
+    function scale() { return st.base * st.zoom; }
+    function measure() { st.view = vp.clientWidth || 280; st.base = st.view / Math.min(st.w || 1, st.h || 1); }
+
+    function clamp() {
+      var s = scale(), V = st.view, dw = st.w * s, dh = st.h * s;
+      st.ox = Math.min(0, Math.max(V - dw, st.ox));
+      st.oy = Math.min(0, Math.max(V - dh, st.oy));
+      if (dw <= V) st.ox = (V - dw) / 2;
+      if (dh <= V) st.oy = (V - dh) / 2;
+    }
+
+    function cropRect() {
+      var s = scale(), V = st.view;
+      return { sx: -st.ox / s, sy: -st.oy / s, sw: V / s, sh: V / s };
+    }
+
+    function drawPreview() {
+      if (!prevCv || !prevCv.getContext || !st.w) return;
+      var c = cropRect();
+      var ctx = prevCv.getContext('2d');
+      ctx.clearRect(0, 0, prevCv.width, prevCv.height);
+      try { ctx.drawImage(img, c.sx, c.sy, c.sw, c.sh, 0, 0, prevCv.width, prevCv.height); } catch (e) {}
+    }
+
+    function render() {
+      clamp();
+      var s = scale();
+      img.style.width = (st.w * s) + 'px';
+      img.style.height = (st.h * s) + 'px';
+      img.style.transform = 'translate(' + st.ox + 'px,' + st.oy + 'px)';
+      drawPreview();
+    }
+
+    function centerPhoto() {
+      var s = scale();
+      st.ox = (st.view - st.w * s) / 2;
+      st.oy = (st.view - st.h * s) / 2;
+    }
+
+    // zoom while keeping the point under (cx, cy) in the viewport still
+    function zoomTo(z, cx, cy) {
+      if (!st.w) return;
+      z = Math.min(MAXZ, Math.max(1, z));
+      var px = (cx == null) ? st.view / 2 : cx;
+      var py = (cy == null) ? st.view / 2 : cy;
+      var oldS = scale();
+      var srcX = (px - st.ox) / oldS, srcY = (py - st.oy) / oldS;
+      st.zoom = z;
+      zoomEl.value = z;
+      var ns = scale();
+      st.ox = px - srcX * ns;
+      st.oy = py - srcY * ns;
+      render();
+    }
+
+    function close() {
+      overlay.hidden = true;
+      document.body.style.overflow = '';
+      pts = {}; drag = null; pinch = null;
+      if (target && target.url) { try { URL.revokeObjectURL(target.url); } catch (e) {} }
+      if (target && target.fileInput) target.fileInput.value = '';
+      target = null;
+      st.w = 0;
+      img.removeAttribute('src');
+    }
+
+    function open(file, tgt) {
+      if (target) close();
+      var url = URL.createObjectURL(file);
+      target = { slot: tgt.slot, fileInput: tgt.fileInput, url: url };
+      img.onload = function () {
+        st.w = img.naturalWidth || 1;
+        st.h = img.naturalHeight || 1;
+        st.zoom = 1;
+        zoomEl.value = 1;
+        measure();
+        centerPhoto();
+        render();
+      };
+      img.onerror = function () { alert('Could not read that image — please try another one.'); close(); };
+      overlay.hidden = false;
+      document.body.style.overflow = 'hidden';
+      img.src = url;
+    }
+
+    function apply() {
+      if (!target || !st.w) { close(); return; }
+      var c = cropRect();
+      var cv = document.createElement('canvas');
+      cv.width = OUT; cv.height = OUT;
+      var ctx = cv.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, OUT, OUT);
+      ctx.drawImage(img, c.sx, c.sy, c.sw, c.sh, 0, 0, OUT, OUT);
+      var data = cv.toDataURL('image/jpeg', 0.85);
+      var s = target.slot;
+      if (!s) { close(); return; }
+      s.hiddenPhoto.value = data;
+      s.flag.value = '0';
+      var shown = s.card.querySelector('.te-photo');
+      var ph = s.card.querySelector('.te-photo-ph');
+      if (shown) { shown.src = data; shown.style.display = ''; }
+      if (ph) ph.style.display = 'none';
+      s.card.classList.add('has-photo');
+      close();
+    }
+
+    document.getElementById('crApply').addEventListener('click', apply);
+    document.getElementById('crCancel').addEventListener('click', close);
+    document.getElementById('crClose').addEventListener('click', close);
+    document.getElementById('crReset').addEventListener('click', function () {
+      st.zoom = 1; zoomEl.value = 1; centerPhoto(); render();
+    });
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (overlay.hidden) return;
+      if (e.key === 'Escape') close();
+      else if (e.key === 'Enter') apply();
+    });
+
+    zoomEl.addEventListener('input', function () { zoomTo(parseFloat(zoomEl.value)); });
+
+    vp.addEventListener('wheel', function (e) {
+      if (!st.w) return;
+      e.preventDefault();
+      var r = vp.getBoundingClientRect();
+      zoomTo(st.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
+
+    vp.addEventListener('pointerdown', function (e) {
+      if (!st.w) return;
+      e.preventDefault();
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var keys = Object.keys(pts);
+      if (keys.length >= 2) {
+        var a = pts[keys[0]], b = pts[keys[1]];
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom: st.zoom };
+        drag = null;
+      } else {
+        drag = { x: e.clientX, y: e.clientY, ox: st.ox, oy: st.oy };
+      }
+      try { vp.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    vp.addEventListener('pointermove', function (e) {
+      if (!(e.pointerId in pts)) return;
+      e.preventDefault();
+      pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var keys = Object.keys(pts);
+      if (keys.length >= 2 && pinch) {
+        var a = pts[keys[0]], b = pts[keys[1]];
+        var d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        var r = vp.getBoundingClientRect();
+        zoomTo(pinch.zoom * (d / pinch.d), (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+      } else if (drag) {
+        st.ox = drag.ox + (e.clientX - drag.x);
+        st.oy = drag.oy + (e.clientY - drag.y);
+        render();
+      }
+    });
+
+    function endPointer(e) {
+      delete pts[e.pointerId];
+      if (Object.keys(pts).length < 2) pinch = null;
+      if (!Object.keys(pts).length) drag = null;
+    }
+    vp.addEventListener('pointerup', endPointer);
+    vp.addEventListener('pointercancel', endPointer);
+
+    window.addEventListener('resize', function () {
+      if (overlay.hidden || !st.w) return;
+      var s = scale();
+      var cx = (st.view / 2 - st.ox) / s, cy = (st.view / 2 - st.oy) / s;
+      measure();
+      var ns = scale();
+      st.ox = st.view / 2 - cx * ns;
+      st.oy = st.view / 2 - cy * ns;
+      render();
+    });
+
+    return { open: open };
+  })();
+
+  /* fallback (only if the crop modal is somehow missing): plain auto-resize */
+  function autoSavePhoto(f, s) {
+    var im = new Image();
+    im.onload = function () {
+      var MAX = 400, w = im.width, h = im.height;
+      if (w > MAX || h > MAX) { var r = MAX / Math.max(w, h); w = Math.round(w * r); h = Math.round(h * r); }
+      var cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(im, 0, 0, w, h);
+      var data = cv.toDataURL('image/jpeg', 0.82);
+      s.hiddenPhoto.value = data;
+      s.flag.value = '0';
+      var shown = s.card.querySelector('.te-photo');
+      var ph = s.card.querySelector('.te-photo-ph');
+      if (shown) { shown.src = data; shown.style.display = ''; }
+      if (ph) ph.style.display = 'none';
+      s.card.classList.add('has-photo');
+    };
+    im.src = URL.createObjectURL(f);
+  }
+
+  // tapping anywhere else closes the revealed Edit / Delete overlay
+  document.addEventListener('click', function (e) {
+    document.querySelectorAll('.te-photo-wrap.show-actions').forEach(function (w) {
+      if (!w.contains(e.target)) w.classList.remove('show-actions');
+    });
+  });
+
+  document.querySelectorAll('.topper-class-form').forEach(function (form) {
+    function slot(rank) {
+      return {
+        hiddenPhoto: form.querySelector('input[name="photo"][data-rank="' + rank + '"]'),
+        flag: form.querySelector('input[name="removePhoto"][data-rank="' + rank + '"]'),
+        card: form.querySelector('.topper-edit-card[data-rank="' + rank + '"]')
+      };
+    }
+
+    form.querySelectorAll('.photo-file').forEach(function (file) {
+      file.addEventListener('change', function () {
+        var f = file.files && file.files[0];
+        if (!f) return;
+        if (!/^image\//.test(f.type)) {
+          alert('Please choose an image file (JPG or PNG).');
+          file.value = '';
+          return;
+        }
+        var s = slot(file.getAttribute('data-rank'));
+        if (cropper) cropper.open(f, { slot: s, fileInput: file });
+        else autoSavePhoto(f, s);
+      });
+    });
+
+    // "Edit" on the photo overlay opens the file picker for that rank
+    form.querySelectorAll('.te-photo-edit').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var file = form.querySelector('.photo-file[data-rank="' + btn.getAttribute('data-rank') + '"]');
+        if (file) { file.value = ''; file.click(); }
+      });
+    });
+
+    // phones have no hover: the first tap on the photo reveals Edit / Delete
+    form.querySelectorAll('.te-photo-wrap').forEach(function (wrap) {
+      var box = wrap.querySelector('.te-photo-box');
+      if (!box) return;
+      box.addEventListener('click', function (e) {
+        if (!noHover) return;
+        if (!wrap.classList.contains('show-actions')) {
+          e.preventDefault();
+          wrap.classList.add('show-actions');
+        }
+      });
+    });
+
+    form.querySelectorAll('.photo-remove').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var rank = btn.getAttribute('data-rank');
+        var s = slot(rank);
+        s.hiddenPhoto.value = '';
+        s.flag.value = '1';
+        var shown = s.card.querySelector('.te-photo');
+        var ph = s.card.querySelector('.te-photo-ph');
+        if (shown) { shown.removeAttribute('src'); shown.style.display = 'none'; }
+        if (ph) { ph.textContent = '+'; ph.style.display = ''; }
+        s.card.classList.remove('has-photo');
+      });
+    });
+
+    // clearing a name removes that rank — confirm once, so it is never a surprise
+    form.addEventListener('submit', function (e) {
+      var cleared = [];
+      form.querySelectorAll('.topper-edit-card').forEach(function (card) {
+        var input = card.querySelector('input[name="name"]');
+        if (!input) return;
+        var had = (input.getAttribute('data-original') || '').trim();
+        if (had && !input.value.trim()) cleared.push(had);
+      });
+      if (cleared.length && !confirm('These topper names are now empty, so they will be removed from the website:\n\n• ' + cleared.join('\n• ') + '\n\nContinue?')) {
+        e.preventDefault();
+      }
+    });
+  });
+</script>
+<%- include('../partials/footer') %>

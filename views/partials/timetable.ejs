@@ -1,0 +1,31 @@
+<div class="panel">
+  <div class="panel-head"><h3>🕒 Weekly Timetable</h3></div>
+  <div class="panel-body no-pad">
+    <div class="tt-wrap">
+      <table class="tt-table">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <% days.forEach(d => { %><th><%= d %></th><% }) %>
+          </tr>
+        </thead>
+        <tbody>
+          <% periods.forEach(p => { %>
+          <tr>
+            <td class="tt-period">P<%= p %></td>
+            <% days.forEach(d => { %>
+              <td>
+                <% const slot = grid[d] && grid[d][p]; %>
+                <% if (slot) { %>
+                  <span class="tt-cell"><span class="tt-subject"><%= slot.subject %></span>
+                  <span class="tt-teacher"><%= slot.teacher %></span></span>
+                <% } else { %>—<% } %>
+              </td>
+            <% }) %>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

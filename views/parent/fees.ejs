@@ -1,0 +1,601 @@
+<%- include('../partials/header', { title }) %>
+  <%# ---- the child card, in the SAME format as the other pages (2026-09-18) ----------
+      Left: the child (photo · name · Class · Roll No.). Right: where the home card has its
+      bell, THIS page answers the money question instead — a round due-date badge that says
+      how many days a payment is past its due date, counted on every page load by the ledger
+      itself. Nothing overdue → a calm “✓” badge in green; nothing stored, nothing to maintain. %>
+  <div class="kid-card">
+    <% if (child.photo) { %>
+      <img src="<%= child.photo %>" alt="<%= child.full_name %>" class="kid-photo">
+    <% } else { %>
+      <span class="kid-photo kid-photo-ph"><%= child.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+    <% } %>
+    <div class="kid-info">
+      <span class="kid-name-row">
+        <b><%= child.full_name %></b>
+      </span>
+      <span class="kid-meta">
+        <span class="badge blue"><%= child.class_name %><%= child.section ? ' ' + child.section : '' %></span>
+        <% if (child.roll_no) { %><span class="kid-roll">Roll No. <%= child.roll_no %></span><% } %>
+      </span>
+      <% if (!child.photo) { %><small class="kid-hint">📷 The school office will add the photo</small><% } %>
+    </div>
+    <% if (overdueInfo) { %>
+      <a href="/parent/pay?child=<%= child.id %>" class="kid-bell fee-due-badge is-late"
+         title="<%= overdueInfo.term %> was due on <%= overdueInfo.due %> — ₹<%= overdueInfo.amount %> unpaid">
+        <span class="fdb-days"><%= overdueInfo.days %></span>
+        <span class="fdb-word">due from<br><%= overdueInfo.days === 1 ? 'day' : 'days' %></span>
+      </a>
+    <% } else if (totals.balance > 0 && totals.nextDue) { %>
+      <span class="kid-bell fee-due-badge is-upcoming"
+            title="Next month (<%= totals.nextDue.term %>) is due by <%= fmtDMY(totals.nextDue.due_date) %>">
+        <span class="fdb-days"><%= totals.nextDue.term.split(' ')[0].slice(0, 3) %></span>
+        <span class="fdb-word">due <%= fmtDMY(totals.nextDue.due_date) %></span>
+      </span>
+    <% } else { %>
+      <span class="kid-bell fee-due-badge is-clear" title="All fees are paid for this session">
+        <span class="fdb-days">✓</span>
+        <span class="fdb-word">all paid</span>
+      </span>
+    <% } %>
+  </div>
+
+  <%# no page-head — the child card and the two fee toggle cards say everything already %>
+
+  <%- include('../partials/child_picker', { children, childId }) %>
+
+  <%# ---- THE TWO BILLS AS TOGGLE CARDS (2026-09-18) ---------------------------------
+      The same peek the inbox uses: School fee first, Hostel fee second. A day scholar
+      (whose hostel card is disabled) gets a friendly "not in the hostel" message when
+      he taps it — never a dead button. ---- %>
+  <% const isHostelKid = totals.isBoarder && totals.hostelCharged > 0; %>
+  <div class="inbox-tabs fee-tabs" role="tablist">
+    <button type="button" class="it-card is-active" id="tabSchoolFee" data-pane="paneSchoolFee" role="tab" aria-selected="true">
+      <span class="it-ico">🏫</span>
+      <span class="it-txt"><b>School fee</b><small>Every class child pays this</small></span>
+      <span class="it-counts">
+        <% if (totals.schoolBalance > 0) { %><span class="badge danger fee-due-tag">Due</span><% } else { %><span class="badge paid">✓ Paid</span><% } %>
+      </span>
+    </button>
+    <% if (isHostelKid) { %>
+      <button type="button" class="it-card" id="tabHostelFee" data-pane="paneHostelFee" role="tab" aria-selected="false">
+        <span class="it-ico">🏠</span>
+        <span class="it-txt"><b>Hostel fee</b><small>Mess &amp; lodging, separate bill</small></span>
+        <span class="it-counts">
+          <% if (totals.hostelBalance > 0) { %><span class="badge danger fee-due-tag">Due</span><% } else { %><span class="badge paid">✓ Paid</span><% } %>
+        </span>
+      </button>
+    <% } else { %>
+      <button type="button" class="it-card it-card-disabled" id="tabHostelFee" data-note="hostel" role="tab" aria-selected="false" aria-disabled="true">
+        <span class="it-ico">🏠</span>
+        <span class="it-txt"><b>Hostel fee</b><small>Mess &amp; lodging, separate bill</small></span>
+        <span class="it-counts"><span class="badge gray">N/A</span></span>
+      </button>
+    <% } %>
+  </div>
+  <%# the friendly line a day scholar's family sees when they tap the hostel card %>
+  <div id="hostelNote" class="alert blue hostel-note" hidden>
+    🏠 <b>Your child is not in the hostel.</b> There is no hostel bill for him — the only
+    fee is the school fee you can see on the left. If you would like a hostel seat, please
+    talk to the school office.
+  </div>
+
+  <div id="paneSchoolFee" class="fee-pane" role="tabpanel">
+  <%# Which of the two bills is behind. A boarding family that has paid one of them and not the
+      other must be told so in one line — that is the whole point of keeping the bills apart. %>
+  <% const schoolDone = totals.schoolStatus === 'paid';
+     const hostelDone = totals.hostelStatus === 'paid';
+     const hostelPartMonth = (fees.find(m => m.hostelCharge > 0) || {}).hostelCharge || 0; %>
+
+  <%# ---- THE THREE MONEY NUMBERS, SAID FIRST (2026-09-18) ----------------------------
+      Total · Paid · Balance sit right under the heading, BEFORE the overdue banner —
+      a parent who only wants "what is left to pay" reads it without scrolling past anything.
+      Each card carries a small icon chip so the eye sorts the three at a glance. ---- %>
+  <div class="cards fee-stat-cards">
+    <div class="card stat-card accent-blue">
+      <span class="stat-ico si-blue" aria-hidden="true">🧮</span>
+      <div class="stat-label">Total fees this session</div>
+      <div class="stat-value">₹<%= Math.round(totals.total).toLocaleString('en-IN') %></div>
+      <div class="stat-sub">April → March<%= totals.fine > 0 ? ' · includes fine ₹' + Math.round(totals.fine).toLocaleString('en-IN') : '' %></div>
+    </div>
+    <div class="card stat-card accent-green">
+      <span class="stat-ico si-green" aria-hidden="true">✅</span>
+      <div class="stat-label">Paid so far</div>
+      <div class="stat-value">₹<%= Math.round(totals.paid).toLocaleString('en-IN') %></div>
+      <div class="stat-sub"><%= totals.paidMonths %> of <%= totals.totalMonths %> months settled<%= totals.partialMonths ? ' · ' + totals.partialMonths + ' part paid' : '' %></div>
+    </div>
+    <div class="card stat-card <%= totals.overdueMonths ? 'accent-red' : 'accent-orange' %>">
+      <span class="stat-ico <%= totals.overdueMonths ? 'si-red' : 'si-orange' %>" aria-hidden="true"><%= totals.overdueMonths ? '⏰' : '⏳' %></span>
+      <div class="stat-label"><%= totals.overdueMonths ? 'Balance — past due' : 'Balance left' %></div>
+      <div class="stat-value">₹<%= Math.round(totals.balance).toLocaleString('en-IN') %></div>
+      <div class="stat-sub"><%= totals.overdueMonths ? totals.overdueMonths + ' month(s) past the due date' : 'still to be paid' %></div>
+    </div>
+  </div>
+
+  <% if (firstOverdue) { %>
+    <div class="alert error fee-due-alert is-loud">
+      ⚠️ <b>Rs.<%= Math.round(totals.overdue).toLocaleString('en-IN') %></b> is past the due date
+      (from <b><%= firstOverdue.term %></b>). Tap <b>💳 Pay now</b> below for the school's UPI / bank details,
+      or pay in cash at the school office.
+      <% if (hostelPartMonth && hostelDone && !schoolDone) { %>
+        <br>🏠 The <b>hostel fee is fully paid</b> — what is pending is the school fee.
+      <% } else if (hostelPartMonth && schoolDone && !hostelDone) { %>
+        <br>🏫 The <b>school fee is fully paid</b> — what is pending is the hostel fee (mess &amp; lodging).
+      <% } else if (hostelPartMonth) { %>
+        <br>Of this, <b>₹<%= Math.round(totals.schoolOverdue).toLocaleString('en-IN') %></b> is the school fee
+        and <b>₹<%= Math.round(totals.hostelOverdue).toLocaleString('en-IN') %></b> the hostel fee.
+      <% } %>
+    </div>
+  <% } else if (totals.balance > 0) { %>
+    <div class="alert blue">
+      ℹ️ <b>Rs.<%= Math.round(totals.balance).toLocaleString('en-IN') %></b> is still to be paid this session.
+      <% if (totals.nextDue) { %>Next month due: <b><%= totals.nextDue.term %></b> (by <%= fmtDMY(totals.nextDue.due_date) %>).<% } %>
+    </div>
+  <% } else if (totals.total > 0) { %>
+    <div class="alert success">✅ All fees for this session are paid. Thank you!</div>
+  <% } %>
+
+  <%# ---- SCHOOL FEE and HOSTEL FEE, KEPT APART (2026-09-16) --------------------------------
+      A boarder's month is TWO bills in one row: the school fee (what every child of his class
+      pays for school) and the hostel fee (mess & lodging). Families pay them at different
+      times — the school fee is settled and the hostel runs on, or a part of each — so each one
+      is shown with its own received / still-to-pay figures here, and again inside every month
+      below. Every number comes from `fees.splitMonth` (the one place the split is decided).
+      For a school-only child all of this is absent: his month IS the school fee. ---- %>
+  <% if (totals.isBoarder && totals.hostelCharged > 0) { %>
+    <div class="panel split-panel">
+      <div class="panel-head">
+        <h3>🏫 School fee &nbsp;+&nbsp; 🏠 Hostel fee</h3>
+        <span class="panel-head-note">your child's bill is two bills</span>
+      </div>
+      <div class="panel-body">
+        <p class="split-lead">
+          <span class="hostel-chip">🏠 Hostel student<%= totals.hostelBed ? ' · Bed ' + totals.hostelBed : '' %></span>
+          <% if (totals.hostelMonths === totals.totalMonths) { %>
+            Every month of this session is
+          <% } else { %>
+            <b><%= totals.hostelMonths %></b> of this session's <b><%= totals.totalMonths %></b> months are
+          <% } %>
+          <b>₹<%= Math.round(totals.dayRate).toLocaleString('en-IN') %> school fee
+            + ₹<%= Math.round(hostelPartMonth).toLocaleString('en-IN') %> hostel fee
+            = ₹<%= Math.round(totals.hostelRate).toLocaleString('en-IN') %>/month</b>.
+        </p>
+
+        <div class="split-cards">
+          <div class="split-card split-<%= totals.schoolStatus %>">
+            <div class="split-head">
+              <span class="split-ico" aria-hidden="true">🏫</span>
+              <span class="split-name">School fee<small>every child of the class pays this</small></span>
+              <span class="badge <%= totals.schoolStatus === 'paid' ? 'paid' : totals.schoolStatus === 'part' ? 'partial' : 'due' %>">
+                <%= totals.schoolStatus === 'paid' ? 'Paid' : totals.schoolStatus === 'part' ? 'Part paid' : 'Pending' %>
+              </span>
+            </div>
+            <div class="split-rows">
+              <span>Charged this session</span><b>₹<%= Math.round(totals.schoolCharged).toLocaleString('en-IN') %></b>
+              <span>Received</span><b class="<%= totals.schoolPaid ? 'pm-good' : '' %>">₹<%= Math.round(totals.schoolPaid).toLocaleString('en-IN') %></b>
+              <span>Still to pay</span><b class="<%= totals.schoolBalance > 0 ? 'pm-bad' : 'pm-good' %>"><%= totals.schoolBalance > 0 ? '₹' + Math.round(totals.schoolBalance).toLocaleString('en-IN') : 'Nil' %></b>
+            </div>
+          </div>
+
+          <div class="split-card split-<%= totals.hostelStatus %>">
+            <div class="split-head">
+              <span class="split-ico" aria-hidden="true">🏠</span>
+              <span class="split-name">Hostel fee<small>mess &amp; lodging</small></span>
+              <span class="badge <%= totals.hostelStatus === 'paid' ? 'paid' : totals.hostelStatus === 'part' ? 'partial' : 'due' %>">
+                <%= totals.hostelStatus === 'paid' ? 'Paid' : totals.hostelStatus === 'part' ? 'Part paid' : 'Pending' %>
+              </span>
+            </div>
+            <div class="split-rows">
+              <span>Charged this session</span><b>₹<%= Math.round(totals.hostelCharged).toLocaleString('en-IN') %></b>
+              <span>Received</span><b class="<%= totals.hostelPaid ? 'pm-good' : '' %>">₹<%= Math.round(totals.hostelPaid).toLocaleString('en-IN') %></b>
+              <span>Still to pay</span><b class="<%= totals.hostelBalance > 0 ? 'pm-bad' : 'pm-good' %><%= totals.hostelOverdue > 0 ? ' split-late' : '' %>"><%= totals.hostelBalance > 0 ? '₹' + Math.round(totals.hostelBalance).toLocaleString('en-IN') : 'Nil' %></b>
+              <% if (totals.hostelOverdue > 0) { %>
+                <span class="split-late-row">Past the due date</span><b class="pm-bad split-late">₹<%= Math.round(totals.hostelOverdue).toLocaleString('en-IN') %></b>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+        <% if (totals.fineCharged > 0) { %>
+          <p class="split-note">⚠️ A late fine of <b>₹<%= Math.round(totals.fineCharged).toLocaleString('en-IN') %></b> is included — it is not part of either bill.</p>
+        <% } %>
+        <p class="split-note">
+          Money you pay settles the <b>school fee first</b>, then the hostel fee. Each month below
+          shows both, so you can always see which one is paid.<%= totals.stayNote ? ' ' + totals.stayNote + '.' : '' %>
+          The mess menu and the hostel day are on the
+          <a href="/parent/hostel?child=<%= child.id %>">Hostel page</a>.
+        </p>
+      </div>
+    </div>
+  <% } %>
+  </div><%# /paneSchoolFee %>
+
+  <%# ---- HOSTEL FEE PANE — a boarder's mess & lodging bill, month by month. A
+      day scholar never gets here: his hostel card is disabled and explains itself. ---- %>
+  <div id="paneHostelFee" class="fee-pane" role="tabpanel" hidden>
+    <% if (isHostelKid) { %>
+    <div class="panel">
+      <div class="panel-body">
+        <div class="cards fee-stat-cards">
+          <div class="card stat-card accent-blue">
+            <span class="stat-ico si-blue" aria-hidden="true">🧮</span>
+            <div class="stat-label">Hostel bill this session</div>
+            <div class="stat-value">₹<%= Math.round(totals.hostelCharged).toLocaleString('en-IN') %></div>
+            <div class="stat-sub"><%= totals.hostelMonths %> month<%= totals.hostelMonths === 1 ? '' : 's' %> at the hostel rate<%= totals.hostelBed ? ' · Bed ' + totals.hostelBed : '' %></div>
+          </div>
+          <div class="card stat-card accent-green">
+            <span class="stat-ico si-green" aria-hidden="true">✅</span>
+            <div class="stat-label">Received</div>
+            <div class="stat-value">₹<%= Math.round(totals.hostelPaid).toLocaleString('en-IN') %></div>
+            <div class="stat-sub">towards mess &amp; lodging</div>
+          </div>
+          <div class="card stat-card <%= totals.hostelBalance > 0 ? 'accent-orange' : 'accent-green' %>">
+            <span class="stat-ico <%= totals.hostelBalance > 0 ? 'si-orange' : 'si-green' %>" aria-hidden="true"><%= totals.hostelBalance > 0 ? '⏳' : '✓' %></span>
+            <div class="stat-label"><%= totals.hostelBalance > 0 ? 'Still to pay' : 'All settled' %></div>
+            <div class="stat-value"><%= totals.hostelBalance > 0 ? '₹' + Math.round(totals.hostelBalance).toLocaleString('en-IN') : 'Nil' %></div>
+            <div class="stat-sub"><%= totals.hostelOverdue > 0 ? '₹' + Math.round(totals.hostelOverdue).toLocaleString('en-IN') + ' past the due date' : 'hostel account is clear' %></div>
+          </div>
+        </div>
+        <p class="split-note">
+          Money you pay settles the <b>school fee first</b>, then this hostel fee. Each month in the
+          School fee pane shows both parts, so you can always see which one your payment landed on.
+          The mess menu and the hostel day are on the
+          <a href="/parent/hostel?child=<%= child.id %>">Hostel page</a>.
+        </p>
+      </div>
+    </div>
+    <% } else { %>
+      <%# the day scholar's hostel pane: NOTHING but this message — the school's fee stays
+          hidden while this pane is open, so the page answers one question at a time ---- %>
+      <div class="hostel-empty">
+        <span class="he-ico" aria-hidden="true">🏠</span>
+        <h3>Your child is not in the hostel</h3>
+        <p><b><%= child.full_name %></b> is a day scholar — he goes home every day.</p>
+        <p>There is <b>no hostel bill</b> for him. The only fee is the <b>school fee</b> —
+          tap the <b>School fee</b> card above to see it.</p>
+        <p class="he-want">Want a hostel seat (staying, food, studies under teachers' care)?
+          Please talk to the school office.</p>
+      </div>
+    <% } %>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Monthly fee — <%= totals.paidMonths %>/<%= totals.totalMonths %> settled</h3>
+      <span class="fee-progress-inline">
+        <span class="fee-stu-bar <%= totals.total && totals.paid >= totals.total ? '' : totals.paid ? 'fee-bar-partial' : 'fee-bar-none' %>">
+          <span style="width: <%= totals.total ? Math.min(100, Math.round((totals.paid / totals.total) * 100)) : 0 %>%"></span>
+        </span>
+      </span>
+    </div>
+    <div class="panel-body">
+      <%# WHAT THE PARENT HAS TO PAY NEXT, said at the top of the list.
+          Late months are added up TOGETHER (₹ total of every overdue month) because that
+          is what the school asks for in one go; the next month that is not late yet is
+          named after it. A parent who owes nothing late just sees that one month. %>
+      <% if (totals.overdue > 0) { %>
+        <div class="pm-next-strip pm-next-overdue">
+          <span class="pm-next-flag">⏭ Pay now</span>
+          <b class="pm-next-amt">₹<%= Math.round(totals.overdue).toLocaleString('en-IN') %> overdue</b>
+          <span class="text-muted">
+            <%= totals.overdueMonths %> late month<%= totals.overdueMonths === 1 ? '' : 's' %>:
+            <b><%= totals.overdueTerms.join(' · ') %></b>
+            <span class="pm-late-since">oldest was due <%= fmtDMY(totals.overdueFrom.due_date) %></span>
+          </span>
+          <%# the late amount, said as the two bills it is made of — a boarding family must know
+              whether it is behind on the school fee or on the hostel fee (or both) %>
+          <% if (hostelPartMonth && (totals.schoolOverdue > 0 || totals.hostelOverdue > 0)) { %>
+            <span class="pm-strip-split">
+              <% if (totals.schoolOverdue > 0) { %>🏫 school fee ₹<%= Math.round(totals.schoolOverdue).toLocaleString('en-IN') %><% } %>
+              <% if (totals.schoolOverdue > 0 && totals.hostelOverdue > 0) { %> · <% } %>
+              <% if (totals.hostelOverdue > 0) { %>🏠 hostel fee ₹<%= Math.round(totals.hostelOverdue).toLocaleString('en-IN') %><% } %>
+              <% if (totals.hostelOverdue <= 0) { %> · hostel fee paid ✔<% } %>
+            </span>
+          <% } %>
+          <% if (totals.upcoming) { %>
+            <span class="pm-strip-next">
+              Then <b><%= totals.upcoming.term %></b>
+              <span class="fee-mono">₹<%= Math.round(totals.upcoming.balance).toLocaleString('en-IN') %></span>
+              <span class="text-muted">due <%= fmtDMY(totals.upcoming.due_date) %></span>
+            </span>
+          <% } %>
+          <%# one tap from here to the page that says WHERE to send it (UPI · bank · QR) %>
+          <a class="btn btn-primary btn-sm pay-now-btn" href="/parent/pay?child=<%= child.id %>">💳 Pay ₹<%= Math.round(totals.overdue).toLocaleString('en-IN') %> now</a>
+        </div>
+      <% } else if (totals.nextDue) { %>
+        <div class="pm-next-strip">
+          <span class="pm-next-flag">⏭ Pay next</span>
+          <b><%= totals.nextDue.term %></b>
+          <span class="pm-next-amt">₹<%= Math.round(totals.nextDue.balance).toLocaleString('en-IN') %></span>
+          <span class="text-muted">due by <%= fmtDMY(totals.nextDue.due_date) %></span>
+          <% if (totals.nextDue.hostelCharge > 0) { %>
+            <span class="pm-strip-split">🏫 school fee ₹<%= Math.round(totals.nextDue.schoolBalance).toLocaleString('en-IN') %> · 🏠 hostel fee ₹<%= Math.round(totals.nextDue.hostelBalance).toLocaleString('en-IN') %></span>
+          <% } %>
+          <span class="text-muted">✅ nothing is late</span>
+          <a class="btn btn-primary btn-sm pay-now-btn" href="/parent/pay?child=<%= child.id %>">💳 Pay <%= totals.nextDue.term %> now</a>
+        </div>
+      <% } %>
+      <%# newest month first: the session grows upward, April 2026 stays the last card %>
+      <% if (fees.length > 1) { %>
+        <div class="pm-order">
+          <span class="pm-order-chip">Newest month first</span>
+          <span class="text-muted">The session began with <b><%= fees[fees.length - 1].term %></b> — that card is the last one, at the bottom.</span>
+        </div>
+      <% } %>
+      <div class="pm-list">
+        <% fees.forEach(m => { %>
+          <%# a month whose due date has not come yet gets ONE slim line — nothing is
+              paid or due on it, and six big cards on top would bury the real ones %>
+          <% if (m.later) { %>
+            <div class="pm-item pm-due pm-later pm-compact">
+              <b><%= m.term %></b>
+              <span class="pm-compact-right">
+                <span class="fee-mono">₹<%= Math.round(m.payable).toLocaleString('en-IN') %></span>
+                <span class="text-muted">due <%= fmtDMY(m.due_date) %></span>
+                <%# a coming hostel month is two bills too — named here so nobody is surprised later %>
+                <% if (m.hostelCharge > 0 && m.schoolCharge > 0) { %>
+                  <span class="text-muted pm-compact-split">🏫 ₹<%= Math.round(m.schoolCharge).toLocaleString('en-IN') %> + 🏠 ₹<%= Math.round(m.hostelCharge).toLocaleString('en-IN') %></span>
+                <% } %>
+                <% if (m.rate === 'hostel') { %><span class="badge hostel">🏠 Hostel rate</span><% } %>
+                <span class="badge due">Later</span>
+              </span>
+            </div>
+          <% } else { %>
+          <div class="pm-item pm-<%= m.status %><%= m.isNext ? ' pm-next' : '' %>">
+            <div class="pm-top">
+              <b><%= m.term %></b>
+              <span class="pm-flags">
+                <% if (m.flag) { %><span class="pm-next-flag">⏭ Pay next</span><% } %>
+                <%# which rate THIS month was priced at — the one line that explains a
+                    boarder's higher month (see stay.js: the hostel column of the fee sheet) %>
+                <% if (m.rate === 'hostel') { %><span class="badge hostel" title="Charged at the hostel rate — school fee plus mess and lodging">🏠 Hostel rate</span><% } %>
+                <% if (m.later) { %><span class="badge due">Later</span>
+                <% } else if (m.status === 'paid') { %><span class="badge paid">Paid</span>
+                <% } else if (m.status === 'overdue') { %><span class="badge overdue"><%= m.paid_amount > 0 ? 'Part paid · overdue' : 'Overdue' %></span>
+                <% } else if (m.status === 'partial') { %><span class="badge partial">Partly paid</span>
+                <% } else { %><span class="badge due">Due</span><% } %>
+              </span>
+            </div>
+            <div class="pm-rows">
+              <span><%= m.hostelCharge > 0 ? 'Total fee' : 'Fee' %></span><b>₹<%= Math.round(m.payable).toLocaleString('en-IN') %></b>
+              <span>Received</span><b class="<%= m.paid_amount ? 'pm-good' : '' %>">₹<%= Math.round(m.paid_amount).toLocaleString('en-IN') %></b>
+              <span>Balance</span><b class="<%= m.balance ? 'pm-bad' : 'pm-good' %>"><%= m.balance ? '₹' + Math.round(m.balance).toLocaleString('en-IN') : 'Nil' %></b>
+              <span>Due date</span><b><%= m.due_date ? fmtDMY(m.due_date) : '—' %></b>
+              <% if (m.receipts.length) { %>
+                <span>Last received</span><b><%= fmtDMY(m.receipts[m.receipts.length - 1].paid_on) %></b>
+              <% } %>
+            </div>
+            <%# ---- the two bills inside THIS month (a hostel month only) -----------------------
+                The row above says what the month costs and what came in; these two lines say WHICH
+                of the two bills that money settled. A boarder whose school fee is paid and whose
+                hostel fee is not reads exactly that, month by month. --- %>
+            <% if (m.hostelCharge > 0) { %>
+              <div class="pm-split">
+                <div class="pms-row pms-<%= m.schoolStatus %>">
+                  <span class="pms-name">🏫 School fee</span>
+                  <b class="pms-amt">₹<%= Math.round(m.schoolCharge).toLocaleString('en-IN') %></b>
+                  <span class="pms-state">
+                    <% if (m.schoolStatus === 'paid') { %>Paid ✔
+                    <% } else if (m.schoolStatus === 'part') { %>₹<%= Math.round(m.schoolPaid).toLocaleString('en-IN') %> paid · ₹<%= Math.round(m.schoolBalance).toLocaleString('en-IN') %> left
+                    <% } else { %>₹<%= Math.round(m.schoolBalance).toLocaleString('en-IN') %> to pay<% } %>
+                  </span>
+                </div>
+                <div class="pms-row pms-<%= m.hostelStatus %>">
+                  <span class="pms-name">🏠 Hostel fee<small> mess &amp; lodging</small></span>
+                  <b class="pms-amt">₹<%= Math.round(m.hostelCharge).toLocaleString('en-IN') %></b>
+                  <span class="pms-state">
+                    <% if (m.hostelStatus === 'paid') { %>Paid ✔
+                    <% } else if (m.hostelStatus === 'part') { %>₹<%= Math.round(m.hostelPaid).toLocaleString('en-IN') %> paid · ₹<%= Math.round(m.hostelBalance).toLocaleString('en-IN') %> left
+                    <% } else { %>₹<%= Math.round(m.hostelBalance).toLocaleString('en-IN') %> to pay<% } %>
+                  </span>
+                </div>
+              </div>
+            <% } %>
+            <% if (m.fine > 0) { %>
+              <div class="pm-fine">
+                ⚠️ Late fine ₹<%= Math.round(m.fine).toLocaleString('en-IN') %><%= m.fine_note ? ' — ' + m.fine_note : '' %>
+              </div>
+            <% } %>
+            <% if (m.receipts.length > 1) { %>
+              <div class="pm-receipts">
+                Received in parts:
+                <% m.receipts.forEach(r => { %><span>₹<%= Math.round(r.amount).toLocaleString('en-IN') %> · <%= fmtDMY(r.paid_on) %></span><% }) %>
+              </div>
+            <% } %>
+          </div>
+          <% } %>
+        <% }) %>
+        <% if (!fees.length) { %>
+          <div class="empty">No fee records yet. The school office will add them.</div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <%# ---- BOOKS, UNIFORM AND STATIONERY FROM THE SCHOOL (2026-09-16) ----
+      The monthly fee is not the whole bill: a child also takes a book set, a uniform or
+      notebooks, and those are paid for the same way (in full or in parts). They are kept in
+      their own little ledger because a book set is taken ONCE and a fee month is monthly, so
+      they are shown here as their own panel — with the one number that matters at the top:
+      what is still to pay for them. ---- %>
+  <% if (items && items.items.length) { %>
+  <div class="panel" id="store-items">
+    <div class="panel-head">
+      <h3>📚 Books &amp; uniform from the school</h3>
+      <span class="panel-head-note">
+        ₹<%= Math.round(items.charged).toLocaleString('en-IN') %> in all
+        <% if (items.balance > 0) { %>· <b class="pm-bad">₹<%= Math.round(items.balance).toLocaleString('en-IN') %> still to pay</b>
+        <% } else { %>· fully paid ✔<% } %>
+      </span>
+    </div>
+    <div class="panel-body">
+      <div class="si-list">
+        <% items.items.forEach(r => { %>
+          <div class="si-row si-<%= r.status %>">
+            <span class="si-ico" aria-hidden="true"><%= r.category === 'Uniform' ? '👕' : r.category === 'Stationery' ? '✏️' : r.category === 'Books' ? '📚' : '📦' %></span>
+            <div class="si-text">
+              <b><%= r.name %><% if (r.qty > 1) { %> × <%= r.qty %><% } %></b>
+              <small>
+                Given on <%= fmtDMY(r.issued_on) %> · ₹<%= Math.round(r.amount).toLocaleString('en-IN') %><%= r.qty > 1 ? ' (₹' + Math.round(r.unit_price).toLocaleString('en-IN') + ' each)' : '' %><% if (r.note) { %> · <%= r.note %><% } %>
+              </small>
+            </div>
+            <span class="si-money">
+              <% if (r.status === 'paid') { %><span class="badge paid">Paid</span>
+              <% } else { %>
+                <span class="badge <%= r.status === 'partial' ? 'partial' : 'overdue' %>"><%= r.status === 'partial' ? 'Partly paid' : 'Not paid' %></span>
+                <small>₹<%= Math.round(r.balance).toLocaleString('en-IN') %> to pay</small>
+              <% } %>
+            </span>
+          </div>
+        <% }) %>
+      </div>
+      <% if (items.balance > 0) { %>
+        <p class="si-note">
+          This is paid at the school office (or with your fee payment) — the office records it the moment
+          the money reaches them, and you will get a message here. Any question about it, tap
+          <a href="/parent/messages">Message School</a>.
+        </p>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (receipts.length) { %>
+  <div class="panel">
+    <div class="panel-head"><h3>🧾 Payment receipts</h3><span class="panel-head-note">Every amount the school has received</span></div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Month</th><th>Mode</th><th class="text-right">Amount</th></tr></thead>
+          <tbody>
+            <% receipts.forEach(r => { %>
+              <tr>
+                <td><%= fmtDMY(r.paid_on) %></td>
+                <td><b><%= r.term %></b><% if (r.note) { %><br><small class="text-muted"><%= r.note %></small><% } %></td>
+                <td><%= r.mode %></td>
+                <td class="text-right fee-mono">₹<%= Math.round(r.amount).toLocaleString('en-IN') %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3"><b>Total received</b></td>
+              <td class="text-right fee-mono"><b>₹<%= Math.round(totals.paid).toLocaleString('en-IN') %></b></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <%# ---- PAYMENTS YOU TOLD THE SCHOOL ABOUT — folded at the BOTTOM (2026-09-18) -------
+      Claims are the parent's own report slips, not the bill — they belong after the
+      receipts. Only the newest three open by default; "See all" unfolds the rest, so
+      telling the school five times never makes this page five cards longer. ---- %>
+  <% if (claims && claims.length) { %>
+    <% const CLAIMS_SHOWN = 3; const claimsExtra = Math.max(0, claims.length - CLAIMS_SHOWN); %>
+    <div class="panel claim-panel" id="claims-panel">
+      <div class="panel-head">
+        <h3>📨 Payments you told the school</h3>
+        <span class="panel-head-note"><%= claims.length %> in all · the office checks each one</span>
+      </div>
+      <div class="panel-body">
+        <% claims.forEach((cl, i) => { %>
+          <div class="claim-row claim-<%= cl.status %><%= i >= CLAIMS_SHOWN ? ' is-extra' : '' %>">
+            <span class="claim-amt">₹<%= Math.round(cl.amount).toLocaleString('en-IN') %></span>
+            <span class="claim-meta">
+              <b><%= cl.mode %></b><% if (cl.reference) { %> · <%= cl.reference %><% } %>
+              <span class="text-muted">· paid <%= fmtDMY(cl.paid_on) %></span>
+              <% if (cl.monthList && cl.monthList.length) { %>
+                <span class="text-muted">· for <%= cl.monthList.map(m => m.term).join(' · ') %></span>
+              <% } %>
+            </span>
+            <span class="claim-state">
+              <% if (cl.status === 'pending') { %><span class="badge due">⏳ Waiting for the office</span>
+              <% } else if (cl.status === 'recorded') { %><span class="badge paid">✅ Received</span>
+              <% } else { %><span class="badge overdue">Not found</span><% } %>
+            </span>
+            <% if (cl.status === 'recorded' && cl.recordedList && cl.recordedList.length) { %>
+              <div class="claim-note">Added to:
+                <%= cl.recordedList.map(r => r.term + ' — ₹' + Math.round(r.amount).toLocaleString('en-IN')).join(' · ') %></div>
+            <% } %>
+            <% if (cl.status === 'rejected') { %>
+              <div class="claim-note">
+                The office could not find this payment<%= cl.decision_note ? ' — ' + cl.decision_note : '' %>.
+                <a href="/parent/messages">Send them the screenshot</a>.
+              </div>
+            <% } %>
+          </div>
+        <% }) %>
+        <% if (claimsExtra > 0) { %>
+          <button type="button" class="claim-more" data-claim-total="<%= claims.length %>">
+            <span class="cm-label">See all <%= claims.length %> claims</span>
+            <span class="cm-chev" aria-hidden="true">▾</span>
+          </button>
+        <% } %>
+      </div>
+    </div>
+    <script>
+      // "See all" unfolds the older slips; "Show fewer" folds them back. One panel,
+      // one listener — the page never grows without a tap.
+      (function () {
+        var btn = document.querySelector('.claim-more');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+          var open = btn.closest('.claim-panel').classList.toggle('is-open');
+          btn.querySelector('.cm-label').textContent = open
+            ? 'Show fewer'
+            : 'See all ' + btn.getAttribute('data-claim-total') + ' claims';
+        });
+      })();
+    </script>
+  <% } %>
+
+  <p class="fee-hint">Pay by UPI, bank transfer or cash at the school office — tap <b>💳 Pay now</b> above for the
+    school's UPI ID, QR and bank account. On that page you can also pay a <b>coming month early</b> (tap the month).
+    If you have already paid and this page still shows a balance, please message the school from
+    <a href="/parent/messages">Message School</a>.</p>
+  <script>
+    // School fee / Hostel fee toggle — the same peek the inbox uses. The hostel card of a
+    // day scholar is disabled: tapping it shows the friendly "not in the hostel" note.
+    (function () {
+      var tabs = document.querySelectorAll('.fee-tabs .it-card');
+      if (!tabs.length) return;
+      var note = document.getElementById('hostelNote');
+      var dayScholar = !<%= isHostelKid ? 'true' : 'false' %>;
+      function activate(id) {
+        tabs.forEach(function (o) {
+          var on = o.id === id;
+          o.classList.toggle('is-active', on);
+          o.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        var hostelOpen = id === 'tabHostelFee';
+        document.querySelectorAll('.fee-pane').forEach(function (p) { p.hidden = p.id !== (hostelOpen ? 'paneHostelFee' : 'paneSchoolFee'); });
+        if (note) note.hidden = hostelOpen;
+        // a day scholar's hostel pane is a FULL-PAGE message: the school's fee record and
+        // every other panel step aside while it is open, so nothing competes with it — and
+        // body.hostel-only trims the empty space that would otherwise stretch below it
+        if (dayScholar) {
+          document.querySelectorAll('.fee-stat-cards, .fee-due-alert, .alert, .panel, .fee-hint, #paneSchoolFee').forEach(function (el) {
+            if (!el.closest('.fee-pane') || el.id === 'paneSchoolFee') el.hidden = hostelOpen;
+          });
+          document.body.classList.toggle('hostel-only', hostelOpen);
+        } else if (document.body.classList.contains('hostel-only')) {
+          document.body.classList.remove('hostel-only');
+        }
+      }
+      tabs.forEach(function (t) {
+        t.addEventListener('click', function () {
+          var wasTall = document.body.scrollHeight > window.innerHeight;
+          activate(t.id);
+          // switching can SHRINK the page (the hostel message is much shorter than the
+          // school-fee record) — a stale scroll position then leaves a blank stretch at
+          // the top on a phone. The child card + the two tabs live in the first ~250px,
+          // so always settle the view at the very top: header stays put, no jump, no gap.
+          if (wasTall) { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); } }
+        });
+      });
+    })();
+  </script>
+<%- include('../partials/footer') %>

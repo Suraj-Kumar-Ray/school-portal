@@ -1,0 +1,27 @@
+{
+  "name": "Green Valley Public School — Parent App",
+  "short_name": "GVPS Parent",
+  "description": "The school app for parents — your child's result, timetable, fees and school messages in one place.",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "start_url": "/parent",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait",
+  "background_color": "#f4f7fc",
+  "theme_color": "#2563eb",
+  "categories": ["education"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Result & Performance", "short_name": "Result", "url": "/parent/performance" },
+    { "name": "Time Table", "short_name": "Timetable", "url": "/parent/timetable" },
+    { "name": "Fees", "short_name": "Fees", "url": "/parent/fees" },
+    { "name": "Message School", "short_name": "Messages", "url": "/parent/messages" }
+  ]
+}

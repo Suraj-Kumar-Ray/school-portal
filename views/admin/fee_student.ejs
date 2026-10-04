@@ -1,0 +1,716 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head flex-between fee-ledger-head">
+    <div>
+      <a href="/admin/fees?class=<%= filterClass %>" class="btn btn-outline btn-sm fee-back">← All students</a>
+      <%# The send button sits to the RIGHT of the child's name (school's request, 2026-09-15) — the
+          same round button as the fees list, blinking when the months are past their due date. It
+          is the one way to chase this family from here: it names the balance in its title and the
+          confirmation below the header says how many months and how much went out. Only where
+          there is something to chase: no balance, no button. %>
+      <div class="fee-ledger-title">
+        <h1 class="mt-2">🧾 <%= student.full_name %></h1>
+        <% if (student.balance) { %>
+          <form method="POST" action="/admin/fees/<%= student.id %>/remind" class="fee-name-send"
+                onsubmit="return confirm('Send the due message to <%= String(student.parent_name || 'this parent').replace(/'/g, "") %>?\n\nIt lists the pending months and ₹<%= Math.round(student.balance).toLocaleString('en-IN') %>, and goes to the parent portal plus one SMS/WhatsApp alert.');">
+            <button type="submit" class="remind-send-icon send-due-btn<%= student.overdueMonths ? ' is-overdue' : '' %>"
+                    title="Send <%= student.full_name %>'s due message · ₹<%= Math.round(student.balance).toLocaleString('en-IN') %> pending<%= student.overdueMonths ? ' · ' + student.overdueMonths + ' month' + (student.overdueMonths == 1 ? '' : 's') + ' past the due date' : '' %>">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2.5 11 13"/><path d="M21.5 2.5 15 21.5l-4-8.5-8.5-4z"/></svg>
+              <span class="sr-only">Send the due message to <%= student.full_name %>'s parent</span>
+            </button>
+          </form>
+        <% } %>
+      </div>
+      <p>
+        <span class="fee-class-chip"><%= student.class_name %><%= student.section ? ' ' + student.section : '' %></span>
+        <span class="roll">Roll No. <%= student.roll_no %></span>
+        · <code><%= student.admission_no %></code>
+        <%# A boarder's months are not all one price, so his stay is stated right here —
+            the office must never wonder why a month is ₹7,500. %>
+        <% if (student.isBoarder) { %>
+          · <span class="badge orange" title="<%= student.stayNote %>">🏠 Hostel<%= student.hostel_bed ? ' · Bed ' + student.hostel_bed : '' %></span>
+        <% } %>
+        <% if (student.parent_phone) { %>
+          · <% if (student.parent_name) { %><%= student.parent_name %> · <% } %>
+          <a href="tel:<%= String(student.parent_phone).replace(/[^0-9+]/g, '') %>" class="fee-call" title="Call the parent">📞 <%= student.parent_phone %></a>
+        <% } %>
+      </p>
+    </div>
+    <%# The office's other move the moment it sees this page: settle the year in one go. The due
+        message is no longer a second button up here — it is the round one beside the name above. %>
+    <div class="fee-actions">
+      <button type="button" class="btn btn-outline" id="fee-mark-all" <%= student.balance ? '' : 'disabled' %>>✅ Mark all months paid</button>
+    </div>
+  </div>
+
+  <% if (payErr) { %><div class="alert error">⚠️ <%= payErr %></div><% } %>
+  <% if (fineErr) { %><div class="alert error">⚠️ <%= fineErr %></div><% } %>
+  <% if (fined !== undefined) { %>
+    <div class="alert <%= Number(fined) > 0 ? 'orange' : 'blue' %>">
+      <%= Number(fined) > 0 ? '➕ Fine of ₹' + Number(fined).toLocaleString('en-IN') + ' saved' : '↩️ Fine removed' %>
+      <% if (feeTerm) { %> on <b><%= feeTerm %></b><% } %>.
+      <% if (Number(fined) > 0) { %>The parent has been notified in the portal.<% } %>
+    </div>
+  <% } %>
+  <% if (paid) { %>
+    <div class="alert success"><span class="rupee-glyph">₹</span> <b>₹<%= Number(paid).toLocaleString('en-IN') %></b> received<% if (feeTerm) { %> for <b><%= feeTerm %></b><% } %> and saved as a receipt.
+      <% if (notified && notified !== '0') { %>The parent has been notified in the portal (Message School).<% } %></div>
+  <% } %>
+  <% if (saved && saved !== '0') { %>
+    <div class="alert success">✅ <b><%= saved %> month<%= saved == 1 ? '' : 's' %></b> updated.
+      <% if (notified && notified !== '0') { %>The parent has been notified in the portal (Message School).<% } %></div>
+  <% } else if (saved === '0') { %>
+    <div class="alert blue">No changes to save — the ledger is already up to date.</div>
+  <% } %>
+
+  <% if (claimRejected) { %>
+    <div class="alert">✖ Claim closed as “not received” — the parent has been told to check the transaction and send
+      the screenshot.</div>
+  <% } %>
+
+  <%# the office's own one-family reminder, sent from this page %>
+  <% if (remindErr) { %><div class="alert error">⚠️ <%= remindErr %></div><% } %>
+  <%# An answer to one tap on the button beside the name: it rides the on-screen toast, so the
+      office reads it at the top of the ledger without the page moving. ---- %>
+  <% if (remindedOne) { %>
+    <div class="alert success" data-flash="sent" data-flash-into="toast">
+      📲 Due message sent to <b><%= remindedOne %></b>'s parent —
+      <b><%= remindMonths %> month<%= Number(remindMonths) == 1 ? '' : 's' %></b> ·
+      ₹<%= Number(remindAmount || 0).toLocaleString('en-IN') %> pending.
+      It is in the parent portal now<%= Number(remindAlerts) ? ' with one SMS/WhatsApp alert' : ' (no alert was logged — check the parent\'s phone number)' %>.
+    </div>
+  <% } %>
+
+  <%# ---- this parent's claims ----------------------------------------------------
+      A parent who pays by UPI from home files a claim; recording it here writes the
+      receipts (the months they named first, then oldest first) — no typing of month rows. ---- %>
+  <% if (claims && claims.length) { %>
+    <div class="panel claim-panel">
+      <div class="panel-head">
+        <h3>🔔 Claims from this parent</h3>
+        <span class="panel-head-note">nothing moves in the ledger until you record it</span>
+      </div>
+      <div class="panel-body">
+        <% claims.forEach(cl => { %>
+          <div class="claim-row claim-<%= cl.status %>">
+            <span class="claim-amt">₹<%= Math.round(cl.amount).toLocaleString('en-IN') %></span>
+            <span class="claim-meta">
+              <b><%= cl.mode %></b><% if (cl.reference) { %> · ref <%= cl.reference %><% } %>
+              <span class="text-muted">· paid <%= fmtDMY(cl.paid_on) %> · told us <%= fmtDateTime(cl.created_at) %><span class="tz-tag">IST</span></span>
+              <% if (cl.monthList && cl.monthList.length) { %>
+                <span class="text-muted">· meant for <%= cl.monthList.map(m => m.term).join(' · ') %></span>
+              <% } %>
+              <% if (cl.note) { %>            <span class="claim-note">“<%= cl.note %>”</span><% } %>
+            </span>
+            <% if (cl.photo) { %>
+              <a class="claim-shot" href="<%= cl.photo %>" target="_blank" rel="noopener" title="Open the payment screenshot">
+                <img src="<%= cl.photo %>" alt="Payment screenshot"><span>screenshot</span>
+              </a>
+            <% } %>
+            <% if (cl.status === 'pending') { %>
+              <span class="claim-actions">
+                <form method="POST" action="/admin/fees/claims/<%= cl.id %>/record"
+                      onsubmit="return confirm('Record Rs.<%= Math.round(cl.amount) %> as received from <%= cl.full_name.replace(/'/g, "") %>?');">
+                  <input type="hidden" name="back" value="<%= student.id %>">
+                  <input type="hidden" name="decision_note" value="">
+                  <button type="submit" class="btn btn-primary btn-sm">✅ Record ₹<%= Math.round(cl.amount).toLocaleString('en-IN') %></button>
+                </form>
+                <form method="POST" action="/admin/fees/claims/<%= cl.id %>/reject"
+                      onsubmit="var n = this.elements.decision_note.value; if (!n) { n = prompt('Why is this not received? (shown to the parent)', 'Not found in our account'); if (n === null) return false; this.elements.decision_note.value = n; } return true;">
+                  <input type="hidden" name="back" value="<%= student.id %>">
+                  <input type="hidden" name="decision_note" value="">
+                  <button type="submit" class="btn btn-outline btn-sm">✖ Not received</button>
+                </form>
+              </span>
+            <% } else { %>
+              <span class="claim-state">
+                <% if (cl.status === 'recorded') { %><span class="badge paid">✅ Recorded</span>
+                <% } else { %><span class="badge overdue">Not received</span><% } %>
+                <% if (cl.decision_note) { %><span class="text-muted">· <%= cl.decision_note %></span><% } %>
+              </span>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+  <% } %>
+
+  <%# ---- one amount, spread over the months (money taken at the counter) ---- %>
+  <div class="panel">
+    <div class="panel-head">
+      <h3><span class="rupee-glyph">₹</span> Quick payment</h3>
+      <span class="panel-head-note">spreads over the months, oldest first</span>
+    </div>
+    <div class="panel-body">
+      <form method="POST" action="/admin/fees/<%= student.id %>/quick" class="quick-pay-form">
+        <input type="hidden" name="filter_class" value="<%= filterClass %>">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Amount received</label>
+            <input type="number" name="amount" min="1" step="1" inputmode="numeric" required placeholder="3000"
+                   <%= student.balance ? '' : 'disabled' %>>
+          </div>
+          <div class="form-group">
+            <label>Mode</label>
+            <select name="mode" <%= student.balance ? '' : 'disabled' %>><% payModes.forEach(m => { %><option><%= m %></option><% }) %></select>
+          </div>
+          <div class="form-group">
+            <label>Date received</label>
+            <input type="date" name="paid_on" value="<%= today %>" <%= student.balance ? '' : 'disabled' %>>
+          </div>
+          <div class="form-group">
+            <label>Note <span class="text-muted">(optional)</span></label>
+            <input type="text" name="note" maxlength="200" placeholder="Cash at the office" <%= student.balance ? '' : 'disabled' %>>
+          </div>
+          <%# a hostel parent often hands over money for ONE of the two bills — say which one right
+              here, and the split on the months below stays true %>
+          <% if (student.isBoarder && student.hostelCharged > 0) { %>
+            <div class="form-group">
+              <label>Apply to</label>
+              <select name="part" <%= student.balance ? '' : 'disabled' %>>
+                <% (payParts || []).forEach(p => { %><option value="<%= p.key %>" title="<%= p.hint %>"><%= p.label %></option><% }) %>
+              </select>
+            </div>
+          <% } %>
+        </div>
+        <button class="btn btn-primary btn-sm" type="submit" <%= student.balance ? '' : 'disabled' %>
+                title="Balance is ₹<%= Math.round(student.balance).toLocaleString('en-IN') %>">
+          ₹ Record and spread<%= student.balance ? ' · balance ₹' + Math.round(student.balance).toLocaleString('en-IN') : ' · nothing pending' %>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <div class="cards fee-cards">        <div class="card stat-card accent-blue">
+      <div class="stat-label">Session total</div>
+      <div class="stat-value">₹<%= Math.round(student.sessionTotal).toLocaleString('en-IN') %></div>
+      <div class="stat-sub"><%= student.isBoarder
+        ? (student.hostelMonths === student.totalMonths
+          ? '🏠 Hostel rate ₹' + Math.round(student.hostelRate).toLocaleString('en-IN') + ' × ' + student.totalMonths + ' months'
+          : '🏠 Hostel rate ₹' + Math.round(student.hostelRate).toLocaleString('en-IN') + ' for ' + student.hostelMonths + ' of ' + student.totalMonths + ' months · day rate ₹' + Math.round(student.dayRate).toLocaleString('en-IN') + ' for the rest')
+        : '₹' + (student.months.length ? Math.round(student.months[0].amount).toLocaleString('en-IN') : 0) + ' × ' + student.totalMonths + ' months' %><%= student.fineTotal > 0 ? ' + fine ₹' + Math.round(student.fineTotal).toLocaleString('en-IN') : '' %></div>
+    </div>
+    <div class="card stat-card accent-green">
+      <div class="stat-label">Received</div>
+      <div class="stat-value" id="js-collected">₹<%= Math.round(student.receivedTotal).toLocaleString('en-IN') %></div>
+      <div class="stat-sub" id="js-collected-sub"><%= student.paidMonths %> of <%= student.totalMonths %> months settled<%= student.partialMonths ? ' · ' + student.partialMonths + ' part paid' : '' %></div>
+    </div>
+    <div class="card stat-card accent-orange">
+      <div class="stat-label">Balance</div>
+      <div class="stat-value" id="js-pending">₹<%= Math.round(student.balance).toLocaleString('en-IN') %></div>
+      <div class="stat-sub" id="js-pending-sub"><%= student.months.filter(m => m.balance > 0).length %> month<%= student.months.filter(m => m.balance > 0).length == 1 ? '' : 's' %> still to collect</div>
+    </div>
+    <div class="card stat-card <%= student.overdueMonths ? 'accent-red' : 'accent-blue' %>">
+      <div class="stat-label">Overdue</div>
+      <div class="stat-value" id="js-overdue">₹<%= Math.round(student.overdueAmount).toLocaleString('en-IN') %></div>
+      <div class="stat-sub" id="js-overdue-sub">
+        <%= student.overdueMonths ? student.overdueMonths + ' month(s) past due date' : 'Nothing past the due date' %>
+      </div>
+    </div>
+  </div>
+
+  <%# ---- SCHOOL FEE and HOSTEL FEE, kept apart (a boarder only, 2026-09-16) ----
+      A hostel student's month is two bills, and a family often pays one of them and not the
+      other. The office's own words for it, with the two balances it has to collect — the same
+      figures the parent reads on the portal (both come from `fees.splitMonth`). %>
+  <% if (student.isBoarder && student.hostelCharged > 0) { %>
+    <div class="panel split-panel">
+      <div class="panel-head">
+        <h3>🏫 School fee &nbsp;+&nbsp; 🏠 Hostel fee</h3>
+        <span class="panel-head-note"><%= student.stayNote %></span>
+      </div>
+      <div class="panel-body">
+        <p class="split-lead">
+          Every hostel month is <b>₹<%= Math.round(student.dayRate).toLocaleString('en-IN') %> school fee
+          + ₹<%= Math.round(student.hostelRate - student.dayRate).toLocaleString('en-IN') %> hostel fee
+          = ₹<%= Math.round(student.hostelRate).toLocaleString('en-IN') %></b>. Money received settles the
+          school fee first, then the hostel fee — unless a receipt says otherwise (“Apply to” when you receive it).
+        </p>
+        <div class="split-cards">
+          <div class="split-card split-<%= student.schoolStatus %>">
+            <div class="split-head">
+              <span class="split-ico" aria-hidden="true">🏫</span>
+              <span class="split-name">School fee<small>the day-scholar column of the class</small></span>
+              <span class="badge <%= student.schoolStatus === 'paid' ? 'paid' : student.schoolStatus === 'part' ? 'partial' : 'due' %>
+                "><%= student.schoolStatus === 'paid' ? 'Paid' : student.schoolStatus === 'part' ? 'Part paid' : 'Pending' %></span>
+            </div>
+            <div class="split-rows">
+              <span>Charged this session</span><b>₹<%= Math.round(student.schoolCharged).toLocaleString('en-IN') %></b>
+              <span>Received</span><b class="<%= student.schoolPaid ? 'pm-good' : '' %>">₹<%= Math.round(student.schoolPaid).toLocaleString('en-IN') %></b>
+              <span>Still to collect</span><b class="<%= student.schoolBalance > 0 ? 'pm-bad' : 'pm-good' %>"><%= student.schoolBalance > 0 ? '₹' + Math.round(student.schoolBalance).toLocaleString('en-IN') : 'Nil' %></b>
+              <% if (student.schoolOverdue > 0) { %>
+                <span class="split-late-row">Of it past due</span><b class="pm-bad split-late">₹<%= Math.round(student.schoolOverdue).toLocaleString('en-IN') %></b>
+              <% } %>
+            </div>
+          </div>
+          <div class="split-card split-<%= student.hostelStatus %>">
+            <div class="split-head">
+              <span class="split-ico" aria-hidden="true">🏠</span>
+              <span class="split-name">Hostel fee<small>mess &amp; lodging</small></span>
+              <span class="badge <%= student.hostelStatus === 'paid' ? 'paid' : student.hostelStatus === 'part' ? 'partial' : 'due' %>
+                "><%= student.hostelStatus === 'paid' ? 'Paid' : student.hostelStatus === 'part' ? 'Part paid' : 'Pending' %></span>
+            </div>
+            <div class="split-rows">
+              <span>Charged this session</span><b>₹<%= Math.round(student.hostelCharged).toLocaleString('en-IN') %></b>
+              <span>Received</span><b class="<%= student.hostelPaid ? 'pm-good' : '' %>">₹<%= Math.round(student.hostelPaid).toLocaleString('en-IN') %></b>
+              <span>Still to collect</span><b class="<%= student.hostelBalance > 0 ? 'pm-bad' : 'pm-good' %>"><%= student.hostelBalance > 0 ? '₹' + Math.round(student.hostelBalance).toLocaleString('en-IN') : 'Nil' %></b>
+              <% if (student.hostelOverdue > 0) { %>
+                <span class="split-late-row">Of it past due</span><b class="pm-bad split-late">₹<%= Math.round(student.hostelOverdue).toLocaleString('en-IN') %></b>
+              <% } %>
+            </div>
+          </div>
+        </div>
+        <% if (student.fineBalance > 0) { %>
+          <p class="split-note">⚠️ ₹<%= Math.round(student.fineBalance).toLocaleString('en-IN') %> of the balance is a late fine — it belongs to neither bill.</p>
+        <% } %>
+      </div>
+    </div>
+  <% } %>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Monthly installments · <span id="js-paid-count"><%= student.paidMonths %></span>/<%= student.totalMonths %> settled (<span id="js-pct"><%= student.percent %></span>%)</h3>
+      <span class="fee-progress-inline"><span class="fee-stu-bar <%= student.percent === 100 ? '' : student.paidMonths ? 'fee-bar-partial' : 'fee-bar-none' %>" id="js-bar"><span style="width: <%= student.percent %>%"></span></span></span>
+    </div>
+    <div class="panel-body no-pad">
+      <%# A legend, not a lecture: the office reads it once and knows what the three buttons do. %>
+      <p class="fee-hint">
+        <b><span class="rupee-glyph">₹</span> Receive</b> = money in (a part payment is fine) · <b>➕ Fine</b> = late fine · <b>Mark Paid</b> = settle · <b>💾 Save</b> writes it
+      </p>
+      <div class="table-wrap">
+        <table class="card-table fee-months-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Month</th>
+              <th class="text-right">Fee</th>
+              <th class="text-right">Received</th><th class="text-right">Balance</th>
+              <th>Status</th><th class="text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% student.months.forEach((m, i) => { %>
+              <% const rowClass = m.status === 'paid' ? 'fee-row-paid' : m.overdue ? 'fee-row-overdue' : m.status === 'partial' ? 'fee-row-partial' : ''; %>
+              <tr class="fee-row <%= rowClass %>"
+                  data-fee-id="<%= m.id %>"
+                  data-original="<%= m.status === 'paid' ? 1 : 0 %>"
+                  data-paid="<%= m.status === 'paid' ? 1 : 0 %>"
+                  data-overdue="<%= m.overdue ? 1 : 0 %>"
+                  data-amount="<%= Math.round(m.amount) %>"
+                  data-fine="<%= Math.round(m.fine) %>"
+                  data-payable="<%= Math.round(m.payable) %>"
+                  data-received="<%= Math.round(m.paid_amount) %>"
+                  data-school-balance="<%= Math.round(m.schoolBalance) %>"
+                  data-hostel-balance="<%= Math.round(m.hostelBalance) %>"
+                  data-school-status="<%= m.schoolStatus %>"
+                  data-hostel-status="<%= m.hostelStatus %>"
+                  data-term="<%= m.term %>"
+                  data-status="<%= m.status %>">
+                <td class="text-muted" data-label="Month no."><%= i + 1 %></td>
+                <td class="fee-month-cell td-name" data-label="Month">
+                  <b><%= m.term %></b><% if (m.balance > 0 && student.nextDue && student.nextDue.id === m.id) { %> <span class="fee-next" id="fee-next-tag">next due</span><% } %>
+                  <div class="fee-sub">Due <%= m.due_date ? fmtDMY(m.due_date) : '—' %></div>
+                  <%# ---- the TWO bills inside a hostel month (2026-09-16) ----
+                      The cell above says what the month costs; these two lines say which of the two
+                      bills the money settled. It is the answer to the question the office is asked
+                      every day — “we paid the school fee, is the hostel fee also clear?” ---- %>
+                  <% if (m.hostelCharge > 0) { %>
+                    <div class="fee-split">
+                      <span class="fs-name">🏫 School</span>
+                      <span class="fs-amt">₹<%= Math.round(m.schoolCharge).toLocaleString('en-IN') %></span>
+                      <span class="fs-state fs-<%= m.schoolStatus %>"><% if (m.schoolStatus === 'paid') { %>paid ✔<% } else if (m.schoolStatus === 'part') { %>₹<%= Math.round(m.schoolPaid).toLocaleString('en-IN') %> paid<% } else { %>₹<%= Math.round(m.schoolBalance).toLocaleString('en-IN') %> left<% } %></span>
+                      <span class="fs-name">🏠 Hostel</span>
+                      <span class="fs-amt">₹<%= Math.round(m.hostelCharge).toLocaleString('en-IN') %></span>
+                      <span class="fs-state fs-<%= m.hostelStatus %>"><% if (m.hostelStatus === 'paid') { %>paid ✔<% } else if (m.hostelStatus === 'part') { %>₹<%= Math.round(m.hostelPaid).toLocaleString('en-IN') %> paid<% } else { %>₹<%= Math.round(m.hostelBalance).toLocaleString('en-IN') %> left<% } %></span>
+                    </div>
+                  <% } %>
+                </td>
+                <td class="text-right fee-mono" data-label="Fee">
+                  ₹<%= Math.round(m.amount).toLocaleString('en-IN') %>
+                  <%# Which column of the class fee sheet this month came from. A boarder's
+                      months are not all the same price — the ones before he joined the hostel
+                      carry the day rate — so the office must be able to see WHY a month is ₹7,500
+                      and not ₹1,900. The tag comes from the service that priced it. %>
+                  <% if (m.rate === 'hostel') { %><span class="fee-rate-tag" title="Charged at the hostel column of the class fee sheet">🏠 Hostel rate</span><% } %>
+                  <span class="fee-fine-cell js-fine-cell"><%= m.fine ? '+₹' + Math.round(m.fine).toLocaleString('en-IN') + ' fine' : '' %></span>
+                </td>
+                <td class="text-right fee-mono js-received-cell<%= m.paid_amount ? ' fee-received' : '' %>" data-label="Received"><%= m.paid_amount ? '₹' + Math.round(m.paid_amount).toLocaleString('en-IN') : '—' %></td>
+                <td class="text-right fee-mono js-balance-cell<%= m.balance ? ' fee-pending' : '' %>" data-label="Balance"><%= m.balance ? '₹' + Math.round(m.balance).toLocaleString('en-IN') : '—' %></td>
+                <td data-label="Status"><span class="badge <%= m.status === 'partial' ? 'partial' : m.status %> js-status"><%= { paid: 'Paid', partial: 'Part paid', overdue: 'Overdue', due: 'Due' }[m.status] %></span></td>
+                <td class="text-right fee-row-actions td-actions">
+                  <button type="button" class="btn btn-outline btn-sm js-pay" <%= m.balance ? '' : 'disabled' %>>₹ Receive</button>
+                  <button type="button" class="btn btn-outline btn-sm js-fine">➕ Fine</button>
+                  <button type="button" class="btn <%= m.status === 'paid' ? 'btn-outline' : 'btn-primary' %> btn-sm js-toggle">
+                    <%= m.status === 'paid' ? 'Mark Unpaid' : 'Mark Paid' %>
+                  </button>
+                </td>
+              </tr>
+            <% }) %>
+            <% if (!student.months.length) { %>
+              <tr class="is-empty"><td colspan="7" class="empty">No installments yet — they are created from the class's monthly tuition.</td></tr>
+            <% } %>
+          </tbody>
+          <% if (student.months.length) { %>
+            <%# The totals row. On the office's screen it is the last line of the table; on a phone
+                it becomes a summary card ("Total", then Fee · Received · Balance), which is why the
+                three money cells name themselves and the trailing spacer cell can be dropped. %>
+            <tfoot>
+              <tr>
+                <td colspan="2" class="tf-label"><b>Total</b><% if (student.fineTotal) { %> <span class="fee-fine-cell fee-fine-cell-lg">fine ₹<%= Math.round(student.fineTotal).toLocaleString('en-IN') %></span><% } %></td>
+                <td class="text-right fee-mono" data-label="Fee"><b>₹<%= Math.round(student.months.reduce((a, m) => a + m.payable, 0)).toLocaleString('en-IN') %></b></td>
+                <td class="text-right fee-mono" data-label="Received"><b id="js-tfoot-collected">₹<%= Math.round(student.receivedTotal).toLocaleString('en-IN') %></b></td>
+                <td class="text-right fee-mono" data-label="Balance"><b id="js-tfoot-pending">₹<%= Math.round(student.balance).toLocaleString('en-IN') %></b></td>
+                <td colspan="2" class="tf-spacer"></td>
+              </tr>
+            </tfoot>
+          <% } %>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <% if (student.receiptList.length) { %>
+  <div class="panel">
+    <div class="panel-head">
+      <h3>🧾 Receipts · <%= student.receiptList.length %></h3>
+      <span class="panel-head-note">newest first</span>
+    </div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <table class="card-table fee-receipts-table">
+          <thead><tr><th>Date</th><th>Month</th><th>Mode</th><th>Note</th><th class="text-right">Amount</th></tr></thead>
+          <tbody>
+            <% student.receiptList.forEach(r => { %>
+              <tr>
+                <td class="td-name" data-label="Date"><b><%= fmtDMY(r.paid_on) %></b></td>
+                <td data-label="Month"><%= r.term %>
+                  <%# a labelled receipt says which bill the money was meant for — unlabelled money
+                      follows the school's own order (school fee first), see services/fees.js %>
+                  <% if (r.part === 'hostel') { %><span class="fee-part-tag">🏠 hostel fee</span>
+                  <% } else if (r.part === 'school') { %><span class="fee-part-tag">🏫 school fee</span><% } %>
+                </td>
+                <td data-label="Mode"><%= r.mode %></td>
+                <td class="text-muted" data-label="Note"><%= r.note || '—' %></td>
+                <td class="text-right fee-mono" data-label="Amount">₹<%= Math.round(r.amount).toLocaleString('en-IN') %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4"><b>Total received</b></td>
+              <td class="text-right fee-mono"><b>₹<%= Math.round(student.receivedTotal).toLocaleString('en-IN') %></b></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="fee-hint">A receipt goes away only when a month is marked <b>Unpaid</b>.</p>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- changes are held here until the office presses Save -->
+  <form method="POST" action="/admin/fees/<%= student.id %>/save" id="fee-save-form" class="fee-save-bar"
+        data-confirm="own"<%# its own question says how many months and what will happen %> hidden>
+    <input type="hidden" name="filter_class" value="<%= filterClass %>">
+    <span class="fee-save-info" id="fee-save-info">No changes</span>
+    <span class="fee-save-note">Review once — saving records the money and notifies the parent.</span>
+    <span class="fee-save-btns">
+      <button type="button" class="btn btn-outline btn-sm" id="fee-discard">Discard</button>
+      <button type="submit" class="btn btn-primary" id="fee-save-btn">💾 Save changes</button>
+    </span>
+  </form>
+
+  <!-- 💵 receive a payment (part or full) -->
+  <div class="fee-dialog" id="pay-dialog" hidden>
+    <div class="fee-dialog-card">
+      <form method="POST" action="/admin/fees/<%= student.id %>/pay" id="pay-form" data-confirm="own">
+        <input type="hidden" name="filter_class" value="<%= filterClass %>">
+        <input type="hidden" name="fee_id" id="pay-fee-id">
+        <h3><span class="rupee-glyph">₹</span> Receive payment</h3>
+        <p class="fee-dialog-sub" id="pay-sub"></p>
+        <div class="form-group">
+          <label>Amount received (₹)</label>
+          <input type="number" name="amount" id="pay-amount" min="1" step="0.01" required>
+          <small class="fee-dialog-hint" id="pay-hint"></small>
+        </div>
+        <%# Only a hostel month has two bills to choose between, so this box is kept hidden for
+            every other month (the JS opens it when the month carries a hostel fee). %>
+        <div class="form-group" id="pay-part-group" hidden>
+          <label>Apply to</label>
+          <select name="part" id="pay-part">
+            <% (payParts || []).forEach(p => { %><option value="<%= p.key %>"><%= p.label %></option><% }) %>
+          </select>
+          <small class="fee-dialog-hint" id="pay-part-hint"></small>
+        </div>
+        <div class="fee-dialog-grid">
+          <div class="form-group">
+            <label>Mode</label>
+            <select name="mode">
+              <% payModes.forEach(m => { %><option value="<%= m %>"><%= m %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Date received</label>
+            <input type="date" name="paid_on" id="pay-date" value="<%= istToday() %>" max="<%= istToday() %>">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Note (optional)</label>
+          <input type="text" name="note" maxlength="200" placeholder="e.g. balance promised next week">
+        </div>
+        <div class="fee-dialog-actions">
+          <button type="button" class="btn btn-outline" data-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">💾 Save receipt</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ➕ late fine on one month -->
+  <div class="fee-dialog" id="fine-dialog" hidden>
+    <div class="fee-dialog-card">
+      <form method="POST" action="/admin/fees/<%= student.id %>/fine" id="fine-form" data-confirm="own">
+        <input type="hidden" name="filter_class" value="<%= filterClass %>">
+        <input type="hidden" name="fee_id" id="fine-fee-id">
+        <h3>➕ Late payment fine</h3>
+        <p class="fee-dialog-sub" id="fine-sub"></p>
+        <div class="form-group">
+          <label>Fine amount (₹)</label>
+          <input type="number" name="fine" id="fine-amount" min="0" step="1" required>
+          <small class="fee-dialog-hint">Enter 0 to remove an existing fine.</small>
+        </div>
+        <div class="form-group">
+          <label>Reason (optional)</label>
+          <input type="text" name="fine_note" maxlength="200" placeholder="e.g. paid 20 days after the due date">
+        </div>
+        <div class="fee-dialog-actions">
+          <button type="button" class="btn btn-outline" data-close>Cancel</button>
+          <button type="submit" class="btn btn-primary">💾 Save fine</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var form = document.getElementById('fee-save-form');
+    if (!form) return;
+    var name = <%- JSON.stringify(student.full_name) %>;
+    var rows = [].slice.call(document.querySelectorAll('tr.fee-row'));
+    var bar = document.querySelector('#js-bar > span');
+    var barWrap = document.getElementById('js-bar');
+    var info = document.getElementById('fee-save-info');
+    var fields = document.createElement('div');
+    fields.hidden = true;
+    form.appendChild(fields);
+
+    function money(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
+    // what a month shows once the staged choice is applied:
+    // "paid" settles the month in full, "unpaid" takes the receipts away
+    function received(row, staged) { return staged ? Number(row.dataset.payable) : Number(row.dataset.received); }
+    function staged(row) { return row.dataset.paid === '1'; }
+
+    function paint(row) {
+      var paid = staged(row);
+      var overdue = !paid && row.dataset.overdue === '1';
+      var got = received(row, paid);
+      var payable = Number(row.dataset.payable);
+
+      row.classList.toggle('fee-row-paid', paid);
+      row.classList.toggle('fee-row-overdue', overdue);
+      row.classList.toggle('fee-row-partial', !paid && !overdue && got > 0);
+      row.classList.toggle('fee-row-dirty', paid !== (row.dataset.original === '1'));
+
+      var btn = row.querySelector('.js-toggle');
+      btn.textContent = paid ? 'Mark Unpaid' : 'Mark Paid';
+      btn.className = 'btn btn-sm js-toggle ' + (paid ? 'btn-outline' : 'btn-primary');
+
+      var status = row.querySelector('.js-status');
+      if (paid) { status.className = 'badge paid js-status'; status.textContent = 'Paid'; }
+      else if (overdue) { status.className = 'badge overdue js-status'; status.textContent = got > 0 ? 'Part paid' : 'Overdue'; }
+      else if (got > 0) { status.className = 'badge partial js-status'; status.textContent = 'Part paid'; }
+      else { status.className = 'badge due js-status'; status.textContent = 'Due'; }
+
+      var fineCell = row.querySelector('.js-fine-cell');
+      fineCell.textContent = Number(row.dataset.fine)
+        ? '+₹' + Math.round(Number(row.dataset.fine)).toLocaleString('en-IN') + ' fine' : '';
+
+      var gotCell = row.querySelector('.js-received-cell');
+      gotCell.textContent = got ? money(got) : '—';
+      gotCell.className = 'text-right fee-mono js-received-cell' + (got ? ' fee-received' : '');
+      var balCell = row.querySelector('.js-balance-cell');
+      var left = Math.max(0, payable - got);
+      balCell.textContent = left ? money(left) : '—';
+      balCell.className = 'text-right fee-mono js-balance-cell' + (left ? ' fee-pending' : '');
+    }
+
+    function refresh() {
+      var sessionTotal = rows.reduce(function (a, r) { return a + Number(r.dataset.payable); }, 0);
+      var collected = rows.reduce(function (a, r) { return a + received(r, staged(r)); }, 0);
+      var settled = rows.filter(function (r) { return staged(r); });
+      var open = rows.filter(function (r) { return !staged(r); });
+      var overdueRows = open.filter(function (r) {
+        return r.dataset.overdue === '1' && (Number(r.dataset.payable) - Number(r.dataset.received)) > 0;
+      });
+      var overdue = overdueRows.reduce(function (a, r) { return a + (Number(r.dataset.payable) - Number(r.dataset.received)); }, 0);
+      var partRows = open.filter(function (r) { return Number(r.dataset.received) > 0; });
+      var dirty = rows.filter(function (r) { return r.dataset.paid !== r.dataset.original; });
+      var pct = sessionTotal ? Math.round((collected / sessionTotal) * 100) : 0;
+      var openWithBalance = open.filter(function (r) { return (Number(r.dataset.payable) - Number(r.dataset.received)) > 0; });
+
+      document.getElementById('js-collected').textContent = money(collected);
+      document.getElementById('js-collected-sub').textContent = settled.length + ' of ' + rows.length + ' months settled'
+        + (partRows.length ? ' · ' + partRows.length + ' part paid' : '');
+      document.getElementById('js-pending').textContent = money(sessionTotal - collected);
+      document.getElementById('js-pending-sub').textContent = openWithBalance.length + ' month' + (openWithBalance.length === 1 ? '' : 's') + ' still to collect';
+      document.getElementById('js-overdue').textContent = money(overdue);
+      document.getElementById('js-overdue-sub').textContent = overdueRows.length
+        ? overdueRows.length + ' month(s) past due date' : 'Nothing past the due date';
+      document.getElementById('js-tfoot-collected').textContent = money(collected);
+      document.getElementById('js-tfoot-pending').textContent = money(sessionTotal - collected);
+      document.getElementById('js-paid-count').textContent = settled.length;
+      document.getElementById('js-pct').textContent = pct;
+      if (bar) bar.style.width = pct + '%';
+      if (barWrap) barWrap.className = 'fee-stu-bar ' + (pct === 100 ? '' : collected ? 'fee-bar-partial' : 'fee-bar-none');
+
+      // the "next due" tag follows the first month with money left on it
+      var tag = document.getElementById('fee-next-tag');
+      var first = openWithBalance[0];
+      if (!first) { if (tag) tag.hidden = true; }
+      else {
+        if (!tag) {
+          tag = document.createElement('span');
+          tag.id = 'fee-next-tag';
+          tag.className = 'fee-next';
+          tag.textContent = 'next due';
+        }
+        first.querySelector('td:nth-child(2)').appendChild(tag);
+        tag.hidden = false;
+      }
+
+      form.hidden = dirty.length === 0;
+      info.textContent = dirty.length
+        ? dirty.length + ' month' + (dirty.length === 1 ? '' : 's') + ' changed — not saved yet'
+        : 'No changes';
+      document.getElementById('fee-save-btn').disabled = dirty.length === 0;
+      form.dataset.dirty = String(dirty.length);
+    }
+
+    rows.forEach(function (row) {
+      row.querySelector('.js-toggle').addEventListener('click', function () {
+        row.dataset.paid = row.dataset.paid === '1' ? '0' : '1';
+        paint(row);
+        refresh();
+      });
+    });
+
+    var markAll = document.getElementById('fee-mark-all');
+    if (markAll) markAll.addEventListener('click', function () {
+      rows.forEach(function (r) { r.dataset.paid = '1'; paint(r); });
+      refresh();
+    });
+
+    document.getElementById('fee-discard').addEventListener('click', function () {
+      rows.forEach(function (r) { r.dataset.paid = r.dataset.original; paint(r); });
+      refresh();
+    });
+
+    form.addEventListener('submit', function (e) {
+      var dirty = rows.filter(function (r) { return r.dataset.paid !== r.dataset.original; });
+      if (!dirty.length) return e.preventDefault();
+      fields.textContent = '';
+      dirty.forEach(function (r) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'm' + r.dataset.feeId;
+        input.value = r.dataset.paid === '1' ? 'paid' : 'unpaid';
+        fields.appendChild(input);
+      });
+      var paidCount = dirty.filter(function (r) { return r.dataset.paid === '1'; }).length;
+      var unpaidCount = dirty.length - paidCount;
+      var msg = 'Do you really want to update ' + dirty.length + ' month' + (dirty.length === 1 ? '' : 's')
+        + ' for ' + name + '?';
+      if (paidCount) msg += '\n\n' + paidCount + ' month' + (paidCount === 1 ? '' : 's')
+        + ' will be marked PAID (the full balance is recorded as a cash receipt) and the parent will get a notification.';
+      if (unpaidCount) msg += '\n\n' + unpaidCount + ' month' + (unpaidCount === 1 ? '' : 's')
+        + ' will be marked UNPAID and its receipts removed.';
+      if (!confirm(msg)) e.preventDefault();
+    });
+
+    // ---- 💵 receive payment ----
+    var payDialog = document.getElementById('pay-dialog');
+    var payForm = payDialog.querySelector('form');
+    var payAmount = document.getElementById('pay-amount');
+    function openDialog(dialog) { dialog.hidden = false; dialog.classList.add('is-open'); }
+    function closeDialog(dialog) { dialog.hidden = true; dialog.classList.remove('is-open'); }
+
+    rows.forEach(function (row) {
+      row.querySelector('.js-pay').addEventListener('click', function () {
+        var balance = Number(row.dataset.payable) - Number(row.dataset.received);
+        document.getElementById('pay-fee-id').value = row.dataset.feeId;
+        document.getElementById('pay-sub').textContent = name + ' · ' + row.dataset.term
+          + ' · fee ' + money(row.dataset.payable) + ' · received ' + money(row.dataset.received);
+        document.getElementById('pay-hint').textContent = 'Balance on this month: ' + money(balance)
+          + '. Enter less than that if only a part is being paid.';
+        // a hostel month carries two bills — offer the choice, and default to the open one
+        var schoolLeft = Number(row.dataset.schoolBalance || 0);
+        var hostelLeft = Number(row.dataset.hostelBalance || 0);
+        var partGroup = document.getElementById('pay-part-group');
+        var partSel = document.getElementById('pay-part');
+        if (schoolLeft + hostelLeft > 0) {
+          partGroup.hidden = false;
+          document.getElementById('pay-part-hint').textContent =
+            'School fee ' + money(schoolLeft) + ' left · hostel fee ' + money(hostelLeft) + ' left.';
+          partSel.value = schoolLeft > 0 ? 'school' : 'hostel';
+        } else {
+          partGroup.hidden = true;
+          partSel.value = '';
+        }
+        payAmount.value = Math.round(balance);
+        payAmount.max = Math.round(balance);
+        openDialog(payDialog);
+        payAmount.focus();
+        payAmount.select();
+      });
+      row.querySelector('.js-fine').addEventListener('click', function () {
+        document.getElementById('fine-fee-id').value = row.dataset.feeId;
+        document.getElementById('fine-sub').textContent = name + ' · ' + row.dataset.term
+          + (Number(row.dataset.fine) ? ' · current fine ' + money(row.dataset.fine) : ' · no fine on this month');
+        document.getElementById('fine-amount').value = Number(row.dataset.fine) || '';
+        openDialog(document.getElementById('fine-dialog'));
+        document.getElementById('fine-amount').focus();
+      });
+    });
+
+    [].slice.call(document.querySelectorAll('.fee-dialog')).forEach(function (dialog) {
+      dialog.addEventListener('click', function (e) {
+        if (e.target === dialog) closeDialog(dialog);              // tap outside the card
+      });
+      [].slice.call(dialog.querySelectorAll('[data-close]')).forEach(function (btn) {
+        btn.addEventListener('click', function () { closeDialog(dialog); });
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') [].slice.call(document.querySelectorAll('.fee-dialog')).forEach(closeDialog);
+    });
+
+    payForm.addEventListener('submit', function (e) {
+      var amount = Number(payAmount.value);
+      var row = rows.filter(function (r) { return r.dataset.feeId === document.getElementById('pay-fee-id').value; })[0];
+      if (!(amount > 0)) return e.preventDefault();
+      if (row && Number(row.dataset.received) + amount > Number(row.dataset.payable)) {
+        alert('That is more than the balance on this month.');
+        return e.preventDefault();
+      }
+      var partSel = document.getElementById('pay-part');
+      var label = partSel && !document.getElementById('pay-part-group').hidden && partSel.value
+        ? (partSel.value === 'hostel' ? ' the hostel fee' : ' the school fee') : '';
+      if (!confirm('Save a receipt of ' + money(amount) + label + ' and notify the parent?')) e.preventDefault();
+    });
+
+    document.getElementById('fine-form').addEventListener('submit', function (e) {
+      if (!confirm('Save this fine on the month and notify the parent?')) e.preventDefault();
+    });
+
+    refresh();
+  })();
+  </script>
+<%- include('../partials/footer') %>

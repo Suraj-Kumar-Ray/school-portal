@@ -1,0 +1,36 @@
+<%#
+  ONE message from the school, as the card §2a18 describes. BOTH the parent's inbox
+  (views/parent/messages.ejs) and the home page's “Updates from school”
+  (views/parent/dashboard.ejs) draw it from here, so the two screens can never drift apart —
+  and the class pair `notice-item msg-item` stays exactly as `smoke-parent-alerts.js` pins it.
+
+  Needs:
+    • `m`     a message row WITH `card` (messages.cardOf(m)) — the route attaches it
+    • `isNew` true while the parent has not read it
+%>
+<article class="notice-item msg-item<%= isNew ? ' is-new' : '' %>">
+  <%# where it came from, first — a parent should never have to guess %>
+  <div class="mc-from">
+    <span class="mc-from-who"><span class="mc-from-ico">🏫</span> School Office</span>
+    <% if (isNew) { %><span class="new-flag">New</span><% } %>
+    <span class="mc-when"><%= fmtDateTime(m.created_at) %> <span class="tz-tag">IST</span></span>
+  </div>
+
+  <div class="mc-subject"><span class="badge blue"><%= m.category %></span><%= m.subject %></div>
+
+  <% if (m.card && m.card.amount) { %>
+    <div class="mc-money is-<%= m.card.tone %>">
+      <span class="mc-money-label"><%= m.card.amountLabel %></span>
+      <span class="mc-money-value">₹<%= m.card.amount %></span>
+    </div>
+  <% } %>
+
+  <% if (m.card && m.card.preview) { %><p class="mc-preview"><%= m.card.preview %></p><% } %>
+
+  <% if (m.card && m.card.hasMore) { %>
+    <details class="mc-more">
+      <summary class="mc-more-btn">Read the full message</summary>
+      <div class="mc-full"><%= m.card.full %></div>
+    </details>
+  <% } %>
+</article>

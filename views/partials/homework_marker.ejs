@@ -1,0 +1,80 @@
+<%# ============================================================================
+  HOMEWORK MARKER — one panel, two doors (teacher portal + admin panel)
+  ----------------------------------------------------------------------------
+  The school's ask (2026-09-18): “if a child comes without his homework the teacher
+  opens his profile and marks homework-not-done — the timetable then shows a ✕ on
+  that period; if he did it, a ✓. By default NOTHING — if no teacher marks anything
+  the band stays plain.”
+
+  Expects:
+    hwStudent  — the child row (id, full_name, class label fields)
+    hwClassId  — his class id
+    hwDay      — the timetable day being marked ('Monday'…'Saturday')
+    hwPeriods  — that day's SUBJECT periods [{ period, subject, emoji }]
+    hwStatuses — homework.statusesForDay(hwStudent.id, hwDay)
+    hwToday    — the timetable day that is actually running now (IST)
+    hwBase     — where the POSTs and the back-link go, WITHOUT the period part
+                 (e.g. '/teacher/students/12/homework' or '/admin/students/12/homework')
+    hwMarked   — flash: the period just marked (for the “saved” line)
+    hwCleared  — flash: a mark was taken back
+============================================================================ %>
+<div class="panel hw-mark-panel">
+  <div class="panel-head">
+    <h3>📝 Homework — <%= hwDay %><%= hwDay === hwToday ? ' (today)' : '' %></h3>
+    <span class="panel-head-note">✓ done · ✕ not done · nothing = no mark</span>
+  </div>
+  <div class="panel-body">
+    <% if (hwMarked) { %><div class="alert success">✅ Marked for Period <%= hwMarked %> — the parents' timetable shows it now.</div><% } %>
+    <% if (hwCleared) { %><div class="alert" style="background:#f1f5f9;border:1px solid #cbd5e1">🧹 Mark removed — that period's band is plain again.</div><% } %>
+
+    <% if (!hwPeriods.length) { %>
+      <p class="text-muted" style="margin:0;">No subject periods on <%= hwDay %> — nothing to mark.</p>
+    <% } else { %>
+      <%# each subject period of the day, in order: what was given, and the child's mark %>
+      <div class="hw-mark-list">
+        <% hwPeriods.forEach(p => {
+             const given = hwPeriodNotes && hwPeriodNotes[p.period];
+             const st = hwStatuses[p.period] || null; %>
+          <div class="hw-mark-row<%= st ? ' is-' + st.status : '' %>">
+            <div class="hw-mark-what">
+              <b><%= p.emoji || '📘' %> <%= p.subject %></b>
+              <small>Period <%= p.period %><%= given ? ' · ' + given : '' %></small>
+            </div>
+            <div class="hw-mark-state">
+              <% if (st) { %>
+                <span class="hw-mark-badge <%= st.status === 'done' ? 'ok' : 'bad' %>">
+                  <%= st.status === 'done' ? '✓ Done' : '✕ Not done' %>
+                </span>
+                <small class="text-muted"><%= st.markedBy %><%= st.markedOn ? ' · ' + st.markedOn : '' %></small>
+              <% } else { %>
+                <span class="text-muted" style="font-size:12.5px;">No mark yet</span>
+              <% } %>
+            </div>
+            <div class="hw-mark-actions">
+              <form method="POST" action="<%= hwBase %>/<%= p.period %>" class="inline-form">
+                <input type="hidden" name="status" value="done">
+                <input type="hidden" name="day" value="<%= hwDay %>">
+                <button type="submit" class="btn btn-sm hw-btn-ok" title="He did the homework">✓ Done</button>
+              </form>
+              <form method="POST" action="<%= hwBase %>/<%= p.period %>" class="inline-form">
+                <input type="hidden" name="status" value="not_done">
+                <input type="hidden" name="day" value="<%= hwDay %>">
+                <button type="submit" class="btn btn-sm hw-btn-bad" title="He came without the homework">✕ Not done</button>
+              </form>
+              <% if (st) { %>
+                <form method="POST" action="<%= hwBase %>/<%= p.period %>/clear" class="inline-form">
+                  <input type="hidden" name="day" value="<%= hwDay %>">
+                  <button type="submit" class="btn btn-outline btn-sm" title="Take the mark back">↺ Clear</button>
+                </form>
+              <% } %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <p class="text-muted" style="font-size:12.5px; margin:10px 0 0;">
+        ✕ shows a red cross and ✓ a green tick on the homework band in the parents' Time Table.
+        A child nobody marked shows nothing at all.
+      </p>
+    <% } %>
+  </div>
+</div>

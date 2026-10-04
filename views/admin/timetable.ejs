@@ -1,0 +1,824 @@
+<%- include('../partials/header', { title }) %>
+<%
+  // What a slot can be (subject period, assembly, lunch…). The editor's select and the
+  // little chip on each cell both read this one list, so the page can never drift from
+  // the service (services/timetable.js).
+  const kindOf = (key) => kinds.find(k => k.key === key) || kinds.find(k => k.key === 'class');
+  const editKind = edit && edit.slot ? (edit.slot.kind || 'class') : 'class';
+  const editBreak = kindOf(editKind).break === true;
+%>
+  <div class="page-head">
+    <h1>🕒 Time Table</h1>
+    <p>Tap any period to change it — subject, teacher, or mark it a break. A whole day can be copied to the rest of the week.</p>
+  </div>
+
+  <%# exam days: the weekly grid is paused for the parents and the date-sheet is shown instead %>
+  <div class="tt-exam-note no-print">
+    <span class="tt-exam-ico">🗓</span>
+    <span>
+      <b>Exams coming up?</b> Put the exam date-sheet in front of the parents — they will see it
+      instead of this weekly timetable, without any period here being changed.
+    </span>
+    <a class="btn btn-primary btn-sm" href="/admin/exam-timetable">🗓 Exam Time Table</a>
+  </div>
+
+  <% if (saved) { %><div class="alert success">✅ Timetable updated.<% if (allDaysSaved) { %> The same period was saved for all six days.<% } %></div><% } %>
+  <% if (copied && Number(copied) > 0) { %><div class="alert success">⧉ <%= copiedFrom %>'s timetable was copied to the other five days (<%= copied %> periods).</div><% } %>
+  <% if (copied === '0') { %><div class="alert error">⚠️ Nothing to copy — fill <%= copiedFrom %> first.</div><% } %>
+  <% if (periodDeleted !== undefined) { %><div class="alert success"><% if (Number(periodDeleted) > 0) { %>🗑 Period <%= query.period %> removed from every day (<%= periodDeleted %> periods).<% } else { %>That period was already empty.<% } %></div><% } %>
+  <% if (deleted !== undefined) { %><div class="alert success"><% if (Number(deleted) > 0) { %>🗑 Period removed.<% } else { %>That period was already empty.<% } %></div><% } %>
+  <% if (timingsSaved) { %><div class="alert success">✅ Period timings saved — the parents' app cards now show the new times.</div><% } %>
+  <%# the “Not assigned yet” fixer wrote a name — say so, and in whose name %>
+  <% if (query.assigned !== undefined && Number(query.assigned) > 0) { %><div class="alert success">✅ <b><%= query.who %></b> now takes <%= query.assigned %> period<%= Number(query.assigned) === 1 ? '' : 's' %> on <%= query.day %> — the subject is back on those cells.</div><% } %>
+  <% if (query.assigned === '0') { %><div class="alert error">⚠️ Nothing waiting on <%= query.day %> — every period of that day already has a teacher.</div><% } %>
+  <% if (query.timingsremoved) { %><div class="alert success">🗑 Period <%= query.timingsremoved %> is off the school clock. Its timetable rows were kept.</div><% } %>
+  <%# the reset button wrote — say exactly what was cleared, and that nobody else was touched %>
+  <% if (query.reset !== undefined) { %><div class="alert error">♻️ <b><%= cls ? cls.name + (cls.section ? ' ' + cls.section : '') : 'That class' %></b> was reset — <% if (Number(query.reset) > 0) { %><b><%= query.reset %> period<%= Number(query.reset) === 1 ? '' : 's' %></b> are back to “Not assigned yet”, with nothing written in them. No other class and no period timing was changed.<% } else { %>that class had nothing on its grid yet.<% } %></div><% } %>
+  <%# the office sees exactly what was wrong instead of a silent no-save %>
+  <% if (error) { %><div class="alert error">⚠️ <%= error %></div><% } %>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Select class</h3>
+      <form method="GET" action="/admin/timetable" class="filters">
+        <div class="form-group">
+          <select name="class" onchange="this.form.submit()">
+            <% classes.forEach(c => { %>
+              <option value="<%= c.id %>" <%= c.id === classId ? 'selected' : '' %>><%= c.name %><%= c.section ? ' ' + c.section : '' %></option>
+            <% }) %>
+          </select>
+        </div>
+      </form>
+    </div>
+
+    <% if (cls) { %>
+    <div class="panel-body no-pad">
+      <div class="tt-toolbar">
+        <%# a plain link: it opens the SAME editor without JavaScript (the page reloads) %>
+        <a class="btn btn-primary btn-sm" id="tt-add" href="/admin/timetable?class=<%= classId %>&add=1">➕ Add a period</a>
+        <%# RESET (school's request, 2026-09-20). A plain link too, so it works without
+            JavaScript: `confirmreset=1` renders the confirmation dialog open, and ONLY that
+            dialog's form posts. With JavaScript the link opens the same dialog in place. %>
+        <a class="btn btn-sm tt-reset-btn" id="tt-reset"
+           href="/admin/timetable?class=<%= classId %>&confirmreset=1">♻️ Reset this class</a>
+        <span class="tt-toolbar-hint">
+          <b><%= cls.name %><%= cls.section ? ' ' + cls.section : '' %></b> —
+          tap a period to edit it. <b>⧉</b> copies a whole day onto the other five.
+        </span>
+      </div>
+
+      <%# ================= WHO IS STILL MISSING (school's request, 2026-09-20) ============
+          While the timetable is being built a period can have a subject but nobody taking it.
+          This notice names every such period so the office can finish the job, and the cells
+          below carry the same words. Nothing here blocks a save — it is a checklist, not a rule. %>
+      <% if (unassignedPeriods.length) { %>
+        <div class="tt-unassigned" id="tt-unassigned">
+          <span class="tt-unassigned-ico">👤</span>
+          <div class="tt-unassigned-body">
+            <b><%= unassignedPeriods.length %> period<%= unassignedPeriods.length === 1 ? '' : 's' %> not assigned yet</b>
+            <small>No teacher is picked for <%= unassignedPeriods.length === 1 ? 'this period' : 'these periods' %>. Open the period — or use the list below — and choose a name from the staff list.</small>
+            <div class="tt-unassigned-chips">
+              <% unassignedByDay.forEach(d => { %>
+                <span class="tt-unassigned-chip"><b><%= d.short %></b><%= d.count %></span>
+              <% }) %>
+            </div>
+          </div>
+        </div>
+      <% } else { %>
+        <div class="tt-unassigned is-done" id="tt-unassigned">
+          <span class="tt-unassigned-ico">✅</span>
+          <div class="tt-unassigned-body">
+            <b>Every period has a teacher</b>
+            <small>Each subject period of this class carries a name from the staff list.</small>
+          </div>
+        </div>
+      <% } %>
+
+      <%# ================= THE FIXER (school's request, 2026-09-20) =================
+          The office asked for a way to fill in the periods that are not assigned yet. A cell
+          waiting for a name shows no subject, so hunting it down on the grid is slow work:
+          here every waiting period
+          of the class is listed under its day, with the staff list right beside it — pick a
+          name and press Assign, one period at a time, or hand a WHOLE day to one teacher in
+          a single tap. Only the name is written; the subject stays as typed. Nothing here is
+          a rule — the grid can still be edited cell by cell. %>
+      <% if (unassignedPeriods.length) { %>
+        <details class="tt-fix" id="tt-fix">
+          <summary>
+            <span class="tt-fix-ico">👤</span>
+            <span class="tt-fix-title">Assign the waiting periods</span>
+            <span class="tt-fix-count"><%= unassignedPeriods.length %></span>
+            <span class="tt-fix-chev" aria-hidden="true">▾</span>
+          </summary>
+          <div class="tt-fix-body">
+            <p class="tt-fix-note">
+              Pick a name and press <b>Assign</b> — the period's subject comes back on the grid on
+              its own. Give a whole day to one teacher from the day's own box.
+            </p>
+            <% unassignedByDay.forEach(d => { %>
+              <% const dayRows = unassignedPeriods.filter(u => u.day === d.day); %>
+              <% const dayReady = dayRows.filter(u => u.ready).length; %>
+              <div class="tt-fix-day">
+                <div class="tt-fix-day-head">
+                  <b><%= d.day %></b>
+                  <span class="tt-fix-day-count"><%= d.count %> waiting</span>
+                  <% if (dayReady) { %>
+                  <%# only names free in EVERY waiting period of that day are offered — the whole
+                      day is one save, so one clash would refuse all of it %>
+                  <% const dayFree = (teachers || []).filter(name => dayRows.every(u => !u.ready || !(u.busy || {})[name])); %>
+                  <form method="POST" action="/admin/timetable/assign" class="tt-fix-day-all">
+                    <input type="hidden" name="class_id" value="<%= classId %>">
+                    <input type="hidden" name="day" value="<%= d.day %>">
+                    <input type="hidden" name="all" value="1">
+                    <select name="teacher" required aria-label="Teacher for every waiting period on <%= d.day %>">
+                      <option value="">— same teacher for all <%= dayReady %> —</option>
+                      <% dayFree.forEach(name => { %><option value="<%= name %>"><%= name %></option><% }) %>
+                    </select>
+                    <button type="submit" class="btn btn-sm">Assign all</button>
+                  </form>
+                  <% } %>
+                </div>
+                <% dayRows.forEach(u => { %>
+                  <% if (!u.ready) { %>
+                    <%# a period a RESET emptied: no subject is stored, so this panel (which writes
+                        ONLY a name) has nothing to hand out — the office opens the period instead %>
+                    <div class="tt-fix-row tt-fix-row-open">
+                      <span class="tt-fix-when">P<%= u.period %></span>
+                      <span class="tt-fix-sub tt-fix-sub-none">no subject yet</span>
+                      <a class="btn btn-sm" href="/admin/timetable?class=<%= classId %>&day=<%= u.day %>&period=<%= u.period %>">✏️ Write the subject</a>
+                    </div>
+                  <% } else { %>
+                  <form method="POST" action="/admin/timetable/assign" class="tt-fix-row">
+                    <input type="hidden" name="class_id" value="<%= classId %>">
+                    <input type="hidden" name="day" value="<%= u.day %>">
+                    <input type="hidden" name="period" value="<%= u.period %>">
+                    <span class="tt-fix-when">P<%= u.period %></span>
+                    <%# the subject is beside the period so the office knows who it is picking for;
+                        it is the same subject the grid now prints on the waiting cell %>
+                    <span class="tt-fix-sub" title="<%= u.subject %>"><%= u.subject %></span>
+                    <%# the names busy in THIS day+period are greyed out — a whole day handed to one
+                        teacher cannot include a period where that teacher is already teaching %>
+                    <select name="teacher" required aria-label="Teacher for period <%= u.period %> on <%= u.day %>">
+                      <option value="">— choose a teacher —</option>
+                      <% (teachers || []).forEach(name => { %><option value="<%= name %>"<%= (u.busy || {})[name] ? ' disabled' : '' %>><%= name %><%= (u.busy || {})[name] ? ' — busy in ' + u.busy[name] : '' %></option><% }) %>
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm">Assign</button>
+                  </form>
+                  <% } %>
+                <% }) %>
+              </div>
+            <% }) %>
+          </div>
+        </details>
+      <% } %>
+
+      <div class="tt-wrap">
+        <table class="tt-table tt-edit-table">
+          <thead>
+            <tr>
+              <th class="tt-corner">Period</th>
+              <% days.forEach(d => { %>
+                <th>
+                  <span class="tt-day-name"><%= shorts[d] %></span>
+                  <form method="POST" action="/admin/timetable/copy-day"
+                        onsubmit="return confirm('Copy <%= d %>\'s whole timetable onto the other five days? Their current periods are replaced.');">
+                    <input type="hidden" name="class_id" value="<%= classId %>">
+                    <input type="hidden" name="day" value="<%= d %>">
+                    <button type="submit" class="tt-copy" title="Copy <%= d %> to all days">⧉ all days</button>
+                  </form>
+                </th>
+              <% }) %>
+            </tr>
+          </thead>
+          <tbody>
+            <% periodRows.forEach(p => { %>
+            <tr>
+              <td class="tt-period">
+                <span class="tt-period-no">P<%= p.period %></span>
+                <% if (p.label) { %><small><%= p.label %></small><% } else { %><small class="tt-notime">no time set</small><% } %>
+                <form method="POST" action="/admin/timetable/period/delete" class="tt-period-del"
+                      onsubmit="return confirm('Remove period <%= p.period %> from EVERY day of this class?');">
+                  <input type="hidden" name="class_id" value="<%= classId %>">
+                  <input type="hidden" name="period" value="<%= p.period %>">
+                  <button type="submit" class="tt-x" title="Remove period <%= p.period %> from every day">✕</button>
+                </form>
+              </td>
+              <% days.forEach(d => { const slot = grid[d] && grid[d][p.period]; const meta = slot ? kindOf(slot.kind || 'class') : null; %>                <%# A subject period with NOBODY picked is not a real period yet (school's request,
+                    2026-09-20). The office is still building the week, so the subject STAYS on the
+                    cell — it is what tells the office which period it is working on — and the line
+                    under it is what says the period is not ready: “Not assigned yet”, on an amber
+                    tinted cell. Nothing is deleted either way. %>
+                <% const notAssigned = !!(slot && !meta.break && !String(slot.teacher || '').trim()); %>
+                <%# `data-day` is what labels this cell on a phone, where the grid becomes one card per
+                    period with a named line for each day (see .tt-edit-table in style.css) %>
+                <td data-day="<%= shorts[d] %>">
+                  <a class="tt-slot <%= slot ? (meta.break ? 'tt-slot-break k-' + meta.key : (notAssigned ? 'tt-slot-class tt-slot-none' : 'tt-slot-class')) : 'tt-slot-empty' %>"
+                     href="/admin/timetable?class=<%= classId %>&day=<%= d %>&period=<%= p.period %>"
+                     data-day="<%= d %>" data-period="<%= p.period %>"
+                     data-kind="<%= slot ? meta.key : 'class' %>"
+                     data-subject="<%= slot ? slot.subject : '' %>"
+                     data-teacher="<%= slot ? (slot.teacher || '') : '' %>"
+                     data-exists="<%= slot ? '1' : '' %>"
+                     title="<%= slot ? (notAssigned ? d + ' period ' + p.period + ' — not assigned yet' : 'Edit ' + d + ' period ' + p.period) : 'Add ' + d + ' period ' + p.period %>">
+                    <% if (slot) { %>
+                      <span class="tt-cell-sub"><%= meta.key === 'class' ? '' : meta.emoji + ' ' %><%= slot.subject %></span>
+                      <%# a subject period with nobody picked says so in the school's own words %>
+                      <span class="tt-cell-who<%= notAssigned ? ' tt-who-none' : '' %>"><%= meta.break ? meta.note : (String(slot.teacher || '').trim() || 'Not assigned yet') %></span>
+                    <% } else { %>
+                      <span class="tt-cell-add">＋</span>
+                    <% } %>
+                  </a>
+                </td>
+              <% }) %>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="tt-tip">
+        Every period, every day, one tap away. <b>Break, lunch, assembly or games</b> can be picked
+        in the editor (parents see them as a break card, not as a class). “Same for all days”
+        fills Monday–Saturday in one save.
+      </p>
+    </div>
+    <% } %>
+  </div>
+
+  <%# ---- the period editor: a centred dialog, so it is comfortable on a phone ---- %>
+  <div class="fee-dialog tt-dialog" id="tt-dialog"<% if (!edit) { %> hidden<% } %>>
+    <div class="fee-dialog-card">
+      <h3 id="tt-title"><%= edit ? (edit.isNew ? '➕ Add a period' : '✏️ ' + edit.day + ' · Period ' + edit.period) : 'Edit period' %></h3>
+      <p class="fee-dialog-sub" id="tt-sub">
+        <% if (!edit) { %>Pick the day, the period and what it is.<% } else if (edit.isNew) { %>A new period for this class. Tick “Same for all days” to fill Monday–Saturday at once.<% } else if (edit.slot) { %>Change what this period teaches, who takes it, or make it a break.<% } else { %>This period is empty — fill it in, or leave it empty.<% } %>
+      </p>
+
+      <form method="POST" action="/admin/timetable" id="tt-save">
+        <input type="hidden" name="class_id" value="<%= classId %>">
+        <div class="fee-dialog-grid">
+          <div class="form-group">
+            <label for="tt-day">Day</label>
+            <select name="day" id="tt-day">
+              <% days.forEach(d => { %><option value="<%= d %>" <%= edit && edit.day === d ? 'selected' : '' %>><%= d %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="tt-period">Period</label>
+            <input type="number" name="period" id="tt-period" min="1" max="12" step="1"
+                   value="<%= edit ? edit.period : 1 %>" <%= edit && !edit.isNew ? 'readonly' : '' %>>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="tt-kind">What is this period?</label>
+          <select name="kind" id="tt-kind">
+            <% kinds.forEach(k => { %>
+              <option value="<%= k.key %>" <%= editKind === k.key ? 'selected' : '' %>><%= k.emoji %> <%= k.label %></option>
+            <% }) %>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="tt-subject">Subject / name</label>
+          <input type="text" name="subject" id="tt-subject" maxlength="60"
+                 value="<%= edit && edit.slot ? edit.slot.subject : '' %>"
+                 placeholder="e.g. Maths">
+          <small class="fee-dialog-hint" id="tt-subject-hint">A break needs no subject — its own name is used.</small>
+        </div>
+
+        <div class="form-group" id="tt-teacher-wrap"<%= editBreak ? ' hidden' : '' %>>
+          <label for="tt-teacher">Teacher <span class="req-note">(pick from the staff list)</span></label>
+          <%# a PICK list, not free text — the name written here is what builds each
+              teacher's own week, so a typo used to hide a period from him forever %>
+          <select name="teacher" id="tt-teacher"<%= editBreak ? ' disabled' : '' %>>
+            <option value="">— Not assigned yet —</option>
+            <% (teachers || []).forEach(name => { %>
+              <%# a name already standing in ANOTHER class in this day+period is greyed out — the
+                  school's rule: one teacher cannot be in two classes at the same time. The name
+                  standing on THIS cell is never greyed out, so the period can always be saved %>
+              <% const busy = (busyHere || {})[name]; %>
+              <% const locked = busy && !(edit && edit.slot && edit.slot.teacher === name); %>
+              <option value="<%= name %>" <%= edit && edit.slot && edit.slot.teacher === name ? 'selected' : '' %> <%= locked ? 'disabled' : '' %>><%= name %><%= locked ? ' — busy in ' + busy : '' %></option>
+            <% }) %>
+            <%# a name already on the grid but not in the staff list still shows, so nothing is lost %>
+            <% if (edit && edit.slot && edit.slot.teacher && !(teachers || []).includes(edit.slot.teacher)) { %>
+              <option value="<%= edit.slot.teacher %>" selected><%= edit.slot.teacher %> (on the grid)</option>
+            <% } %>
+          </select>
+          <small class="fee-dialog-hint" id="tt-busy-hint">
+            A name greyed out as <b>busy in …</b> already takes another class in this same period —
+            one teacher cannot be in two places at once. Pick someone else, or clear that period first.
+          </small>
+          <small class="fee-dialog-hint">
+            The timetable builds each teacher's own week from this name. Leave it at
+            <b>Not assigned yet</b> and the period stays marked “Not assigned yet” for the office to
+            fill in later — its subject is not lost.
+            <%# a name that came with the imported sheet has no staff login; say so instead of
+                silently dropping it (school's request, 2026-09-20) %>
+            <% if (edit && edit.slot && edit.slot.teacher && !(teachers || []).includes(edit.slot.teacher)) { %>
+              <br><b><%= edit.slot.teacher %></b> is on this period but is not in the staff list —
+              pick a name above to hand the period to a real teacher, or leave it unassigned.
+            <% } %>
+          </small>
+        </div>
+
+        <%# only shown when a NEW period is being added — its clock time, for the parents %>
+        <div class="fee-dialog-grid" id="tt-time-wrap"<%= edit && edit.isNew ? '' : ' hidden' %>>
+          <div class="form-group">
+            <label for="tt-from">Starts at <span class="req-note">(optional)</span></label>
+            <input type="time" name="from" id="tt-from">
+          </div>
+          <div class="form-group">
+            <label for="tt-to">Ends at</label>
+            <input type="time" name="to" id="tt-to">
+            <small class="fee-dialog-hint">Leave both empty to keep the school clock as it is.</small>
+          </div>
+        </div>
+
+        <label class="tt-check">
+          <input type="checkbox" name="all_days" value="1" id="tt-all">
+          <span>Same for all days <span class="req-note">(Monday–Saturday)</span></span>
+        </label>
+      </form>
+
+      <%# Deleting is its own form — a button can point at it with form="tt-delete", so the
+          Delete and Save buttons still sit in one row. %>
+      <%# this one names the day and the period itself (see the script at the bottom), so the
+          shared asker leaves it alone — one question per change, never two %>
+      <form method="POST" action="/admin/timetable/delete" id="tt-delete" data-confirm="own" hidden>
+        <input type="hidden" name="class_id" value="<%= classId %>">
+        <input type="hidden" name="day" value="<%= edit ? edit.day : '' %>">
+        <input type="hidden" name="period" value="<%= edit ? edit.period : '' %>">
+        <input type="hidden" name="all_days" value="">
+      </form>
+
+      <div class="fee-dialog-actions">
+        <button type="submit" class="btn btn-danger-outline" id="tt-del-btn" form="tt-delete"
+                <%= edit && edit.slot ? '' : 'hidden' %>>🗑 Delete</button>
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn btn-primary" form="tt-save">💾 Save</button>
+      </div>
+    </div>
+  </div>
+
+  <%# ---- RESET CONFIRMATION (school's request, 2026-09-20) -----------------------------
+      Nothing is cleared until the office answers this popup, and the popup is the ONLY thing
+      that posts the reset. The button is a plain link (`confirmreset=1`), so the dialog is
+      rendered open without JavaScript; with JavaScript the same link opens it in place. %>
+  <% if (cls) { %>
+  <div class="fee-dialog tt-dialog tt-reset-dialog" id="tt-reset-dialog"<% if (query.confirmreset !== '1') { %> hidden<% } %>>
+    <div class="fee-dialog-card">
+      <h3>♻️ Reset this class's timetable?</h3>
+      <p class="fee-dialog-sub">
+        <b><%= cls.name %><%= cls.section ? ' ' + cls.section : '' %></b> — every period of this class goes back to
+        <b>“Not assigned yet”</b>, so the week can be built again from scratch.
+      </p>
+      <ul class="tt-reset-list">
+        <li>Subject, teacher and any <b>break</b> of this class are cleared.</li>
+        <li><b>No other class</b> is touched — not one of their periods.</li>
+        <li>The school's <b>period timings</b> (8:00 – 8:40 AM …) stay exactly as they are.</li>
+        <li>Nothing is deleted — every period stays on the grid and reads “Not assigned yet”.</li>
+      </ul>
+      <form method="POST" action="/admin/timetable/reset" id="tt-reset-form">
+        <input type="hidden" name="class_id" value="<%= classId %>">
+      </form>
+      <div class="fee-dialog-actions">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn btn-danger" form="tt-reset-form">♻️ Yes, reset <%= cls.name %><%= cls.section ? ' ' + cls.section : '' %></button>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <%# ---- LUNCH DUTY & EXTRA CLASSES (school's request, 2026-09-20) ---------------------
+      A teacher's timetable never mentioned the lunch break, and an extra class handed to a teacher
+      never reached it either — so the board needs two sections of its own. A break belongs to no teacher, so
+      these two can never come out of a class grid: they live in their own table
+      (services/duties.js) and the teacher's OWN week reads them. Both obey the school's rule —
+      the teacher must be FREE in that day+period — and only free teachers are offered below. %>
+  <% if (cls) { %>
+  <div class="panel tt-duty-panel" id="tt-duty">
+    <div class="panel-head">
+      <h3>🍱 Lunch break &amp; special classes</h3>
+      <span class="panel-head-note">both show on that teacher's own timetable</span>
+    </div>
+    <div class="panel-body">
+      <% if (dutyAdded) { %><div class="alert success">✅ <b><%= dutyAdded %></b> <%= dutyKindSaved === 'special' ? 'now takes the special class' : 'is assigned for the lunch break' %> — <%= dutyDaysLabel %> · period <%= dutyPeriod %>, and it is on that teacher's timetable already.</div><% } %>
+      <% if (dutyRemoved) { %><div class="alert">🧹 Taken off the list — that hour reads free for that teacher again.</div><% } %>
+      <% if (dutyError) { %><div class="alert error">⚠️ <%= dutyError %></div><% } %>
+
+      <%# Each card has its own days, All school days switch, period and free-teacher list.
+          This avoids changing lunch settings when the office is configuring an extra class. %>
+      <div class="tt-duty-forms tt-duty-independent">
+        <% [[lunchConfig, 'lunch', '🍱', 'Lunch break', 'Assign a free teacher to cover the lunch break.'],
+            [specialConfig, 'special', '📚', 'Special class', 'Assign a free teacher for an additional subject period.']].forEach(([cfg, kind, emoji, title, note]) => { %>
+          <section id="tt-duty-<%= kind %>" class="tt-duty-form <%= kind === 'lunch' ? 'tt-duty-lunch' : 'tt-duty-special' %>">
+            <div class="tt-duty-form-head"><span class="tt-duty-emoji"><%= emoji %></span><b><%= title %></b><small><%= note %></small></div>
+            <form method="GET" action="/admin/timetable" class="tt-duty-card-config" onsubmit="this.action='/admin/timetable#tt-duty-<%= kind %>'">
+              <input type="hidden" name="class" value="<%= classId %>">
+              <input type="hidden" name="dutyfocus" value="<%= kind %>">
+              <% if (cfg.weekly) { %>
+                <%# the lunch cover is a weekly job, so there is no day to pick — say so plainly %>
+                <p class="tt-duty-weekly"><b>🗓️ Every school day</b><small>The teacher who takes this period keeps it for the whole week.</small></p>
+              <% } else { %>
+                <div class="tt-duty-day-picker">
+                  <div class="tt-duty-picker-heading"><b>Days</b><small>Choose one or more</small></div>
+                  <div class="tt-duty-day-options">
+                    <% days.forEach(d => { %><label class="tt-duty-day-option"><input type="checkbox" name="<%= cfg.prefix %>day" value="<%= d %>" <%= cfg.days.includes(d) ? 'checked' : '' %>><span><%= d %></span></label><% }) %>
+                  </div>
+                  <label class="tt-duty-all-option"><input type="checkbox" name="<%= cfg.prefix %>all" value="1" <%= cfg.all ? 'checked' : '' %>><span>All school days</span></label>
+                </div>
+              <% } %>
+              <div class="form-group tt-duty-period-picker">
+                <label for="<%= cfg.prefix %>-period">Period</label>
+                <select name="<%= cfg.prefix %>period" id="<%= cfg.prefix %>-period" class="tt-duty-period-select" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.submit()">
+                  <% (periodRows || []).forEach(p => { const t = timeByPeriod.get(p.period); %><option value="<%= p.period %>" <%= cfg.period === p.period ? 'selected' : '' %>>P<%= p.period %> · <%= t ? t.label : 'no timing' %><%= p.period === lunchPeriod ? ' · lunch' : '' %></option><% }) %>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-soft btn-sm tt-duty-apply">Apply <%= title.toLowerCase() %> settings</button>
+            </form>
+            <p class="tt-duty-note"><b><%= cfg.free.length %></b> of <%= (teachers || []).length %> teachers are free on <b><%= cfg.daysLabel %> · period <%= cfg.period %></b>.<% if (cfg.days.length > 1) { %><span class="tt-duty-taken">Only teachers free on every selected day are shown.</span><% } %></p>
+            <% if (!(teachers || []).length) { %>
+              <div class="alert">No teacher logins yet — add them under <b>Teachers</b> first.</div>
+            <% } else if (!cfg.free.length) { %>
+              <div class="alert error">⚠️ No teacher is free on the selected days at period <b><%= cfg.period %></b>. Choose another period.</div>
+            <% } else { %>
+              <form method="POST" action="/admin/timetable/duty" class="tt-duty-assign-form">
+                <input type="hidden" name="class_id" value="<%= classId %>">
+                <% cfg.days.forEach(d => { %><input type="hidden" name="days" value="<%= d %>"><% }) %>
+                <input type="hidden" name="period" value="<%= cfg.period %>"><input type="hidden" name="kind" value="<%= kind %>">
+                <% if (cfg.all) { %><input type="hidden" name="all_days" value="1"><% } %>
+                <% if (kind === 'special') { %><input type="text" name="duty_subject" maxlength="60" placeholder="Subject (e.g. Maths)" required aria-label="Special class subject"><% } %>
+                <div class="tt-duty-teacher-list" role="group" aria-label="Free teachers for <%= title %>">
+                  <% cfg.free.forEach(n => { %><label><input type="checkbox" name="teachers" value="<%= n %>"><span><%= n %></span></label><% }) %>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm"><%= kind === 'lunch' ? '🍱 Assign lunch break teacher' : '📚 Assign special class' %></button>
+              </form>
+            <% } %>
+          </section>
+        <% }) %>
+      </div>
+
+      <%# ——— what is already assigned. Two different animals (2026-09-20): the lunch cover is a
+            WEEKLY job, so it is read one block per period with a chip per teacher (“who has the
+            period-5 lunch”); a special class is one class on one day, so it stays day-wise. ——— %>
+      <% if (dutyList.length) { %>
+        <details class="tt-duty-assigned" open>
+          <%# the badge counts what the eye sees: one chip per lunch teacher, one card per special class —
+                not the six day-rows a weekly lunch cover writes %>
+          <% const shownCount = lunchGrouped.reduce((n, b) => n + b.teachers.length, 0)
+            + specialGrouped.reduce((n, g) => n + g.rows.length, 0); %>
+          <summary><span>📋 Assigned duties &amp; special classes</span><b><%= shownCount %></b><i>▾</i></summary>
+
+          <% if (lunchGrouped.length) { %>
+            <div class="tt-lunch-block">
+              <div class="tt-lunch-block-head"><span><%= '🍱' %></span><b>Lunch break</b><small>One teacher per period, for the whole week</small></div>
+              <% lunchGrouped.forEach(block => { const t = timeByPeriod.get(block.period); %>
+                <div class="tt-lunch-period">
+                  <div class="tt-lunch-period-head"><b>Period <%= block.period %></b><small><%= t ? t.label : '' %></small></div>
+                  <div class="tt-lunch-chips">
+                    <% block.teachers.forEach(who => { %>
+                      <span class="tt-lunch-chip">
+                        <b><%= who.name %></b>
+                        <small class="<%= who.full ? 'is-full' : '' %>"><%= who.daysLabel %></small>
+                        <%# ONE ✕ for the whole weekly cover (weekly=1), not one per day-row %>
+                        <form method="POST" action="/admin/timetable/duty/remove" class="tt-lunch-chip-x">
+                          <input type="hidden" name="class_id" value="<%= classId %>">
+                          <input type="hidden" name="weekly" value="1">
+                          <input type="hidden" name="kind" value="lunch">
+                          <input type="hidden" name="teacher" value="<%= who.name %>">
+                          <input type="hidden" name="period" value="<%= block.period %>">
+                          <button type="submit" class="tt-duty-x" title="Take this lunch cover off every school day" aria-label="Remove this lunch cover">✕</button>
+                        </form>
+                      </span>
+                    <% }) %>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+
+          <% if (specialGrouped.length) { %>
+            <div class="tt-special-block">
+              <div class="tt-lunch-block-head"><span><%= '📚' %></span><b>Special classes</b><small>One class, one day — so these stay day by day</small></div>
+              <div class="tt-duty-list">
+                <% specialGrouped.forEach(group => { %>
+                  <div class="tt-duty-day">
+                    <div class="tt-duty-day-head"><b><%= group.day %></b><span><%= group.rows.length %></span></div>
+                    <div class="tt-duty-cards">
+                    <% group.rows.forEach(x => { const t = timeByPeriod.get(x.period); %>
+                      <article class="tt-duty-card is-special">
+                        <div class="tt-duty-who"><b><%= x.teacher %></b><small><%= x.subject || 'Special class' %></small></div>
+                        <div class="tt-duty-when"><b>P<%= x.period %></b><small><%= t ? t.label : '' %></small></div>
+                        <form method="POST" action="/admin/timetable/duty/remove">
+                          <input type="hidden" name="class_id" value="<%= classId %>">
+                          <input type="hidden" name="duty_id" value="<%= x.id %>">
+                          <input type="hidden" name="day" value="<%= x.day %>">
+                          <input type="hidden" name="period" value="<%= x.period %>">
+                          <button type="submit" class="tt-duty-x" title="Remove assignment" aria-label="Remove assignment">✕</button>
+                        </form>
+                      </article>
+                    <% }) %>
+                    </div>
+                  </div>
+                <% }) %>
+              </div>
+            </div>
+          <% } %>
+        </details>
+      <% } else { %>
+        <p class="tt-duty-empty">Nothing assigned yet — the lunch cover appears period by period, special classes day by day.</p>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (query.dutyfocus === 'lunch' || query.dutyfocus === 'special') { %>
+  <script>
+    window.addEventListener('load', function () {
+      var card = document.getElementById('tt-duty-<%= query.dutyfocus %>');
+      if (card) setTimeout(function () { card.scrollIntoView({ block: 'center', behavior: 'instant' }); }, 0);
+    });
+  </script>
+  <% } %>
+
+  <%# ---- HOMEWORK (2026-09-18): what was given, day and period ----------------------- %>
+  <% const hwDays = days; %>
+  <div class="panel hw-panel">
+    <div class="panel-head">
+      <h3>📓 Homework — <%= cls.name %><%= cls.section ? ' ' + cls.section : '' %></h3>
+      <span class="panel-head-note">parents read it on the timetable · empty box = “<%= standingNote %>”</span>
+    </div>
+    <div class="panel-body">
+      <% if (hwSaved === true || query.hwsaved === '1') { %><div class="alert success">✅ Homework saved — parents see it on the timetable now.</div><% } %>
+      <% if (hwCleared) { %><div class="alert" style="background:#f1f5f9;border:1px solid #cbd5e1">🧹 That note was removed.</div><% } %>
+      <% if (query.hwsaved === '0') { %><div class="alert" style="background:#fef2f2;border:1px solid #fca5a5">⚠️ Could not save — check the day and period.</div><% } %>
+      <form method="get" action="/admin/timetable" class="filters">
+        <input type="hidden" name="class" value="<%= classId %>">
+        <div class="form-group">
+          <label>Day</label>
+          <select name="hwday" onchange="this.form.submit()">
+            <% hwDays.forEach(d => { %><option value="<%= d %>" <%= (hwDay || 'Monday') === d ? 'selected' : '' %>><%= d %></option><% }) %>
+          </select>
+        </div>
+      </form>
+      <% const activeDay = hwDay || 'Monday'; const daySlots = grid[activeDay] || {}; const dayHw = (homeworkWeek && homeworkWeek[activeDay]) || {}; %>
+      <% Object.keys(daySlots).map(Number).sort((a, b) => a - b).forEach(pnum => { %>
+        <% const slot = daySlots[pnum]; const meta = kinds.find(k => k.key === (slot.kind || 'class')); %>
+        <% if (meta.break) return; %>
+        <% const row = dayHw[pnum]; %>
+        <form method="post" action="/admin/timetable/homework" class="hw-row<%= row ? ' has-note' : '' %>">
+          <input type="hidden" name="class" value="<%= classId %>">
+          <input type="hidden" name="day" value="<%= activeDay %>">
+          <input type="hidden" name="period" value="<%= pnum %>">
+          <input type="hidden" name="subject" value="<%= slot.subject %>">
+          <div class="hw-row-head">
+            <b>Period <%= pnum %> · <%= slot.subject %><%= slot.teacher ? ' · ' + slot.teacher : '' %></b>
+            <% if (row) { %>
+              <span class="hw-state<%= (row.note || '').trim() ? '' : ' is-standing' %>">
+                <%= (row.note || '').trim() ? '✍️ detail written' : '📄 standing line' %> · <%= row.givenOn %> · <%= row.givenBy %>
+              </span>
+            <% } %>
+          </div>
+          <div class="hw-row-body">
+            <input type="text" name="note" maxlength="300" class="hw-input"
+                   placeholder="What homework was given? (empty = standing line)"
+                   value="<%= row ? row.note : '' %>">
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+            <% if (row) { %>
+              <button type="submit" class="btn btn-sm" formaction="/admin/timetable/homework/clear">🧹 Remove</button>
+            <% } %>
+          </div>
+        </form>
+      <% }) %>
+      <% if (!Object.keys(daySlots).length) { %><p class="text-muted">No periods on <%= activeDay %> yet — add periods above first.</p><% } %>
+    </div>
+  </div>
+
+  <%# ---- period timings: the clock time of every period, shown to parents ---- %>
+  <div class="panel">
+    <div class="panel-head"><h3>⏰ Period timings</h3><span class="roll">Parents see this time beside every period</span></div>
+    <div class="panel-body">
+      <form method="POST" action="/admin/timetable/timings">
+        <div class="tt-timings">
+          <% periodTimes.forEach(t => { %>
+            <div class="tt-timing-row">
+              <span class="tt-timing-label">Period <%= t.period %></span>
+              <input type="hidden" name="period" value="<%= t.period %>">
+              <input type="time" name="from" value="<%= t.from %>" required>
+              <span class="tt-timing-to">se</span>
+              <input type="time" name="to" value="<%= t.to %>" required>
+              <span class="tt-timing-to">tak</span>
+              <%# formaction: this row is inside the timings form, so the ✕ submits the same
+                  form to a different route — no nested form, no lost edits %>
+              <button type="submit" class="tt-x" name="remove_period" value="<%= t.period %>"
+                      formaction="/admin/timetable/timings/remove"
+                      onclick="return confirm('Take period <%= t.period %> off the school clock? Its timetable rows are kept.');"
+                      title="Remove period <%= t.period %> from the school clock">✕</button>
+            </div>
+          <% }) %>
+        </div>
+        <p class="text-muted" style="font-size:12.5px; margin:10px 0 12px;">
+          Set the school timings the way <b><%= school.schoolName %></b> runs them (the same ones printed
+          on the Contact page). These timings are the <b>same for every class</b>.
+        </p>
+        <button type="submit" class="btn btn-primary">💾 Save timings</button>
+      </form>
+
+      <details class="tt-one-time">
+        <summary>➕ Add or change one period's time</summary>
+        <form method="POST" action="/admin/timetable/timings/set" class="filters mt-3">
+          <div class="form-group">
+            <label>Period</label>
+            <input type="number" name="period" min="1" max="12" step="1" value="9" required>
+          </div>
+          <div class="form-group">
+            <label>Starts at</label>
+            <input type="time" name="from" required>
+          </div>
+          <div class="form-group">
+            <label>Ends at</label>
+            <input type="time" name="to" required>
+          </div>
+          <button type="submit" class="btn btn-outline">Save</button>
+        </form>
+        <p class="fee-dialog-hint" style="margin:8px 0 0;">
+          This sets one period only — the other periods keep the times they already have.
+        </p>
+      </details>
+    </div>
+  </div>
+
+<script>
+(function () {
+  var dlg = document.getElementById('tt-dialog');
+  if (!dlg) return;
+  var KIND = <%- JSON.stringify(kinds) %>;
+  // `{ 'Monday|2': { 'Parvati Devi': 'LKG' } }` — who already stands where, for the period the
+  // office opens (school's rule, 2026-09-20). Built in the route; the script only reads it.
+  var BUSY = <%- JSON.stringify(busyAll || {}) %>;
+  var kindBy = {};
+  KIND.forEach(function (k) { kindBy[k.key] = k; });
+
+  var saveForm = document.getElementById('tt-save');
+  var delForm = document.getElementById('tt-delete');
+  var title = document.getElementById('tt-title');
+  var sub = document.getElementById('tt-sub');
+  var dayIn = document.getElementById('tt-day');
+  var periodIn = document.getElementById('tt-period');
+  var kindIn = document.getElementById('tt-kind');
+  var subjectIn = document.getElementById('tt-subject');
+  var teacherIn = document.getElementById('tt-teacher');
+  var teacherWrap = document.getElementById('tt-teacher-wrap');
+  var timeWrap = document.getElementById('tt-time-wrap');
+  var allBox = document.getElementById('tt-all');
+  var delBtn = document.getElementById('tt-del-btn');
+
+  /**
+   * Put a name in the teacher box, adding it to the list when it is not there. A name that
+   * came with the imported sheet has no staff login, so it is not in the pick list — and
+   * setting `select.value` to a name with no option would quietly empty the box (the office
+   * would save the period as unassigned without asking for it). School's request, 2026-09-20.
+   */
+  function setTeacher(name) {
+    if (name && ![].some.call(teacherIn.options, function (o) { return o.value === name; })) {
+      var o = document.createElement('option');
+      o.value = name;
+      o.textContent = name + ' (on the grid)';
+      o.dataset.added = '1';           // markBusy leaves this one alone
+      teacherIn.appendChild(o);
+    }
+    teacherIn.value = name || '';
+  }
+
+  /**
+   * Grey out the names already taken in this day+period: one teacher cannot be in two classes at
+   * the same time (school's rule, 2026-09-20). The name standing on the cell being opened is
+   * never locked — an existing period must always be saveable again (the office may only be
+   * changing its subject), and the imported sheet carries such names already.
+   */
+  function markBusy(day, period, standing) {
+    var map = BUSY[day + '|' + period] || {};
+    [].slice.call(teacherIn.options).forEach(function (o) {
+      if (!o.value || o.dataset.added) return;      // “— Not assigned yet —” and the grid name
+      var where = map[o.value];
+      var locked = !!where && o.value !== standing;
+      o.disabled = locked;
+      o.textContent = o.value + (locked ? ' — busy in ' + where : '');
+    });
+  }
+
+  /** What kind is picked right now → a break hides the teacher box, and so on. */
+  function applyKind() {
+    var k = kindBy[kindIn.value] || kindBy.class;
+    var isBreak = k.break === true;
+    teacherWrap.hidden = isBreak;
+    teacherIn.disabled = isBreak;          // disabled inputs are not submitted at all
+    subjectIn.placeholder = isBreak ? k.label : 'e.g. Maths';
+  }
+
+  function open(d, isNew) {
+    title.textContent = isNew ? '➕ Add a period' : '✏️ ' + d.day + ' · Period ' + d.period;
+    sub.textContent = isNew
+      ? 'A new period for this class. Tick “Same for all days” to fill Monday–Saturday at once.'
+      : (d.exists ? 'Change what this period teaches, who takes it, or make it a break.'
+                  : 'This period is empty — fill it in, or leave it empty.');
+    dayIn.value = d.day;
+    periodIn.value = d.period;
+    // a period keeps its number unless it is the “Add a period” box — Save must never
+    // leave the old slot behind and open a new one somewhere else
+    periodIn.readOnly = !isNew;
+    kindIn.value = d.kind || 'class';
+    subjectIn.value = d.subject || '';
+    setTeacher(d.teacher || '');
+    markBusy(d.day, d.period, d.teacher || '');
+    timeWrap.hidden = !isNew;
+    delForm.hidden = !d.exists;
+    delBtn.hidden = !d.exists;
+    delForm.elements.day.value = d.day;
+    delForm.elements.period.value = d.period;
+    allBox.checked = false;
+    applyKind();
+    dlg.hidden = false;
+    dlg.classList.add('is-open');
+    // a phone keyboard popping up is fine here, but the box must be visible first
+    if (isNew) setTimeout(function () { periodIn.focus(); }, 30);
+  }
+
+  function close() { dlg.hidden = true; dlg.classList.remove('is-open'); }
+
+  // every cell (and the ＋ in an empty one) opens the editor
+  [].slice.call(document.querySelectorAll('.tt-slot')).forEach(function (cell) {
+    cell.addEventListener('click', function (e) {
+      e.preventDefault();                 // no page reload when JavaScript is here
+      open({
+        day: cell.getAttribute('data-day'),
+        period: parseInt(cell.getAttribute('data-period'), 10),
+        kind: cell.getAttribute('data-kind'),
+        subject: cell.getAttribute('data-subject') || '',            teacher: cell.getAttribute('data-teacher') || '',           // '' = not assigned yet
+        exists: cell.getAttribute('data-exists') === '1',
+      }, false);
+    });
+  });
+
+  var addBtn = document.getElementById('tt-add');
+  if (addBtn) {
+    addBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var last = document.querySelectorAll('.tt-edit-table tbody tr');
+      var next = last.length ? (parseInt(last[last.length - 1].querySelector('[data-period]').getAttribute('data-period'), 10) + 1) : 1;
+      open({ day: 'Monday', period: Math.min(12, next), kind: 'class', subject: '', teacher: '', exists: false }, true);
+    });
+  }
+
+  // “Same for all days” also decides what Delete removes.
+  function syncAll() { delForm.elements.all_days.value = allBox.checked ? '1' : ''; }
+  saveForm.addEventListener('submit', syncAll);
+  delForm.addEventListener('submit', syncAll);
+  allBox.addEventListener('change', syncAll);
+  kindIn.addEventListener('change', applyKind);
+
+  delForm.addEventListener('submit', function (e) {
+    var what = allBox.checked ? 'period ' + periodIn.value + ' from EVERY day' : dayIn.value + ' period ' + periodIn.value;
+    if (!confirm('Delete ' + what + '?')) e.preventDefault();
+  });
+
+  [].slice.call(dlg.querySelectorAll('[data-close]')).forEach(function (b) {
+    b.addEventListener('click', close);
+  });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) close(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !dlg.hidden) close();
+  });
+
+  // ---- the RESET confirmation (school's request, 2026-09-20) ---------------------------
+  // The button is a plain link so the same popup appears with JavaScript switched off (the
+  // server renders it open when the link carried `confirmreset=1`). Here the link opens it in
+  // place instead of reloading the page — and NOTHING is cleared until the form the dialog
+  // itself carries is posted, so Cancel really is a cancel.
+  var resetDlg = document.getElementById('tt-reset-dialog');
+  var resetBtn = document.getElementById('tt-reset');
+  if (resetDlg && resetBtn) {
+    var openReset = function () { resetDlg.hidden = false; resetDlg.classList.add('is-open'); };
+    var tidyUrl = function () {
+      try {
+        var u = new URL(location.href);
+        if (u.searchParams.has('confirmreset')) {
+          u.searchParams.delete('confirmreset');
+          history.replaceState(null, '', u.pathname + u.search);
+        }
+      } catch (err) { /* very old browser — the dialog still closes, the URL just keeps the flag */ }
+    };
+    var closeReset = function () { resetDlg.hidden = true; resetDlg.classList.remove('is-open'); tidyUrl(); };
+    resetBtn.addEventListener('click', function (e) { e.preventDefault(); openReset(); });
+    [].slice.call(resetDlg.querySelectorAll('[data-close]')).forEach(function (b) {
+      b.addEventListener('click', closeReset);
+    });
+    resetDlg.addEventListener('click', function (e) { if (e.target === resetDlg) closeReset(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !resetDlg.hidden) closeReset();
+    });
+  }
+})();
+</script>
+<%- include('../partials/footer') %>

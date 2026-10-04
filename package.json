@@ -1,0 +1,20 @@
+{
+  "name": "school-portal",
+  "version": "1.0.0",
+  "description": "School Management Portal - Classes 1-10, parent & student portals, admin panel",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node db/seed.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.3.0",
+    "chart.js": "^4.4.3",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "nodemailer": "^9.1.1"
+  }
+}

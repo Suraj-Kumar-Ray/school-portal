@@ -1,0 +1,341 @@
+<%- include('../partials/header', { title }) %>
+
+  <%# A boarder's parent, on one page: SMALL CARDS first — one per thing they came for — and the
+      full section opens under the tap (the school's request, 2026-09-16: show this page as small
+      cards, and open the section when one is tapped). The cards carry the same round white icon
+      the send-reminder button uses, so the whole app feels like one thing.
+      On the office's screen the sections are already open (nothing to tap).
+      This page exists only for a child who lives in the hostel — `parent_access.forChild()` keeps
+      it shut for a day scholar, so nothing here has to be hidden by hand. %>
+
+  <div class="tt-top">
+    <div class="tt-kid">
+      <% if (child.photo) { %>
+        <img src="<%= child.photo %>" alt="<%= child.full_name %>" class="kid-photo">
+      <% } else { %>
+        <span class="kid-photo kid-photo-ph"><%= child.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+      <% } %>
+      <div class="tt-kid-text">
+        <b><%= child.full_name %></b>
+        <span><%= child.class_name %><%= child.section ? ' ' + child.section : '' %><% if (child.roll_no) { %> · Roll No. <%= child.roll_no %><% } %></span>
+      </div>
+      <span class="hostel-chip" title="<%= stayNote %>">🏠 Hostel<%= bed ? ' · Bed ' + bed : '' %></span>
+    </div>
+    <h1 class="tt-title">🏠 Hostel</h1>
+    <p class="tt-sub">His hostel day and his school day — one page</p>
+  </div>
+
+  <%- include('../partials/child_picker', { children, childId }) %>
+
+  <%# ================= THE CARDS =================
+      Each one answers its question on the card itself, and opens the full section when tapped. %>
+  <div class="hostel-glance">
+    <a href="#today" class="hg-card" data-open="hostel-today-block">
+      <span class="hg-ico" aria-hidden="true">🍽️</span>
+      <span class="hg-text">
+        <b>Today's meals</b>
+        <small><%= today ? `${today.meals.filter(m => m.set).length} of 4 meals set` : 'the week is not set yet' %></small>
+      </span>
+    </a>
+    <a href="#week" class="hg-card" data-open="hostel-week-block">
+      <span class="hg-ico" aria-hidden="true">📅</span>
+      <span class="hg-text">
+        <b>The week's menu</b>
+        <small><%= week.filter(d => d.meals.some(m => m.set)).length %> of 7 days planned</small>
+      </span>
+    </a>
+    <a href="#routine" class="hg-card" data-open="hostel-routine-block">
+      <span class="hg-ico" aria-hidden="true">🕗</span>
+      <span class="hg-text">
+        <b>His day</b>
+        <small><%= routine.length ? `${routine.length} things, ${routine[0].label} → ${routine[routine.length - 1].label}` : 'not set yet' %></small>
+      </span>
+    </a>
+    <a href="#stay" class="hg-card" data-open="hostel-stay-block">
+      <span class="hg-ico" aria-hidden="true">🛏️</span>
+      <span class="hg-text">
+        <b>Where he stays</b>
+        <small><%= bed ? 'Bed ' + bed : 'bed not set' %><%= hostel.warden ? ' · ' + hostel.warden.split(' ')[0] : '' %></small>
+      </span>
+    </a>
+    <a href="#school" class="hg-card" data-open="hostel-school-block">
+      <span class="hg-ico" aria-hidden="true">🏫</span>
+      <span class="hg-text">
+        <b>At school</b>
+        <small><%= schoolHoliday ? 'Sunday — school closed' : `${schoolPeriods.length} period${schoolPeriods.length === 1 ? '' : 's'} today` %></small>
+      </span>
+    </a>
+    <%# A hostel month past its due date turns THIS card red, exactly as the fee card on the
+        home page does (school's request, 2026-09-15 / 2026-09-16) — the one thing on the page a
+        family must not have to hunt for. %>
+    <a href="#fee" class="hg-card<%= hostelOverdueMonths ? ' is-alert' : '' %>" data-open="hostel-fee-block">
+      <span class="hg-ico rupee-glyph" aria-hidden="true">₹</span>
+      <span class="hg-text">
+        <b>Hostel fee</b>
+        <small>
+          <% if (!hostelMonths) { %>no hostel month charged
+          <% } else if (hostelOverdueMonths) { %>₹<%= Math.round(hostelOverdueMoney).toLocaleString('en-IN') %> overdue · <%= hostelOverdueMonths %> month<%= hostelOverdueMonths === 1 ? '' : 's' %> late
+          <% } else if (hostelBalance > 0) { %>₹<%= Math.round(hostelBalance).toLocaleString('en-IN') %> to pay
+          <% } else { %>all paid ✔<% } %>
+        </small>
+      </span>
+    </a>
+  </div>
+
+  <%# ================= TODAY ================= %>
+  <details class="hostel-block" id="hostel-today-block" open>
+    <summary id="today">
+      <span class="hb-ico" aria-hidden="true">🍽️</span>
+      <span class="hb-title">Today's meals<small><%= today ? today.name : '—' %><%= items.balance > 0 ? '' : '' %></small></span>
+      <span class="hb-chev" aria-hidden="true">▾</span>
+    </summary>
+    <div class="hb-body">
+      <% if (today) { %>
+        <div class="hostel-meals">
+          <% today.meals.forEach(m => { %>
+            <div class="hostel-meal<%= m.set ? '' : ' is-off' %>">
+              <span class="hostel-meal-ico"><%= m.icon %></span>
+              <div class="hostel-meal-text">
+                <b><%= m.key %></b>
+                <small><%= m.time %></small>
+                <span><%= m.set ? m.items : 'Not set yet — the school office will add it' %></span>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } else { %>
+        <p class="text-muted" style="margin:0;">The mess menu is not set yet — the office adds it on Admin → Hostel and it appears here.</p>
+      <% } %>
+    </div>
+  </details>
+
+  <%# ================= THE WHOLE WEEK =================
+      Seven days of four meals is a long page on a phone, so each day is a line that opens when
+      a parent taps it. Today is already open — it is the day they came for. %>
+  <details class="hostel-block" id="hostel-week-block">
+    <summary id="week">
+      <span class="hb-ico" aria-hidden="true">📅</span>
+      <span class="hb-title">The week's menu<small>Tap a day to open it</small></span>
+      <span class="hb-chev" aria-hidden="true">▾</span>
+    </summary>
+    <div class="hb-body no-pad">
+      <div class="hostel-week">
+        <% week.forEach(d => { %>
+          <details class="hostel-day<%= d.isToday ? ' is-today' : '' %>" <%= d.isToday ? 'open' : '' %>>
+            <summary>
+              <span class="hostel-day-name"><%= d.name %><% if (d.isToday) { %> <span class="badge green">Today</span><% } %></span>
+              <span class="hostel-day-peek"><%= d.meals[1].set ? d.meals[1].items : (d.meals.find(m => m.set) ? d.meals.find(m => m.set).items : 'not set yet') %></span>
+            </summary>
+            <div class="hostel-day-body">
+              <% d.meals.forEach(m => { %>
+                <div class="hostel-line<%= m.set ? '' : ' is-off' %>">
+                  <span class="hostel-line-ico"><%= m.icon %></span>
+                  <b><%= m.key %></b>
+                  <span class="hostel-line-time"><%= m.time %></span>
+                  <span class="hostel-line-items"><%= m.set ? m.items : 'Not set yet' %></span>
+                </div>
+              <% }) %>
+            </div>
+          </details>
+        <% }) %>
+      </div>
+    </div>
+  </details>
+
+  <%# ================= THE DAY ================= %>
+  <details class="hostel-block" id="hostel-routine-block">
+    <summary id="routine">
+      <span class="hb-ico" aria-hidden="true">🕗</span>
+      <span class="hb-title">His day in the hostel<small><%= routine.length %> entr<%= routine.length === 1 ? 'y' : 'ies' %>, from waking up to lights out</small></span>
+      <span class="hb-chev" aria-hidden="true">▾</span>
+    </summary>
+    <div class="hb-body no-pad">
+      <% if (routine.length) { %>
+        <div class="hostel-routine">
+          <% routine.forEach(r => { %>
+            <div class="hostel-rt">
+              <span class="hostel-rt-time"><%= r.label %></span>
+              <span class="hostel-rt-dot"></span>
+              <div class="hostel-rt-text">
+                <b><%= r.activity %></b>
+                <% if (r.note) { %><small><%= r.note %></small><% } %>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } else { %>
+        <p class="text-muted" style="margin:14px 16px;">The daily routine is not set yet — the office adds it on Admin → Hostel.</p>
+      <% } %>
+    </div>
+  </details>
+
+  <%# ================= WHERE HE STAYS ================= %>
+  <details class="hostel-block" id="hostel-stay-block">
+    <summary id="stay">
+      <span class="hb-ico" aria-hidden="true">🛏️</span>
+      <span class="hb-title">Where he stays<small><%= bed ? 'Bed ' + bed : 'bed not set' %> · <%= hostel.name %></small></span>
+      <span class="hb-chev" aria-hidden="true">▾</span>
+    </summary>
+    <div class="hb-body">
+      <div class="hostel-facts">
+        <div class="hostel-fact">
+          <span class="hostel-fact-label">Bed No.</span>
+          <b><%= bed ? 'Bed ' + bed : 'Ask the hostel office' %></b>
+        </div>
+        <div class="hostel-fact">
+          <span class="hostel-fact-label">His stay</span>
+          <b style="font-size:13.5px;"><%= stayNote %></b>
+        </div>
+        <div class="hostel-fact">
+          <span class="hostel-fact-label">Hostel</span>
+          <b style="font-size:13.5px;"><%= hostel.name %></b>
+          <small class="text-muted"><%= hostel.location %></small>
+        </div>
+        <div class="hostel-fact">
+          <span class="hostel-fact-label">Warden</span>
+          <b style="font-size:13.5px;"><%= hostel.warden %></b>
+          <small class="text-muted"><%= hostel.wardenPhone %></small>
+        </div>
+      </div>
+      <%# the warden is the hostel's own office — a parent who needs something about the stay, the
+          food or the bed can write to the school from here and the office answers in the app %>
+      <p style="margin:14px 0 0;">
+        <a class="btn btn-outline btn-sm" href="/parent/messages">💬 Tell the hostel office</a>
+      </p>
+    </div>
+  </details>
+
+  <%# ================= AT SCHOOL (the school half of his day) =================
+      A boarder is still a pupil: his class, Roll No., his class teacher and the periods running
+      today, read from the same timetable service the Timetable tab uses. Sunday is the school's
+      holiday while the hostel stays open, and the card says so. %>
+  <details class="hostel-block" id="hostel-school-block">
+    <summary id="school">
+      <span class="hb-ico" aria-hidden="true">🏫</span>
+      <span class="hb-title">At school<small><%= child.class_name %><%= child.section ? ' ' + child.section : '' %><% if (classTeacher) { %> · <%= classTeacher.name %><% } %></small></span>
+      <span class="hb-chev" aria-hidden="true">▾</span>
+    </summary>
+    <div class="hb-body">
+      <% if (schoolHoliday) { %>
+        <div class="alert blue" style="margin:0 0 12px;">
+          🎉 <b>Today is Sunday</b> — the school is closed<% if (nextSchoolDay) { %>, and
+          <b><%= nextSchoolDay.long %></b> is the next school day<% } %>. The hostel stays open all week.
+        </div>
+      <% } else if (schoolPeriods.length) { %>
+        <p class="text-muted" style="margin:0 0 10px;">
+          <b><%= schoolDayLabel %></b> — <%= schoolPeriods.length %> period<%= schoolPeriods.length === 1 ? '' : 's' %> for
+          <%= child.class_name %><%= child.section ? ' ' + child.section : '' %>.
+        </p>
+        <div class="school-strip">
+          <% schoolPeriods.forEach(p => { %>
+            <span class="sp-chip<%= p.isBreak ? ' is-break' : '' %>">
+              <b><%= p.period %></b>
+              <small><%= p.isBreak ? (p.kindLabel || 'Break') : (p.subject || '—') %></small>
+              <span class="sp-time"><%= p.timeLabel %></span>
+            </span>
+          <% }) %>
+        </div>
+      <% } else { %>
+        <p class="text-muted" style="margin:0;">No periods are set for today — the office keeps the timetable.</p>
+      <% } %>
+      <p style="margin:14px 0 0;">
+        <a class="btn btn-outline btn-sm" href="/parent/timetable">🕒 The whole timetable</a>
+      </p>
+    </div>
+  </details>
+
+  <%# ================= THE HOSTEL PART OF THE FEE ================= %>
+  <details class="hostel-block" id="hostel-fee-block">
+    <summary id="fee">
+      <span class="hb-ico rupee-glyph" aria-hidden="true">₹</span>
+      <span class="hb-title">Hostel fee<small><% if (!hostelMonths) { %>no hostel month this session<% } else if (hostelBalance > 0) { %>₹<%= Math.round(hostelBalance).toLocaleString('en-IN') %> hostel fee still to pay<% } else { %>hostel fee all paid ✔<% } %></small></span>
+      <span class="hb-chev" aria-hidden="true">▾</span>
+    </summary>
+    <div class="hb-body">
+      <% if (hostelOverdueMonths) { %>
+        <div class="alert error" style="margin:0 0 12px;">
+          ⚠️ <b><%= hostelOverdueMonths %> hostel month<%= hostelOverdueMonths === 1 ? ' is' : 's are' %> past the due date</b> —
+          ₹<%= Math.round(hostelOverdueMoney).toLocaleString('en-IN') %>. The school office can take the payment,
+          or you can <a href="/parent/pay<%= children.length > 1 ? '?child=' + child.id : '' %>">pay from here</a> and tell the office.
+        </div>
+      <% } %>
+      <% if (hostelMonths) { %>
+        <%# Both bills, apart — the hostel fee is this page's own subject, but a family reading here
+            still needs to know whether the SCHOOL fee is clear, or it goes to the office to ask. %>
+        <div class="hfs-grid">
+          <span>🏫 School fee this session</span><b>₹<%= Math.round(schoolCharged).toLocaleString('en-IN') %></b>
+          <span>Received (school fee)</span><b class="<%= schoolPaid ? 'pm-good' : '' %>">₹<%= Math.round(schoolPaid).toLocaleString('en-IN') %></b>
+          <span>School fee still to pay</span>
+          <b class="<%= schoolBalance > 0 ? 'pm-bad' : 'pm-good' %>"><%= schoolBalance > 0 ? '₹' + Math.round(schoolBalance).toLocaleString('en-IN') : 'Nil' %></b>
+          <span>🏠 Hostel fee this session <small>mess &amp; lodging</small></span><b>₹<%= Math.round(hostelCharged).toLocaleString('en-IN') %></b>
+          <span>Received (hostel fee)</span><b class="<%= hostelPaid ? 'pm-good' : '' %>">₹<%= Math.round(hostelPaid).toLocaleString('en-IN') %></b>
+          <span>Hostel fee still to pay</span>
+          <b class="<%= hostelBalance > 0 ? 'pm-bad' : 'pm-good' %>"><%= hostelBalance > 0 ? '₹' + Math.round(hostelBalance).toLocaleString('en-IN') : 'Nil' %></b>
+          <span>Hostel rate</span><b>₹<%= Math.round(hostelRate).toLocaleString('en-IN') %>/month</b>
+          <span>Day-scholar rate</span><b>₹<%= Math.round(dayRate).toLocaleString('en-IN') %>/month</b>
+        </div>
+        <p class="text-muted" style="margin:12px 0 0;">
+          <b><%= hostelMonths %></b> of this session's <b><%= totalMonths %></b> months are charged at the hostel
+          rate: the school fee <b>plus</b> mess and lodging in one monthly amount. Money paid settles the
+          school fee first, then the hostel fee. <%= stayNote %>.
+        </p>
+        <% if (feeMonths.length) { %>
+          <div class="hg-months">
+            <% feeMonths.forEach(m => { %>
+              <span class="hg-month hg-<%= m.status %>">
+                <b><%= m.term %></b>
+                <small><%= m.status === 'paid' ? 'Paid ✔' : m.status === 'partial' ? '◐ Partly' : m.overdue ? '✘ Unpaid' : '• Not yet' %></small>
+              </span>
+            <% }) %>
+          </div>
+          <p class="text-muted" style="margin:8px 0 0; font-size:12px;">The last three months of the session — the whole ledger is on the Fees page.</p>
+        <% } %>
+        <% if (items.balance > 0) { %>
+          <div class="alert orange" style="margin:12px 0 0;">
+            📚 <b>₹<%= Math.round(items.balance).toLocaleString('en-IN') %></b> is also pending for books &amp; uniform.
+          </div>
+        <% } %>
+        <p style="margin:14px 0 0; display:flex; gap:8px; flex-wrap:wrap;">
+          <a class="btn btn-outline btn-sm" href="/parent/fees<%= children.length > 1 ? '?child=' + child.id : '' %>">🧾 Month by month</a>
+          <% if (balance > 0) { %><a class="btn btn-primary btn-sm" href="/parent/pay<%= children.length > 1 ? '?child=' + child.id : '' %>">💳 Pay now</a><% } %>
+        </p>
+      <% } else { %>
+        <p class="text-muted" style="margin:0;">No hostel month is charged for this session.</p>
+      <% } %>
+    </div>
+  </details>
+
+  <script>
+    // The cards at the top open their section (school's request, 2026-09-16). Three rules:
+    //   • on a phone the sections start CLOSED, so the page opens as a short list of cards;
+    //   • on the office's wide screen every section is simply open — nothing to tap;
+    //   • tapping a card opens that section, and the card also links to the section's hash so
+    //     the browser scrolls to it (and a reload with the hash keeps it open).
+    (function () {
+      var wide = window.matchMedia('(min-width: 900px)');
+      var blocks = Array.prototype.slice.call(document.querySelectorAll('.hostel-block'));
+      function openAll(open) {
+        blocks.forEach(function (b) { b.open = open; });
+      }
+      if (wide.matches) openAll(true);
+      else {
+        // the first section stays open: it is what the parent came for
+        blocks.forEach(function (b, i) { b.open = i === 0; });
+        var hash = (location.hash || '').replace('#', '');
+        if (hash) {
+          var want = document.getElementById(hash);
+          var block = want && want.closest('.hostel-block');
+          if (block) block.open = true;
+        }
+      }
+      wide.addEventListener('change', function (e) { if (e.matches) openAll(true); });
+      document.querySelectorAll('.hg-card').forEach(function (card) {
+        card.addEventListener('click', function () {
+          var block = document.getElementById(card.dataset.open);
+          if (block) block.open = true;      // the anchor then scrolls to the section
+        });
+      });
+    })();
+  </script>
+
+<%- include('../partials/footer') %>

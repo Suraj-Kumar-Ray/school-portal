@@ -1,0 +1,10 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1>📢 Notices</h1>
+    <p>School announcements relevant to <%= child.full_name %>'s class.</p>
+  </div>
+
+  <%- include('../partials/child_picker', { children, childId }) %>
+
+  <%- include('../partials/notices', { notices }) %>
+<%- include('../partials/footer') %>

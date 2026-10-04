@@ -1,0 +1,140 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head flex-between">
+    <div>
+      <h1>📝 Marks — <%= cls.label %></h1>
+      <p>Type the marks of my own class. A <b>blank box is left as it is</b> — it is not a zero. <b>0 is a real mark.</b></p>
+    </div>
+    <% if (examId) { %>
+      <a href="/teacher/marks/export.pdf?exam=<%= examId %>" class="btn btn-outline btn-sm">⬇️ Result sheet (PDF)</a>
+    <% } %>
+  </div>
+
+  <% if (saved) { %>
+    <div class="alert success">
+      ✅ Marks saved for <%= cls.label %>.<%= bad ? ' ' + bad + ' box(es) were not saved — see the red note below.' : ' The office can see them now.' %>
+    </div>
+  <% } %>
+  <% if (bad) { %>
+    <div class="alert error">
+      ⚠️ <%= bad %> box(es) were <b>not</b> saved because the number was not allowed (a mark must be 0 or more, and not more than the subject's own maximum). The rest were saved — please type them again and press Save.
+    </div>
+  <% } %>
+  <% if (published) { %>
+    <div class="alert" style="background:#e0f2fe; border:1px solid #7dd3fc;">
+      📢 This result was <b>published to parents</b> on <%= fmtShortDate(published) %> — it is locked now. If a mark is wrong, please tell the school office.
+    </div>
+  <% } %>
+
+  <%# the class's result as circles, above the sheet being filled — the same analysis the
+      office and the parents see, so a class teacher's own view can never disagree with them %>
+  <% if (analysis) { %>
+  <div class="panel">
+    <div class="panel-head">
+      <h3>📊 Result analysis — <%= cls.label %></h3>
+      <span class="panel-head-note">
+        <%= analysis.withMarks %> of <%= analysis.children %> student<%= analysis.children === 1 ? '' : 's' %> have marks
+        <% if (analysis.pending) { %>· <b><%= analysis.pending %></b> still to enter<% } %>
+      </span>
+    </div>
+    <div class="panel-body">
+      <p class="result-line"><%= analysis.line %></p>
+      <%- include('../partials/result_rings', {
+        big: analysis.overall, rings: analysis.subjects,
+        empty: examId
+          ? 'No marks entered for this exam yet — the circles fill in as you type and save below.'
+          : 'No marks entered for this class yet.',
+      }) %>
+    </div>
+  </div>
+  <% } %>
+
+  <div class="panel">
+    <div class="panel-head"><h3>Choose the exam</h3><span class="text-muted"><%= students.length %> students · <%= subjects.length %> subjects</span></div>
+    <div class="panel-body">
+      <form method="GET" action="/teacher/marks" class="filters">
+        <input type="hidden" name="class" value="<%= viewClass.id %>">
+        <select name="exam" onchange="this.form.submit()">
+          <% exams.forEach(e => { %>
+            <option value="<%= e.id %>" <%= examId === e.id ? 'selected' : '' %>><%= e.term %> <%= e.year %></option>
+          <% }) %>
+        </select>
+        <noscript><button type="submit" class="btn btn-outline btn-sm">Open</button></noscript>
+      </form>
+      <% if (!exams.length) { %><div class="empty">The school office has not created an exam yet.</div><% } %>
+      <% if (!subjects.length) { %><div class="empty">No subject is set for <%= cls.label %> yet — please ask the school office.</div><% } %>
+    </div>
+  </div>
+
+  <% if (examId && students.length && subjects.length) { %>
+  <form method="POST" action="/teacher/marks">
+    <input type="hidden" name="exam_id" value="<%= examId %>">
+    <input type="hidden" name="class_id" value="<%= viewClass.id %>">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Marks grid</h3>
+        <span class="text-muted">Full marks: <%= full %></span>
+      </div>
+      <div class="panel-body no-pad">
+        <div class="table-wrap">
+          <%# the SAME sheet shape the office fills in: a teacher gets the identical phone
+              card view and live totals (see /js/mark-cards.js), so entering marks feels
+              the same on either side — one row per student, one input per paper. %>
+          <table class="marks-input">
+            <thead>
+              <tr>
+                <th class="sticky-col">Student</th>
+                <% subjects.forEach(s => { %>
+                  <th class="<%= /oral/i.test(s.name) ? 'subj-oral' : '' %>"
+                      data-subject="<%= s.name %>" data-max="<%= Number(s.max_marks) || 100 %>">
+                    <%= s.name %>
+                    <span class="subj-max">(<%= Number(s.max_marks) || 100 %>)</span>
+                  </th>
+                <% }) %>
+                <th>Total<br><span class="subj-max">(<%= full %>)</span></th>
+                <th>%</th>
+                <th>Rank</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% rows.forEach((r) => { %>
+              <tr data-mark-row data-max="<%= r.maxTotal %>">
+                <td class="sticky-col" style="white-space:nowrap;">
+                  <b><%= r.student.full_name %></b> <span class="roll">(Roll No. <%= r.student.roll_no %>)</span>
+                </td>
+                <% subjects.forEach((s, si) => { %>
+                  <td class="<%= /oral/i.test(s.name) ? 'subj-oral' : '' %>">
+                    <input type="number" step="0.01" min="0" max="<%= Number(s.max_marks) || 100 %>"
+                           data-max="<%= Number(s.max_marks) || 100 %>"
+                           inputmode="decimal" class="mark-input"
+                           name="marks[<%= r.student.id %>_<%= s.id %>]"
+                           value="<%= r.cells[si] === '' ? '' : r.cells[si] %>"
+                           placeholder="—">
+                  </td>
+                <% }) %>
+                <td class="row-total"><%= r.total === null ? '—' : r.total %></td>
+                <td class="row-percent"><%= r.percent === null ? '—' : r.percent + '%' %></td>
+                <td class="row-rank"><%= r.rank === null ? '—' : r.rank %></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <%# on a phone the same rows become one card per student — the inputs are MOVED, so
+            Save still posts exactly one mark per student + paper %>
+        <div class="mark-cards" id="markCards" hidden></div>
+      </div>
+      <div class="panel-body">
+        <p class="text-muted" style="font-size:12.5px; margin:0 0 10px;">
+          Total, percentage and rank update as you type and are saved with the sheet. Parents see
+          the result only when the school office publishes it.
+        </p>
+        <button type="submit" class="btn btn-primary">💾 Save marks</button>
+      </div>
+    </div>
+  </form>
+  <% } %>
+
+  <%# the office sheet and this one share a single script: the phone card view and the live
+      total / percent / rank are the same code on both sides %>
+  <script src="/js/mark-cards.js"></script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,166 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1>🔑 Teacher Access</h1>
+    <p>
+      Every teacher has his own login. You decide <b>which sections</b> open for him and
+      <b>which classes</b> he may work on — his own class, a few chosen classes, or the whole
+      school. Nothing else is visible in his portal.
+    </p>
+  </div>
+
+  <% if (saved) { %><div class="alert success">✅ Access saved for <b><%= who %></b> — <%= count %> of <%= sections.length %> sections open. The change is live on his next tap.</div><% } %>
+  <% if (loginsaved) { %><div class="alert success">✅ Login saved for <b><%= who %></b>.<% if (namesaved) { %> He signs in with the login name <code><%= namesaved %></code>.<% } %><% if (pwsaved) { %> New password is set — please hand it to him.<% } %><% if (offsaved) { %> ⚠️ His login is now <b>switched off</b> — he cannot sign in.<% } %></div><% } %>
+  <% if (err) { %><div class="alert error">⚠️ <%= err %></div><% } %>
+
+  <div class="alert" style="background:#e0f2fe; border:1px solid #7dd3fc;">
+    ℹ️ <b>How it works:</b> a teacher signs in at <code>/login</code> → <b>Teacher</b> with the username and
+    password on his card. He only gets the sections you tick, and only for the classes you give him —
+    <b>Set access</b> is where both are chosen. He can never open the office's Admin panel.
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>All teachers</h3>
+      <span class="text-muted"><%= teachers.length %> teachers</span>
+    </div>
+    <div class="panel-body">
+      <%# One CARD per teacher, at every screen size (school's request, 2026-09-16). A six-column
+          table could only ever show the login form as a row of loose boxes squeezed under a button,
+          which read as unfinished. A card shows the same facts as labelled lines and gives the
+          login its own framed form, so username, password and the on/off switch finally look like
+          the form they are — and the same card is what a phone shows, without a second markup. %>
+      <div class="ta-grid">
+        <% teachers.forEach(t => {
+             const initials = t.full_name.split(' ')
+               .filter(w => !/^(mrs|mr|ms|dr|smt|shri)\.?$/i.test(w))
+               .map(w => w[0]).join('').slice(0, 2).toUpperCase();
+           %>
+          <article class="ta-card<%= t.can_login ? '' : ' is-off' %>">
+            <header class="ta-head">
+              <% if (t.photo) { %>
+                <img src="<%= t.photo %>" alt="<%= t.full_name %>" class="stu-photo ta-photo">
+              <% } else { %>
+                <span class="stu-photo ta-photo ta-photo-ph"><%= initials %></span>
+              <% } %>
+              <div class="ta-who">
+                <div class="ta-name"><%= t.full_name %></div>
+                <div class="ta-tags">
+                  <span class="badge blue"><%= t.class_name %><%= t.section ? ' ' + t.section : '' %></span>
+                  <% if (t.subject) { %><span class="badge gray"><%= t.subject %></span><% } else { %><span class="badge gray">Class teacher</span><% } %>
+                </div>
+              </div>
+              <%# one status chip, and it says which of the three states he is in — off, no usable
+                  login name yet, or ready to sign in %>
+              <% if (!t.can_login) { %>
+                <span class="badge red ta-state">Login off</span>
+              <% } else if (!t.loginOk) { %>
+                <span class="badge orange ta-state">Name needed</span>
+              <% } else { %>
+                <span class="badge green ta-state">Login on</span>
+              <% } %>
+            </header>
+
+            <dl class="ta-facts">
+              <div class="ta-fact">
+                <dt>Login name</dt>
+                <dd>
+                  <% if (t.loginOk) { %><code class="ta-code"><%= t.username %></code>
+                  <% } else { %><span class="ta-none">Not set yet</span><% } %>
+                </dd>
+              </div>
+              <div class="ta-fact">
+                <dt>Password</dt>
+                <dd>
+                  <% if (t.portal_password) { %><code class="ta-code ta-code-pw"><%= t.portal_password %></code>
+                  <% } else { %><span class="ta-none">Not set yet</span><% } %>
+                </dd>
+              </div>
+              <div class="ta-fact is-wide">
+                <dt>What he can open</dt>
+                <dd>
+                  <% if (!t.count) { %>
+                    <span class="badge red">No access yet</span>
+                  <% } else { %>
+                    <% t.sections.forEach(s => { %>
+                      <span class="badge gray" title="<%= s.hint %>"><%= s.icon %> <%= s.label %></span>
+                    <% }) %>
+                    <span class="ta-count"><%= t.count %> of <%= sections.length %> sections</span>
+                  <% } %>
+                </dd>
+              </div>
+              <div class="ta-fact is-wide">
+                <dt>Classes he may work on</dt>
+                <dd>
+                  <% if (t.allClasses) { %>
+                    <span class="badge blue" title="<%= t.scope %>">🏫 All classes</span>
+                  <% } else { %>
+                    <span class="badge gray" title="<%= t.scope %>"><%= t.classCount === 1 && t.classes[0].own ? 'His own class' : t.classCount + ' classes' %></span>
+                  <% } %>
+                  <span class="ta-count"><%= t.scope %></span>
+                </dd>
+              </div>
+            </dl>
+
+            <%# The login form. A blank box keeps what is already there, so the office can change
+                one thing without touching the other two. %>
+            <form method="POST" action="/admin/teacher-access/<%= t.id %>/login" class="ta-login">
+              <div class="ta-login-head">
+                <span class="ta-login-title">🔐 His login</span>
+                <%# whose login this is — a card is taller than a row, so the form says the name
+                    itself; repeating the username here would say nothing new %>
+                <span class="ta-login-tag"><%= t.full_name %></span>
+              </div>
+              <div class="ta-fields">
+                <label class="ta-field">
+                  <span>Login name</span>
+                  <input type="text" name="username" maxlength="40" autocomplete="off"
+                         value="<%= t.loginOk ? t.username : '' %>"
+                         placeholder="<%= t.suggested %>">
+                </label>
+                <label class="ta-field">
+                  <span>Password</span>
+                  <input type="text" name="password" autocomplete="off"
+                         placeholder="<%= t.portal_password ? 'leave empty to keep it' : 'set a password' %>">
+                </label>
+              </div>
+              <label class="ta-switch">
+                <input type="checkbox" name="can_login" value="1" <%= t.can_login ? 'checked' : '' %>>
+                <span>He may sign in</span>
+              </label>
+              <button type="submit" class="btn btn-outline ta-save">💾 Save login</button>
+              <p class="ta-hint">Leave a box empty to keep it as it is. The password stays readable here so you can hand it to him.</p>
+            </form>
+
+            <footer class="ta-foot">
+              <a href="/admin/teachers/<%= t.id %>/permissions" class="btn btn-primary ta-access">🔑 Set access</a>
+            </footer>
+          </article>
+        <% }) %>
+      </div>
+      <% if (!teachers.length) { %>
+        <p class="empty">No teacher yet. Add one from <a href="/admin/teachers">Teachers</a>.</p>
+      <% } %>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>What each section means</h3></div>
+    <div class="panel-body">
+      <div class="perm-legend">
+        <% sections.forEach(s => { %>
+          <div class="perm-legend-item">
+            <span class="perm-legend-icon"><%= s.icon %></span>
+            <div>
+              <b><%= s.label %></b> <span class="text-muted">· <%= s.group %></span>
+              <div class="text-muted" style="font-size:12.5px;"><%= s.hint %></div>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <p class="text-muted" style="font-size:12.5px; margin:12px 0 0;">
+        Money is never handed to a teacher: <b>Fees</b> only opens the pending amounts of the classes
+        you gave him. Payments, fines and fee reminders stay in this office panel.
+      </p>
+    </div>
+  </div>
+<%- include('../partials/footer') %>

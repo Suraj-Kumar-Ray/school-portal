@@ -1,0 +1,43 @@
+<%- include('../partials/header', { title }) %>
+<%# ============================================================================
+  ONE CHILD'S HOMEWORK — the teacher's marking page (2026-09-18)
+  ----------------------------------------------------------------------------
+  Opens from the class list's 📝 HW button. Shows every subject period of the
+  chosen day; the class teacher marks the truth for each child:
+      ✓ Done        — he did it (green tick in the parents' timetable)
+      ✕ Not done    — he came without it (red cross)
+      ↺ Clear       — take the mark back (band returns to plain)
+  A child nobody marked shows NOTHING anywhere — the school was clear that a
+  parent must never see a claim no teacher made.
+============================================================================ %>
+  <div class="page-head flex-between">
+    <div>
+      <h1>📝 Homework — <%= hwStudent.full_name %></h1>
+      <p>
+        <% const label = (hwStudent.class_name || '') + (hwStudent.section ? ' ' + hwStudent.section : ''); %>
+        <% if (label) { %><span class="badge blue"><%= label %></span><% } %>
+        <% if (hwStudent.roll_no) { %><span class="text-muted" style="margin-left:6px;">Roll No. <%= hwStudent.roll_no %></span><% } %>
+      </p>
+    </div>
+    <div class="head-actions">
+      <a href="/teacher/students?class=<%= hwClassId %>" class="btn btn-outline">← Back to class</a>
+    </div>
+  </div>
+
+  <%# the day picker: today is pre-picked; a teacher can also settle yesterday's list %>
+  <div class="panel">
+    <div class="panel-body hw-day-picker">
+      <% const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; %>
+      <% days.forEach(d => { %>
+        <a class="hw-day-chip<%= d === hwDay ? ' active' : '' %><%= d === hwToday ? ' is-today' : '' %>"
+           href="/teacher/students/<%= hwStudent.id %>/homework?class=<%= hwClassId %>&day=<%= d %>"><%= d.slice(0, 3) %></a>
+      <% }) %>
+    </div>
+  </div>
+
+  <%- include('../partials/homework_marker', {
+    hwStudent, hwClassId, hwDay, hwPeriods, hwStatuses, hwToday,
+    hwBase: `/teacher/students/${hwStudent.id}/homework`,
+    hwMarked, hwCleared, hwPeriodNotes,
+  }) %>
+<%- include('../partials/footer') %>

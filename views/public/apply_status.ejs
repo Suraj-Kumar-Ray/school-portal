@@ -1,0 +1,85 @@
+<%- include('../partials/public_nav', { title }) %>
+  <div class="page-head">
+    <h1>🔍 Check Application Status</h1>
+    <p>Enter your application number and the parent's phone number to see the current status — no login needed.</p>
+  </div>
+
+  <div class="panel" style="max-width: 560px; margin: 0 auto;">
+    <div class="panel-body">
+      <%# a lookup, not a change — asking “do you really want to check?” would only be noise %>
+      <form method="POST" action="/apply/status" novalidate id="statusForm" data-confirm="off">
+        <div class="form-group">
+          <label>Application Number *</label>
+          <input type="text" name="application_no" id="application_no" required maxlength="20"
+                 value="<%= no || '' %>" placeholder="e.g. APP-2026-0001" style="text-transform: uppercase;">
+          <small class="field-error" data-for="application_no"></small>
+        </div>
+        <div class="form-group">
+          <label>Parent Phone *</label>
+          <input type="tel" name="parent_phone" id="parent_phone" inputmode="numeric" maxlength="10" required
+                 placeholder="10-digit mobile number">
+          <small class="field-error" data-for="parent_phone"></small>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block mt-2">Check Status</button>
+      </form>
+
+      <% if (searched && !app) { %>
+        <div class="alert error mt-3">
+          ❌ No application found for that number &amp; phone combination. Please check both and try again, or call the school office.
+        </div>
+      <% } %>
+
+      <% if (app) { %>
+        <div class="alert success mt-3">
+          ✅ Application found!
+        </div>
+        <table>
+          <tbody>
+            <tr><td>Application No</td><td class="text-right"><b><%= app.application_no %></b></td></tr>
+            <tr><td>Child's Name</td><td class="text-right"><b><%= app.child_name %></b></td></tr>
+            <tr><td>Class Applied</td><td class="text-right"><%= app.class_name %><%= app.section ? ' ' + app.section : '' %></td></tr>
+            <tr><td>Parent</td><td class="text-right"><%= app.parent_name %></td></tr>
+            <tr><td>Submitted</td><td class="text-right"><%= fmtDateTime(app.submitted_at) %> <span class="tz-tag">IST</span></td></tr>
+            <tr><td>Status</td><td class="text-right">
+              <span class="badge <%= app.status === 'Pending' ? 'orange' : app.status === 'Approved' ? 'green' : 'red' %>"><%= app.status %></span>
+            </td></tr>
+          </tbody>
+        </table>
+        <% if (app.status === 'Pending') { %>
+          <p class="text-muted mt-2" style="font-size:12.5px;">⏳ Your application is under review. The school office will contact you soon. After approval, the office will create your parent login and share the username &amp; password.</p>
+        <% } else if (app.status === 'Approved') { %>
+          <p class="text-muted mt-2" style="font-size:12.5px;">🎉 Congratulations — admission approved! If you don't have your parent login yet, please visit the school office with this application number.</p>
+        <% } else { %>
+          <p class="text-muted mt-2" style="font-size:12.5px;">Please contact the school office for more details.</p>
+        <% } %>
+      <% } %>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var form = document.getElementById('statusForm');
+      var phone = document.getElementById('parent_phone');
+      phone.addEventListener('input', function () {
+        this.value = this.value.replace(/\D/g, '').slice(0, 10);
+      });
+      form.addEventListener('submit', function (e) {
+        var ok = true;
+        form.querySelectorAll('.field-error').forEach(function (s) { s.textContent = ''; });
+        form.querySelectorAll('.input-invalid').forEach(function (i) { i.classList.remove('input-invalid'); });
+        function mark(n, msg) {
+          var slot = form.querySelector('.field-error[data-for="' + n + '"]');
+          var input = form.querySelector('[name="' + n + '"]');
+          if (slot) slot.textContent = msg;
+          if (input) input.classList.add('input-invalid');
+          ok = false;
+        }
+        var no = form.application_no.value.trim();
+        if (!no) mark('application_no', '⚠ Please enter your application number');
+        else if (!/^APP-\d{4}-\d{4}$/i.test(no)) mark('application_no', '⚠ Format: APP-2026-0001');
+        if (phone.value.length !== 10) mark('parent_phone', '⚠ Enter the 10-digit phone number used in the application');
+        if (!ok) { e.preventDefault(); var bad = form.querySelector('.input-invalid'); if (bad) bad.focus(); }
+      });
+    })();
+  </script>
+<%- include('../partials/public_footer') %>

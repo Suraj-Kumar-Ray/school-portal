@@ -1,0 +1,142 @@
+<%- include('../partials/public_nav', { title }) %>
+
+  <!-- HOSTEL HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-text">
+        <span class="hero-badge">🏠 <%= school.hostel.name %> · <%= school.hostel.classes %></span>
+        <h1>A safe home away from home.</h1>
+        <p><%= school.hostel.tagline %></p>
+        <div class="hero-actions">
+          <a href="/apply" class="btn btn-light btn-lg">Apply for Hostel</a>
+          <a href="#fee" class="btn btn-light btn-lg" style="background:rgba(255,255,255,0.14); color:#fff; border:1px solid rgba(255,255,255,0.4);">See Fee Structure</a>
+        </div>
+      </div>
+      <div class="hero-art">🏠</div>
+    </div>
+  </section>
+
+  <!-- SEATS OPEN BANNER -->
+  <% if (school.hostelOpen) { %>
+  <div class="admissions-banner">
+    <div>
+      <b>🛏️ Hostel seats open for Session <%= school.sessionLabel %></b>
+      <span>Limited seats (<%= school.hostel.capacity %>) — apply early and mention 'hostel' in the admission form.</span>
+    </div>
+    <a href="/apply" class="btn btn-primary btn-sm">Apply Now →</a>
+  </div>
+  <% } %>
+
+  <!-- QUICK FACTS -->
+  <div class="cards">
+    <div class="card stat-card accent-blue"><div class="stat-label">Who can stay</div><div class="stat-value" style="font-size:20px; padding-top:6px;"><%= school.hostel.classes %></div><div class="stat-sub"><%= school.hostel.location %></div></div>
+    <div class="card stat-card accent-green"><div class="stat-label">Capacity</div><div class="stat-value"><%= school.hostel.capacity %></div><div class="stat-sub"><%= school.hostel.perRoom %> students per room</div></div>
+    <div class="card stat-card accent-orange"><div class="stat-label">Hostel + Mess</div><div class="stat-value" style="font-size:22px; padding-top:4px;">₹<%= monthlyTotal.toLocaleString('en-IN') %>/mo</div><div class="stat-sub">boarding + food together</div></div>
+    <div class="card stat-card accent-red"><div class="stat-label">Warden</div><div class="stat-value" style="font-size:18px; padding-top:8px;"><%= school.hostel.warden %></div><div class="stat-sub"><%= school.hostel.wardenPhone %></div></div>
+  </div>
+
+  <div style="text-align:right; margin: -6px 0 18px;">
+    <button type="button" class="btn btn-outline no-print" onclick="window.print()" title="Save as PDF / Print">⬇️ Print / Save PDF</button>
+  </div>
+
+  <!-- FEE STRUCTURE -->
+  <div class="panel" id="fee">
+    <div class="panel-head"><h3><span class="rupee-glyph">₹</span> Hostel Fee Structure</h3><span class="text-muted">Updated by the school office</span></div>
+    <div class="panel-body">
+      <div class="cards" style="margin-bottom:18px;">
+        <div class="card stat-card accent-blue"><div class="stat-label">Hostel fee</div><div class="stat-value">₹<%= (fees.find(f => f.kind === 'monthly') || {}).amount?.toLocaleString('en-IN') %></div><div class="stat-sub">per month</div></div>
+        <div class="card stat-card accent-green"><div class="stat-label">Mess (food)</div><div class="stat-value">₹<%= (fees.find(f => f.label && f.label.toLowerCase().includes('mess')) || {}).amount?.toLocaleString('en-IN') %></div><div class="stat-sub">per month · 7 days</div></div>
+        <div class="card stat-card accent-orange"><div class="stat-label">Total monthly</div><div class="stat-value">₹<%= monthlyTotal.toLocaleString('en-IN') %></div><div class="stat-sub">hostel + mess</div></div>
+      </div>
+
+      <table>
+        <thead><tr><th>Charge</th><th>Type</th><th>Amount</th></tr></thead>
+        <tbody>
+          <% fees.forEach(f => { %>
+          <tr>
+            <td>
+              <b><%= f.label %></b>
+              <% if (f.note) { %><div class="profile-line"><%= f.note %></div><% } %>
+            </td>
+            <td><span class="badge <%= f.kind === 'monthly' ? 'blue' : 'gray' %>"><%= f.kind === 'monthly' ? 'per month' : 'one-time' %></span></td>
+            <td><b><%= school.currency %><%= f.amount.toLocaleString('en-IN') %></b></td>
+          </tr>
+          <% }) %>
+          <% if (!fees.length) { %><tr><td colspan="3" class="empty">Hostel fee details coming soon.</td></tr><% } %>
+        </tbody>
+      </table>
+
+      <p class="text-muted mt-3" style="font-size:13px;">📌 <b>Note:</b> Monthly hostel &amp; mess charges are paid along with the school fee every month (due by the 10th). Caution deposit is refunded when the student leaves the hostel.</p>
+    </div>
+  </div>
+
+  <!-- WHAT WE PROVIDE -->
+  <div class="panel">
+    <div class="panel-head"><h3>What the hostel provides</h3></div>
+    <div class="panel-body">
+      <div class="amenity-grid">
+        <div class="amenity">🛏️ <b>Sleeping</b><span>Clean rooms, beds &amp; bedding (<%= school.hostel.perRoom %> per room)</span></div>
+        <div class="amenity">🍲 <b>Mess food</b><span>Vegetarian meals, 7 days a week</span></div>
+        <div class="amenity">💡 <b>Electricity &amp; water</b><span>Fan, light, tubewell &amp; RO water</span></div>
+        <div class="amenity">📚 <b>Evening study</b><span>Supervised study time after school</span></div>
+        <div class="amenity">🔐 <b>Security</b><span>Gate guard round-the-clock + CCTV campus</span></div>
+        <div class="amenity">🏏 <b>Playground</b><span>Playground &amp; sports after study hours</span></div>
+        <div class="amenity">🩺 <b>Health care</b><span>First-aid kit &amp; doctor on call</span></div>
+        <div class="amenity">👨‍🏫 <b>Warden care</b><span><%= school.hostel.warden %> stays with the students</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAILY ROUTINE -->
+  <div class="panel">
+    <div class="panel-head"><h3>🕔 Daily routine</h3></div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Time</th><th>Activity</th></tr></thead>
+          <tbody>
+            <tr><td>5:30 AM</td><td>Wake up &amp; freshen up</td></tr>
+            <tr><td>6:00 – 7:00 AM</td><td>Morning study / revision</td></tr>
+            <tr><td>7:30 AM</td><td>Breakfast</td></tr>
+            <tr><td>8:00 AM – 2:00 PM</td><td>School (classes)</td></tr>
+            <tr><td>2:30 PM</td><td>Lunch</td></tr>
+            <tr><td>3:30 – 5:00 PM</td><td>Rest / sports / games</td></tr>
+            <tr><td>5:00 PM</td><td>Evening snacks</td></tr>
+            <tr><td>5:30 – 8:00 PM</td><td>Evening study (supervised)</td></tr>
+            <tr><td>8:30 PM</td><td>Dinner</td></tr>
+            <tr><td>10:00 PM</td><td>Lights off</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- RULES -->
+  <div class="panel">
+    <div class="panel-head"><h3>📋 Simple rules</h3></div>
+    <div class="panel-body">
+      <ul style="padding-left:20px; color:#334155; display:grid; gap:6px;">
+        <li>Hostel students must follow the school rules and the warden's instructions.</li>
+        <li>Parents can visit on Sundays (10 AM – 4 PM) and call the warden anytime.</li>
+        <li>Students cannot leave the hostel campus without the warden's written permission.</li>
+        <li>Phones are not allowed for hostel students — parents can reach the warden instead.</li>
+        <li>Fees are paid monthly by the 10th; late payment may need warden's notice to parents.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- CONTACT -->
+  <div class="panel contact-strip">
+    <div>
+      <h3>🏠 Hostel enquiry</h3>
+      <p>Warden: <b><%= school.hostel.warden %></b> · <%= school.hostel.wardenPhone %></p>
+      <p><%= school.hostel.hostelEmail %> · <%= school.hostel.location %></p>
+      <p>Write "hostel" in the admission form or message the school after applying.</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <a href="/apply" class="btn btn-primary">Apply for Admission</a>
+      <a href="/contact" class="btn btn-outline">Contact School</a>
+    </div>
+  </div>
+
+<%- include('../partials/public_footer') %>

@@ -1,0 +1,343 @@
+<%- include('../partials/header') %>
+  <div class="page-head flex-between">
+    <div>
+      <h1>🏠 Homepage / Website Content</h1>
+      <p>Everything shown on the landing page — hero slide text, stats numbers, feature cards, about teaser and all photos. Saving updates the public website instantly.</p>
+    </div>
+    <a href="/" target="_blank" class="btn btn-outline btn-sm">👀 View public homepage →</a>
+  </div>
+
+  <% if (saved) { %><div class="alert success">✅ Homepage content saved. The public homepage is updated.<% if (removed) { %> <b><%= removed %> poster(s) removed</b> from the website.<% } %></div><% } %>
+  <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+  <%# The save question is the shared one now (partials/save_confirm + public/js/save-confirm.js) —
+      this page only names its own words, so there is one dialog for the whole app. %>
+  <form method="POST" action="/admin/homepage" id="homeForm"
+        data-confirm-title="Apply the changes?"
+        data-confirm-msg="Do you really want to save and update the public homepage?"
+        data-confirm-ok="OK, save">
+    <div class="panel">
+      <div class="panel-head"><h3>🖼️ Hero slides (top photo slider)</h3><span class="text-muted">Small label, main heading and description for each slide</span></div>
+      <div class="panel-body">
+        <% for (let i = 1; i <= 4; i++) { %>
+        <div style="border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:14px; background:#f8fafc;">
+          <b style="font-size:13px; color:var(--primary-dark);">Slide <%= i %></b>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Kicker (small label, e.g. "Admissions Open · Session 2026 – 2027")</label>
+              <input type="text" name="hero<%= i %>Kicker" value="<%= home['hero' + i + 'Kicker'] %>">
+            </div>
+          </div>
+          <div class="form-group mb-2">
+            <label>Heading (main text)</label>
+            <input type="text" name="hero<%= i %>Title" value="<%= home['hero' + i + 'Title'] %>">
+          </div>
+          <div class="form-group mb-2">
+            <label>Description</label>
+            <textarea name="hero<%= i %>Sub" rows="2"><%= home['hero' + i + 'Sub'] %></textarea>
+          </div>
+          <div class="photo-form" style="justify-content:space-between; flex-wrap:wrap;">
+            <label style="margin:0;" for="hp-hero<%= i %>">📷 Replace slide photo</label>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <img id="prev-hero<%= i %>" src="/images/slides/slide-<%= i %>.png" style="width:52px; height:34px; object-fit:cover; border-radius:6px; border:1px solid var(--border);" alt="">
+              <input type="file" id="hp-hero<%= i %>" class="photo-file" accept="image/*" data-hidden="hero<%= i %>Photo" data-preview="prev-hero<%= i %>">
+              <input type="hidden" name="hero<%= i %>Photo" value="">
+            </div>
+          </div>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🔢 Quick stats (circles on homepage)</h3><span class="text-muted">Numbers + label/sub-label for each circle</span></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Students count</label>
+            <input type="number" name="statStudents" value="<%= home.statStudents %>" min="0">
+          </div>
+          <div class="form-group">
+            <label>Teachers count</label>
+            <input type="number" name="statTeachers" value="<%= home.statTeachers %>" min="0">
+          </div>
+          <div class="form-group">
+            <label>Classes count</label>
+            <input type="number" name="statClasses" value="<%= home.statClasses %>" min="0">
+          </div>
+          <div class="form-group">
+            <label>Since (year text)</label>
+            <input type="text" name="statSince" value="<%= home.statSince %>">
+          </div>
+        </div>
+        <% [['Students','statLabelStudents','statSubStudents'], ['Teachers','statLabelTeachers','statSubTeachers'], ['Classes','statLabelClasses','statSubClasses'], ['Since','statLabelSince','statSubSince']].forEach(([name, lk, sk]) => { %>
+        <div style="border:1px solid var(--border); border-radius:12px; padding:12px; margin-top:12px; background:#f8fafc;">
+          <b style="font-size:13px; color:var(--primary-dark);"><%= name %> circle</b>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Label (main text)</label>
+              <input type="text" name="<%= lk %>" value="<%= home[lk] %>">
+            </div>
+            <div class="form-group">
+              <label>Sub-label (small text)</label>
+              <input type="text" name="<%= sk %>" value="<%= home[sk] %>">
+            </div>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>📢 Admissions banner</h3><span class="text-muted">The green "Admissions Open" banner on the homepage</span></div>
+      <div class="panel-body">
+        <div class="form-group mb-3">
+          <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="admShow" value="1" <%= home.admShow === '1' ? 'checked' : '' %>> Show admissions banner on homepage</label>
+        </div>
+        <div class="form-group mb-3">
+          <label>Banner title</label>
+          <input type="text" name="admTitle" value="<%= home.admTitle %>">
+        </div>
+        <div class="form-group mb-0">
+          <label>Banner description</label>
+          <input type="text" name="admSub" value="<%= home.admSub %>">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🔔 Admission poster (bell icon)</h3><span class="text-muted">A bell floats on the screen — tap it to show the admission poster. Visitors can close (✕) it anytime.</span></div>
+      <div class="panel-body">
+        <div class="form-group mb-3">
+          <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="posterShow" value="1" <%= home.posterShow === '1' ? 'checked' : '' %>> Show bell icon + poster on the website</label>
+        </div>
+        <div class="form-grid">
+          <% ['poster1','poster2','poster3','poster4'].forEach(function (key) { %>
+          <div class="form-group" style="border:1px solid var(--border); border-radius:12px; padding:12px; background:#f8fafc; margin-bottom:0;">
+            <label style="font-weight:700;"><%= images[key][0] %></label>
+            <div style="display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;">
+              <img id="prev-<%= key %>" src="/images/<%= images[key][1] %>" data-original="/images/<%= images[key][1] %>" style="width:52px; height:74px; object-fit:cover; border-radius:6px; border:1px solid var(--border);" alt="">
+              <input type="file" id="pf-<%= key %>" class="photo-file" accept="image/*" data-hidden="<%= key %>Photo" data-preview="prev-<%= key %>" style="max-width:170px;">
+              <input type="hidden" name="<%= key %>Photo" value="">
+              <button type="button" class="btn btn-sm btn-outline photo-clear" data-hidden="<%= key %>Photo" data-preview="prev-<%= key %>" data-file="pf-<%= key %>" title="Cancel the chosen photo">✕ Cancel</button>
+            </div>
+            <label style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12.5px; font-weight:600; color:#b91c1c;"><input type="checkbox" name="<%= key %>Remove" value="1"> Remove this poster from the website</label>
+          </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3><span class="rupee-glyph">₹</span> Fee section (homepage card)</h3><span class="text-muted">Heading, description and 4 small pills</span></div>
+      <div class="panel-body">
+        <div class="form-group mb-3">
+          <label>Heading</label>
+          <input type="text" name="feeCtaHeading" value="<%= home.feeCtaHeading %>">
+        </div>
+        <div class="form-group mb-3">
+          <label>Description</label>
+          <textarea name="feeCtaText" rows="2"><%= home.feeCtaText %></textarea>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Pill 1</label><input type="text" name="feePill1" value="<%= home.feePill1 %>"></div>
+          <div class="form-group"><label>Pill 2</label><input type="text" name="feePill2" value="<%= home.feePill2 %>"></div>
+          <div class="form-group"><label>Pill 3</label><input type="text" name="feePill3" value="<%= home.feePill3 %>"></div>
+          <div class="form-group"><label>Pill 4</label><input type="text" name="feePill4" value="<%= home.feePill4 %>"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>💡 Feature cards ("Why parents choose us")</h3></div>
+      <div class="panel-body">
+        <div class="form-group mb-3">
+          <label>Section heading</label>
+          <input type="text" name="whyHeading" value="<%= home.whyHeading %>">
+        </div>
+        <% for (let i = 1; i <= 4; i++) { %>
+        <div style="border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:14px; background:#f8fafc;">
+          <b style="font-size:13px; color:var(--primary-dark);">Card <%= i %></b>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Icon (emoji)</label>
+              <input type="text" name="feat<%= i %>Icon" value="<%= home['feat' + i + 'Icon'] %>" style="max-width:90px;">
+            </div>
+            <div class="form-group">
+              <label>Title</label>
+              <input type="text" name="feat<%= i %>Title" value="<%= home['feat' + i + 'Title'] %>">
+            </div>
+          </div>
+          <div class="form-group mb-0">
+            <label>Text</label>
+            <textarea name="feat<%= i %>Text" rows="2"><%= home['feat' + i + 'Text'] %></textarea>
+          </div>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>👨‍👩‍👧 "How it works for parents"</h3><span class="text-muted">4 steps — heading, title and description</span></div>
+      <div class="panel-body">
+        <div class="form-group mb-3">
+          <label>Section heading</label>
+          <input type="text" name="howItWorksHeading" value="<%= home.howItWorksHeading %>">
+        </div>
+        <% for (let i = 1; i <= 4; i++) { %>
+        <div style="border:1px solid var(--border); border-radius:12px; padding:14px; margin-bottom:14px; background:#f8fafc;">
+          <b style="font-size:13px; color:var(--primary-dark);">Step <%= i %></b>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Title</label>
+              <input type="text" name="hiw<%= i %>Title" value="<%= home['hiw' + i + 'Title'] %>">
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <input type="text" name="hiw<%= i %>Text" value="<%= home['hiw' + i + 'Text'] %>">
+            </div>
+          </div>
+        </div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🏆 Toppers section</h3></div>
+      <div class="panel-body">
+        <div class="form-group mb-0">
+          <label>Section heading</label>
+          <input type="text" name="toppersHeading" value="<%= home.toppersHeading %>">
+          <p class="text-muted" style="margin:6px 0 0; font-size:12.5px;">💡 Topper names, percentages and photos are edited from Admin → Class Toppers.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🏫 About section (teaser on homepage)</h3></div>
+      <div class="panel-body">
+        <div class="form-group mb-3">
+          <label>Heading</label>
+          <input type="text" name="aboutHeading" value="<%= home.aboutHeading %>">
+        </div>
+        <div class="form-group mb-3">
+          <label>Intro text</label>
+          <textarea name="aboutIntro" rows="4"><%= home.aboutIntro %></textarea>
+        </div>
+        <div class="photo-form" style="justify-content:space-between; flex-wrap:wrap;">
+          <label style="margin:0;" for="hp-aboutImg">📷 Replace about-section photo (school building)</label>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <img id="prev-aboutImg" src="/images/school-building.png" style="width:52px; height:34px; object-fit:cover; border-radius:6px; border:1px solid var(--border);" alt="">
+            <input type="file" id="hp-aboutImg" class="photo-file" accept="image/*" data-hidden="aboutImgPhoto" data-preview="prev-aboutImg">
+            <input type="hidden" name="aboutImgPhoto" value="">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>📸 School life gallery</h3><span class="text-muted">Section heading, note, caption and photo for each tile</span></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Section heading</label>
+            <input type="text" name="galleryHeading" value="<%= home.galleryHeading %>">
+          </div>
+          <div class="form-group">
+            <label>Section note (small text)</label>
+            <input type="text" name="galleryNote" value="<%= home.galleryNote %>">
+          </div>
+        </div>
+        <div class="form-grid">
+          <% [['g1','Our Teachers'], ['g2','Our Students'], ['g3','Classrooms'], ['g5','School Life'], ['g6','School Transport']].forEach(([key, label]) => { %>
+          <div class="form-group" style="border:1px solid var(--border); border-radius:12px; padding:12px; background:#f8fafc; margin-bottom:0;">
+            <label style="font-weight:700;"><%= label %></label>
+            <input type="text" name="glCaption<%= key.slice(1) %>" value="<%= home['glCaption' + key.slice(1)] %>" style="margin-bottom:8px;" placeholder="Tile caption">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <img id="prev-<%= key %>" src="/images/gallery/<%= key %>.png" style="width:56px; height:40px; object-fit:cover; border-radius:6px; border:1px solid var(--border);" alt="">
+              <input type="file" class="photo-file" accept="image/*" data-hidden="<%= key %>Photo" data-preview="prev-<%= key %>">
+              <input type="hidden" name="<%= key %>Photo" value="">
+            </div>
+          </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🏠 Hostel section (homepage card)</h3></div>
+      <div class="panel-body">
+        <div class="form-group mb-3">
+          <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="hostelShow" value="1" <%= home.hostelShow === '1' ? 'checked' : '' %>> Show hostel section on homepage</label>
+        </div>
+        <div class="form-group mb-3">
+          <label>Heading</label>
+          <input type="text" name="hostelHeading" value="<%= home.hostelHeading %>">
+        </div>
+        <div class="form-group mb-3">
+          <label>Description</label>
+          <textarea name="hostelText" rows="3"><%= home.hostelText %></textarea>
+        </div>
+        <div class="form-grid">
+          <div class="form-group"><label>Pill 1</label><input type="text" name="hostelPill1" value="<%= home.hostelPill1 %>"></div>
+          <div class="form-group"><label>Pill 2</label><input type="text" name="hostelPill2" value="<%= home.hostelPill2 %>"></div>
+          <div class="form-group"><label>Pill 3</label><input type="text" name="hostelPill3" value="<%= home.hostelPill3 %>"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex-between">
+      <p class="text-muted" style="margin:0; font-size:13px;">💡 Slider/gallery images are compressed automatically in the browser (max 1400px, JPG).</p>
+      <button class="btn btn-primary" type="submit">💾 Save Homepage</button>
+    </div>
+  </form>
+
+  <%# the green tick + the save chime are shared by every admin page:
+      public/js/admin-flash.js — see the footer partial %>
+
+<script>
+  // Photo upload: pick a file -> resize to <=1400px in the browser -> keep as a JPEG data-URI
+  // (the whole form is saved with one Save button at the bottom)
+  document.querySelectorAll('.photo-file').forEach(function (file) {
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      if (!f) return;
+      if (!/^image\//.test(f.type)) { alert('Please choose an image file (JPG/PNG).'); file.value = ''; return; }
+      var img = new Image();
+      img.onload = function () {
+        var MAX = 1400, w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          var r = MAX / Math.max(w, h);
+          w = Math.round(w * r); h = Math.round(h * r);
+        }
+        var cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        var data = cv.toDataURL('image/jpeg', 0.82);
+        var hiddenName = file.getAttribute('data-hidden');
+        var hidden = document.querySelector('input[name="' + hiddenName + '"]');
+        if (hidden) hidden.value = data;
+        var prev = document.getElementById(file.getAttribute('data-preview'));
+        if (prev) prev.src = data;
+        alert('✅ Photo ready — click Save Homepage to update.');
+      };
+      img.onerror = function () { alert('Could not read the image — please try again.'); file.value = ''; };
+      img.src = URL.createObjectURL(f);
+    });
+  });
+  // ✕ cancels a chosen photo — restores the current saved image in the preview
+  document.querySelectorAll('.photo-clear').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var hidden = document.querySelector('input[name="' + btn.getAttribute('data-hidden') + '"]');
+      if (hidden) hidden.value = '';
+      var file = document.getElementById(btn.getAttribute('data-file'));
+      if (file) file.value = '';
+      var prev = document.getElementById(btn.getAttribute('data-preview'));
+      if (prev && prev.getAttribute('data-original')) prev.src = prev.getAttribute('data-original');
+    });
+  });
+  // The confirmation before saving is the shared one — see the form tag above and
+  // public/js/save-confirm.js (it also handles Esc, a tap outside the box, and switching
+  // the button off while the page is posting).
+</script>
+<%- include('../partials/footer') %>

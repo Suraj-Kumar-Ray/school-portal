@@ -1,0 +1,691 @@
+<%- include('../partials/header', { title }) %>
+<%
+  /* ======================================================================================
+     ONE STUDENT · THE WHOLE PICTURE (school's request, 2026-09-20)
+     ======================================================================================
+     Everything the school holds about one child, on one page, in the order the office reads
+     it: the RESULT first (the circles, the parents' sentence, the subject-wise graph and the
+     marks table — the very things the family sees on their own portal), then the money, the
+     class's day, the homework, the family record, the login, the hostel and the store.
+
+     Every figure is read from the service that OWNS it (analysis · marks_sheet · fees ·
+     timetable · homework · stay · store), so this page can never disagree with the page it
+     came from — and every write goes through the SAME route the office already uses from
+     those pages, so a change here shows up on the parent's portal, the marks sheet and the
+     fee ledger at once.
+
+     TWO COMFORTS THE SCHOOL ASKED FOR (2026-09-20)
+       • nothing to hunt for — a sticky chip bar jumps to any part, opening the card on the way
+       • every card folds, “Fold all / Open all” does it to the lot, and the arrangement is
+         remembered on this device. With JavaScript off nothing is hidden.
+     ====================================================================================== */
+  const initials = String(student.full_name || '')
+    .split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+  const age = (() => {
+    if (!student.dob) return null;
+    const b = new Date(student.dob);
+    if (isNaN(b)) return null;
+    const t = new Date();
+    let years = t.getFullYear() - b.getFullYear();
+    const m = t.getMonth() - b.getMonth();
+    if (m < 0 || (m === 0 && t.getDate() < b.getDate())) years -= 1;
+    return years >= 0 && years < 30 ? years : null;
+  })();
+
+  const fee = ledger || null;
+  const receipts = fee ? (fee.receiptList || []).slice(0, 5) : [];
+  const nextDue = fee ? fee.nextDue : null;
+
+  const periods = Array.isArray(ttDay) ? ttDay : [];
+  const hwPeriods = periods.filter((p) => !p.isBreak);
+  const dayShift = (d) => `/admin/students/${student.id}?day=${encodeURIComponent(d)}${filterClass ? '&class=' + filterClass : ''}`;
+
+  const exams = Array.isArray(examRows) ? examRows : [];
+  const markedExams = exams.filter((e) => e.total !== null);
+  const markRows = Array.isArray(marks) ? marks : [];
+  const hasMarks = !!(result && result.overall);
+
+  // one card head, one fold button — the markup is the same on every card so the behaviour
+  // (and the remembered state) is the same on every card
+  const fold = (key) => `<button type="button" class="sp-fold" data-fold="${key}" aria-expanded="true" title="Fold or unfold this card"><span class="sp-fold-ico" aria-hidden="true">▾</span></button>`;
+
+  // the sticky chip bar: one chip per card, in the page's own order, each naming the card it
+  // opens. Built here so a new card cannot be added without a chip being added with it.
+  const sections = [
+    { key: 'result', ico: '📊', label: 'Result' },
+    { key: 'graph', ico: '📈', label: 'Graph' },
+    { key: 'marks', ico: '📋', label: 'Marks table' },
+    { key: 'fee', ico: '₹', label: 'Fees' },
+    { key: 'timetable', ico: '🗓️', label: 'Timetable' },
+    { key: 'homework', ico: '📝', label: 'Homework' },
+    { key: 'family', ico: '👪', label: 'Family' },
+    { key: 'login', ico: '🔑', label: 'Login' },
+    { key: 'hostel', ico: '🏠', label: 'Hostel' },
+    { key: 'store', ico: '🛍️', label: 'Store' },
+  ];
+%>
+
+  <div class="page-head flex-between sp-head">
+    <div>
+      <a href="/admin/students<%= filterClass ? '?class=' + filterClass : '' %>" class="btn btn-outline btn-sm">← All students</a>
+      <h1 class="mt-2">🎒 <%= student.full_name %></h1>
+      <p>
+        <span class="badge blue"><%= className %></span>
+        <span class="roll">Roll No. <%= student.roll_no %></span>
+        · <code><%= student.admission_no %></code>
+        <% if (String(student.stay || '') === 'hostel') { %>
+          <span class="badge orange" title="<%= stayNote %>">🏠 Hostel<%= student.hostel_bed ? ' · ' + student.hostel_bed : '' %></span>
+        <% } %>
+        <% if (student.parent_phone) { %>
+          · <a href="tel:<%= String(student.parent_phone).replace(/[^0-9+]/g, '') %>" class="fee-call">📞 <%= student.parent_phone %></a>
+        <% } %>
+      </p>
+    </div>
+    <div class="head-actions sp-head-actions">
+      <%# Edit details is the ONE form that writes the record (name, class, roll, family,
+          contact, stay) — the profile never grows a second copy of those rules. %>
+      <a href="/admin/students/<%= student.id %>/edit?back_to=profile<%= filterClass ? '&class=' + filterClass : '' %>" class="btn btn-primary">✏️ Edit details</a>
+      <a href="/admin/fees/<%= student.id %><%= filterClass ? '?class=' + filterClass : '' %>" class="btn btn-outline">₹ Fee ledger</a>
+      <a href="/admin/students/<%= student.id %>/homework?day=<%= encodeURIComponent(day) %>" class="btn btn-outline">📝 Homework</a>
+      <a href="/admin/marks?class=<%= student.class_id %>" class="btn btn-outline">📊 Class marks</a>
+    </div>
+  </div>
+
+  <% if (updated) { %><div class="alert success">✅ Details saved — every page that shows this child (portal, results, fee ledger, attendance lists) reads them from here.</div><% } %>
+  <% if (photo === 'saved') { %><div class="alert success">📷 Photo saved.</div><% } %>
+  <% if (photo === 'removed') { %><div class="alert success">📷 Photo removed.</div><% } %>
+  <% if (paid) { %><div class="alert success">₹<%= paid %> received<%= paidTerm ? ' for ' + paidTerm : '' %> — the parent's portal and the ledger have it already.</div><% } %>
+  <% if (staydone) { %><div class="alert success">🏠 <%= staydone %></div><% } %>
+  <% if (payErr) { %><div class="alert error">⚠️ <%= payErr %></div><% } %>
+
+  <%# ================= the child's card ================================================ %>
+  <div class="card pf-hero sp-hero">
+    <div class="pf-hero-row">
+      <% if (student.photo) { %>
+        <img src="<%= student.photo %>" alt="<%= student.full_name %>" class="pf-hero-photo">
+      <% } else { %>
+        <span class="pf-hero-photo pf-hero-photo-ph"><%= initials %></span>
+      <% } %>
+      <div class="pf-hero-info">
+        <b class="pf-hero-name"><%= student.full_name %></b>
+        <span class="pf-hero-role"><%= className %> · Roll No. <%= student.roll_no %></span>
+        <div class="pf-hero-facts">
+          <span class="pf-fact pf-fact--qual"><span class="pf-fact-ico">🆔</span><%= student.admission_no %></span>
+          <% if (student.dob) { %><span class="pf-fact pf-fact--exp"><span class="pf-fact-ico">🎂</span><%= fmtDate(student.dob) %><%= age !== null ? ' · ' + age + ' yrs' : '' %></span><% } %>
+          <% if (student.blood_group) { %><span class="pf-fact pf-fact--rate"><span class="pf-fact-ico">🩸</span><%= student.blood_group %></span><% } %>
+          <span class="pf-fact pf-fact--phone"><span class="pf-fact-ico">📞</span><%= student.parent_phone || 'No mobile on record' %></span>
+          <%# the one number the office asks about most, on the card itself %>
+          <% if (fee) { %>
+            <span class="pf-fact <%= fee.balance > 0 ? 'pf-fact--due' : 'pf-fact--clear' %>">
+              <span class="pf-fact-ico">₹</span><%= fee.balance > 0 ? '₹' + Math.round(fee.balance).toLocaleString('en-IN') + ' pending' : 'Fees settled' %>
+            </span>
+          <% } %>
+          <% if (hasMarks) { %>
+            <span class="pf-fact pf-fact--rate"><span class="pf-fact-ico">📊</span><%= result.facts.value %> % average</span>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <%# the same .photo-form the students list uses — the script below resizes the file in the
+        browser and submits it, so this page carries no upload rules of its own %>
+    <form method="POST" action="/admin/students/<%= student.id %>/photo" class="photo-form sp-photo-form">
+      <input type="hidden" name="photo">
+      <input type="hidden" name="back_to" value="profile">
+      <input type="hidden" name="filter_class" value="<%= filterClass %>">
+      <label class="btn btn-outline btn-sm" style="margin:0; cursor:pointer;" title="Upload photo">📷 <%= student.photo ? 'Change photo' : 'Add photo' %>
+        <input type="file" accept="image/*" class="photo-file" style="display:none;">
+      </label>
+      <% if (student.photo) { %>
+        <button type="submit" name="remove" value="1" class="btn btn-danger btn-sm" title="Remove photo"
+                onclick="return confirm('Remove this photo? The card falls back to the initials.');">✕ Remove</button>
+      <% } %>
+    </form>
+  </div>
+
+  <%# ---- the chip bar: nothing to hunt for ---- %>
+  <nav class="sp-nav no-print" id="spNav" aria-label="Jump to a part of this child's record">
+    <% sections.forEach(s => { %>
+      <a href="#sp-<%= s.key %>" class="sp-nav-chip" data-goto="sp-<%= s.key %>">
+        <span aria-hidden="true"><%= s.ico %></span><%= s.label %>
+      </a>
+    <% }) %>
+    <span class="sp-nav-sep" aria-hidden="true"></span>
+    <button type="button" class="sp-nav-chip sp-nav-btn" id="spFoldAll">▾ Fold all</button>
+    <button type="button" class="sp-nav-chip sp-nav-btn" id="spUnfoldAll">▴ Open all</button>
+  </nav>
+
+  <div class="sp-grid">
+
+    <%# ================= RESULT AT A GLANCE (the parents' own picture, first) ========== %>
+    <div class="panel sp-card sp-card--wide" id="sp-result">
+      <div class="panel-head">
+        <h3>📊 Result at a glance</h3>
+        <span class="panel-head-note">
+          <% if (hasMarks) { %><%= result.totals.subjects %> subject<%= result.totals.subjects === 1 ? '' : 's' %> · exactly what the parents see<% } else { %>waiting for the first result<% } %>
+        </span>
+        <%- fold('result') %>
+      </div>
+      <div class="panel-body">
+        <%# the one plain sentence the parent's page leads with, from the same service. With no
+            marks on file the circles below already say it, so it is not repeated here. %>
+        <% if (hasMarks) { %><p class="result-line"><%= result.line %></p><% } %>
+
+        <%- include('../partials/result_rings', {
+          big: result.overall,
+          legend: false,
+          empty: 'No marks have been entered yet — the diagram fills in as the school adds results.',
+        }) %>
+
+        <%# the parents' Result page shows these as two more panels; here they sit under the big
+            circle on the same card, so the whole picture is read without a single tap %>
+        <% if (result.subjects.length) { %>
+          <div class="sp-sub-head"><span>📚 Subject by subject</span><small>best first · a written paper and its oral are one subject</small></div>
+          <%- include('../partials/result_rings', { rings: result.subjects, legend: true }) %>
+        <% } %>
+
+        <% if (result.terms.some(t => t.value !== null)) { %>
+          <div class="sp-sub-head"><span>📅 Term by term</span><small>▲ up · ▼ down, against the term before</small></div>
+          <%- include('../partials/result_rings', { strip: result.terms }) %>
+        <% } %>
+
+        <% if (hasMarks) { %>
+          <div class="pg-facts">
+            <div class="pg-fact">
+              <span class="pg-fact-ico" aria-hidden="true">📅</span>
+              <span class="pg-fact-body"><span class="pg-fact-label">Terms entered</span><b><%= result.facts.termsEntered %> of <%= result.facts.termsTotal %></b></span>
+            </div>
+            <div class="pg-fact">
+              <span class="pg-fact-ico" aria-hidden="true">🧮</span>
+              <span class="pg-fact-body"><span class="pg-fact-label">Marks counted</span><b><%= result.facts.obtained %> of <%= result.facts.max %></b></span>
+            </div>
+          </div>
+        <% } %>
+
+        <%# the office's own cut: one row per exam, with the RANK inside the class %>
+        <% if (markedExams.length) { %>
+          <table class="card-table sp-table">
+            <thead><tr><th>Exam</th><th>Total</th><th>Percent</th><th>Rank</th></tr></thead>
+            <tbody>
+              <% markedExams.forEach(e => { %>
+                <tr>
+                  <td data-label="Exam"><b><%= e.exam.term %></b><small class="sp-cell-sub"><%= e.entered %>/<%= e.subjects %> papers entered</small></td>
+                  <td data-label="Total"><%= e.total %> / <%= e.maxTotal %></td>
+                  <td data-label="Percent"><b><%= e.percent %> %</b></td>
+                  <td data-label="Rank"><%= e.rank ? '#' + e.rank : '—' %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        <% } %>
+
+        <% if (!hasMarks) { %>
+          <p class="sp-note">No marks have been entered for this child yet. <% if (exams.length) { %>The school enters them exam by exam: <b><%= exams.map(e => e.exam.term).join(' · ') %></b>.<% } %></p>
+        <% } else if (exams.length > markedExams.length) { %>
+          <p class="sp-note">Still to be entered: <b><%= exams.filter(e => e.total === null).map(e => e.exam.term).join(' · ') %></b>.</p>
+        <% } %>
+
+        <div class="sp-card-foot-row">
+          <a href="/admin/marks?class=<%= student.class_id %>" class="btn btn-outline btn-sm">⌨️ Enter / fix marks</a>
+          <a href="/admin/marks/export.pdf?class=<%= student.class_id %>" class="btn btn-outline btn-sm">⬇️ Class result PDF</a>
+        </div>
+      </div>
+    </div>
+
+    <%# ================= THE PARENTS' GRAPH ========================================== %>
+    <%- include('../partials/performance_chart', { chart: result.chart, cardId: 'sp-graph', foldKey: 'graph' }) %>
+
+    <%# ================= THE MARKS TABLE, AS THE SCHOOL ENTERED IT ==================== %>
+    <div class="panel sp-card sp-card--wide" id="sp-marks">
+      <div class="panel-head">
+        <h3>📋 Marks table</h3>
+        <span class="panel-head-note">every paper, term by term · the parents' own table</span>
+        <%- fold('marks') %>
+      </div>
+      <div class="panel-body">
+        <% if (markRows.length) { %>
+          <div class="table-wrap">
+            <table class="card-table sp-table">
+              <thead><tr><th>Subject</th><th>Term 1</th><th>Term 2</th><th>Term 3</th><th>Average</th></tr></thead>
+              <tbody>
+                <% markRows.forEach(m => { %>
+                  <tr>
+                    <td data-label="Subject"><b><%= m.subject %></b></td>
+                    <td data-label="Term 1"><%= m['Term 1'] ? m['Term 1'].obtained + '/' + m['Term 1'].max : '—' %></td>
+                    <td data-label="Term 2"><%= m['Term 2'] ? m['Term 2'].obtained + '/' + m['Term 2'].max : '—' %></td>
+                    <td data-label="Term 3"><%= m['Term 3'] ? m['Term 3'].obtained + '/' + m['Term 3'].max : '—' %></td>
+                    <td data-label="Average">
+                      <b><%= typeof m.avgText === 'string' ? m.avgText : m.avg + '%' %></b>
+                      <% if (m.tone && m.tone !== 'none') { %><span class="pg-band tone-<%= m.tone %>"><%= m.word %></span><% } %>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-foot-note">A written paper and its <b>oral</b> are added together in the circles and the graph above, because that is how the report card reads. This table lists every paper exactly as the school entered it.</div>
+        <% } else { %>
+          <p class="sp-note">No marks have been entered yet. They appear here the moment the office fills a paper in on <b>Class marks</b>.</p>
+        <% } %>
+        <p class="sp-note">Changed a mark? <a href="/admin/marks?class=<%= student.class_id %>">Open the class marks sheet</a> — this page is a reader, so it shows the corrected number right away.</p>
+      </div>
+    </div>
+
+    <%# ================= fees ========================================================= %>
+    <div class="panel sp-card sp-card--wide" id="sp-fee">
+      <div class="panel-head">
+        <h3>₹ Fee ledger</h3>
+        <span class="panel-head-note">this session, month by month</span>
+        <%- fold('fee') %>
+      </div>
+      <div class="panel-body">
+        <% if (!fee) { %>
+          <p class="sp-note">No installments on file yet — open the fee ledger to create them.</p>
+        <% } else { %>
+          <div class="sp-tiles">
+            <div class="sp-tile"><small>Charged this session</small><b>₹<%= Math.round(fee.sessionTotal).toLocaleString('en-IN') %></b></div>
+            <div class="sp-tile sp-tile--paid"><small>Paid so far</small><b>₹<%= Math.round(fee.collected).toLocaleString('en-IN') %></b></div>
+            <div class="sp-tile <%= fee.balance > 0 ? 'sp-tile--due' : 'sp-tile--clear' %>"><small>Balance</small><b>₹<%= Math.round(fee.balance).toLocaleString('en-IN') %></b></div>
+            <% if (fee.overdueAmount > 0) { %>
+              <div class="sp-tile sp-tile--late"><small>Past due date</small><b>₹<%= Math.round(fee.overdueAmount).toLocaleString('en-IN') %></b></div>
+            <% } %>
+          </div>
+          <p class="sp-note">
+            <%= fee.paidMonths %>/<%= fee.totalMonths %> months settled<%= fee.partialMonths ? ` · ${fee.partialMonths} part paid` : '' %><% if (fee.fineTotal) { %> · fine ₹<%= Math.round(fee.fineTotal).toLocaleString('en-IN') %><% } %>
+            <% if (nextDue) { %> · next up <b><%= nextDue.term %></b> (<%= fmtDate(nextDue.due_date) %>)<% } %>
+            <% if (fee.isBoarder) { %> · 🏠 school ₹<%= Math.round(fee.schoolCharged).toLocaleString('en-IN') %> + hostel ₹<%= Math.round(fee.hostelCharged).toLocaleString('en-IN') %><% } %>
+          </p>
+
+          <% if (receipts.length) { %>
+            <table class="card-table sp-table">
+              <thead><tr><th>Month</th><th>Amount</th><th>Mode</th><th>Received</th></tr></thead>
+              <tbody>
+                <% receipts.forEach(r => { %>
+                  <tr>
+                    <td data-label="Month"><%= r.term %></td>
+                    <td data-label="Amount"><b>₹<%= Math.round(r.amount).toLocaleString('en-IN') %></b></td>
+                    <td data-label="Mode"><%= r.mode %></td>
+                    <td data-label="Received"><%= fmtDate(r.paid_on) %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+            <p class="sp-note">Last <%= receipts.length %> receipt<%= receipts.length === 1 ? '' : 's' %> · the full history is on the ledger.</p>
+          <% } %>
+
+          <%# money in — the same route (and the same rules) the ledger page uses: it is spread
+              over the months, oldest first, and the parent is told at once %>
+          <form method="POST" action="/admin/fees/<%= student.id %>/quick" class="sp-pay">
+            <input type="hidden" name="filter_class" value="<%= filterClass %>">
+            <input type="hidden" name="back_to" value="profile">
+            <div class="sp-pay-grid">
+              <div class="form-group">
+                <label>Amount received</label>
+                <input type="number" name="amount" min="1" step="1" inputmode="numeric" required placeholder="3000" <%= fee.balance ? '' : 'disabled' %>>
+              </div>
+              <div class="form-group">
+                <label>Mode</label>
+                <select name="mode" <%= fee.balance ? '' : 'disabled' %>><% payModes.forEach(m => { %><option><%= m %></option><% }) %></select>
+              </div>
+              <div class="form-group">
+                <label>Date</label>
+                <input type="date" name="paid_on" value="<%= istToday() %>" <%= fee.balance ? '' : 'disabled' %>>
+              </div>
+              <% if (fee.isBoarder && fee.hostelCharged > 0) { %>
+                <div class="form-group">
+                  <label>Apply to</label>
+                  <select name="part"><% payParts.forEach(p => { %><option value="<%= p.key %>"><%= p.label %></option><% }) %></select>
+                </div>
+              <% } %>
+              <div class="form-group sp-pay-note">
+                <label>Note <span class="text-muted">(optional)</span></label>
+                <input type="text" name="note" maxlength="200" placeholder="Cash at the office" <%= fee.balance ? '' : 'disabled' %>>
+              </div>
+            </div>
+            <div class="sp-pay-actions">
+              <button type="submit" class="btn btn-primary btn-sm" <%= fee.balance ? '' : 'disabled' %>>₹ Record payment</button>
+              <a href="/admin/fees/<%= student.id %><%= filterClass ? '?class=' + filterClass : '' %>" class="btn btn-outline btn-sm">Open the full ledger →</a>
+            </div>
+          </form>
+        <% } %>
+      </div>
+    </div>
+
+    <%# ================= the class timetable, one day ================================== %>
+    <div class="panel sp-card sp-card--wide" id="sp-timetable">
+      <div class="panel-head">
+        <h3>🗓️ Timetable · <%= className %></h3>
+        <span class="panel-head-note">the class's own week — subjects, teachers, breaks</span>
+        <%- fold('timetable') %>
+      </div>
+      <div class="panel-body">
+        <div class="sp-day-strip">
+          <% days.forEach(d => { %>
+            <a href="<%= dayShift(d) %>" class="sp-day<%= d === day ? ' is-on' : '' %>"><%= shorts[d] || d %></a>
+          <% }) %>
+          <a href="/admin/timetable?class=<%= student.class_id %>" class="sp-day sp-day--edit" title="Open the class's timetable in the office editor">✏️ Edit</a>
+        </div>
+        <% if (!periods.length) { %>
+          <p class="sp-note">No periods are set for this class on <%= day %> yet.</p>
+        <% } else { %>
+          <div class="sp-periods">
+            <% periods.forEach(p => { %>
+              <div class="sp-period<%= p.isBreak ? ' is-break' : '' %>">
+                <span class="sp-period-no">P<%= p.period %></span>
+                <span class="sp-period-sub"><%= p.emoji %> <%= p.subject || p.kindLabel %></span>
+                <%# a period nobody teaches yet says so — never the kind's own name, which read
+                    like a teacher called “Subject period” %>
+                <span class="sp-period-teacher"><%= p.teacher || (p.isBreak ? p.kindLabel : 'No teacher yet') %></span>
+                <span class="sp-period-time"><%= p.timeLabel %></span>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <%# ================= homework ===================================================== %>
+    <div class="panel sp-card sp-card--wide" id="sp-homework">
+      <div class="panel-head">
+        <h3>📝 Homework · <%= day %></h3>
+        <span class="panel-head-note">what the teachers gave this class, and what this child did</span>
+        <%- fold('homework') %>
+      </div>
+      <div class="panel-body">
+        <% if (!hwPeriods.length) { %>
+          <p class="sp-note">No subject periods on <%= day %> — nothing to check.</p>
+        <% } else { %>
+          <ul class="sp-hw">
+            <% hwPeriods.forEach(p => {
+                 const note = (hwNotes[day] || {})[p.period];
+                 const mark = hwStatuses[p.period];
+            %>
+              <li class="<%= mark ? (mark.status === 'done' ? 'is-done' : 'is-not') : '' %>">
+                <span class="sp-hw-period">P<%= p.period %></span>
+                <span class="sp-hw-sub"><%= p.emoji %> <b><%= p.subject %></b></span>
+                <span class="sp-hw-note"><%= note && note.note ? note.note : 'Teacher has not written the homework yet' %></span>
+                <span class="sp-hw-mark">
+                  <% if (mark) { %><%= mark.status === 'done' ? '✓ done' : '✕ not done' %><% if (mark.markedBy) { %><small>by <%= mark.markedBy %></small><% } %>
+                  <% } else { %><small>not checked yet</small><% } %>
+                </span>
+              </li>
+            <% }) %>
+          </ul>
+        <% } %>
+        <a href="/admin/students/<%= student.id %>/homework?day=<%= encodeURIComponent(day) %>" class="btn btn-outline btn-sm sp-card-foot">📝 Mark done / not done</a>
+      </div>
+    </div>
+
+    <%# ================= family & contact ============================================== %>
+    <div class="panel sp-card" id="sp-family">
+      <div class="panel-head">
+        <h3>👪 Family &amp; contact</h3>
+        <span class="panel-head-note">printed on forms, used for SMS and calls</span>
+        <%- fold('family') %>
+      </div>
+      <div class="panel-body">
+        <dl class="sp-facts">
+          <div><dt>Father</dt><dd><%= student.father_name || student.parent_name || '—' %><% if (student.father_occupation) { %><small><%= student.father_occupation %></small><% } %><% if (student.father_aadhaar) { %><small>🆔 <%= fmtAadhaar(student.father_aadhaar) %></small><% } %></dd></div>
+          <div><dt>Mother</dt><dd><%= student.mother_name || '—' %><% if (student.mother_occupation) { %><small><%= student.mother_occupation %></small><% } %><% if (student.mother_aadhaar) { %><small>🆔 <%= fmtAadhaar(student.mother_aadhaar) %></small><% } %></dd></div>
+          <div><dt>Mobile</dt><dd><%= student.parent_phone || '—' %><% if (student.alt_phone) { %><small>alt: <%= student.alt_phone %></small><% } %></dd></div>
+          <% if (student.guardian_name) { %>
+            <div><dt>Guardian</dt><dd><%= student.guardian_name %><% if (student.guardian_relation) { %><small><%= student.guardian_relation %></small><% } %><% if (student.guardian_phone) { %><small>📞 <%= student.guardian_phone %></small><% } %></dd></div>
+          <% } %>
+          <div><dt>Address</dt><dd><%= student.address || '—' %></dd></div>
+          <div><dt>Category</dt><dd><%= [student.category, student.caste].filter(Boolean).join(' · ') || '—' %><% if (student.annual_income) { %><small>income <%= student.annual_income %></small><% } %></dd></div>
+          <% if (student.aadhaar) { %><div><dt>Student Aadhaar</dt><dd><%= fmtAadhaar(student.aadhaar) %></dd></div><% } %>
+          <div><dt>Stay</dt><dd><%= stayNote %></dd></div>
+        </dl>
+        <a href="/admin/students/<%= student.id %>/edit?back_to=profile<%= filterClass ? '&class=' + filterClass : '' %>" class="btn btn-outline btn-sm sp-card-foot">✏️ Change these details</a>
+      </div>
+    </div>
+
+    <%# ================= the parent's login =========================================== %>
+    <div class="panel sp-card" id="sp-login">
+      <div class="panel-head">
+        <h3>🔑 Parent login</h3>
+        <span class="panel-head-note">the slip the office hands over</span>
+        <%- fold('login') %>
+      </div>
+      <div class="panel-body">
+        <% if (login) { %>
+          <div class="sp-cred">
+            <div class="sp-cred-row">
+              <span class="sp-cred-label">Username</span>
+              <b class="sp-cred-value"><%= login.username %></b>
+            </div>
+            <div class="sp-cred-row">
+              <span class="sp-cred-label">Password</span>
+              <b class="sp-cred-value" id="spPass" data-real="<%= student.portal_password || '' %>">••••••••</b>
+              <button type="button" class="sp-eye" id="spEye" aria-label="Show the password" title="Show / hide the password">👁️</button>
+            </div>
+            <% if (!student.portal_password) { %>
+              <p class="sp-note">The stored password was not kept for this login — set a new one from <b>Edit details</b> if the family has lost it.</p>
+            <% } %>
+          </div>
+          <p class="sp-note">One login per family — it opens the parent portal (result, timetable, fees, messages). Changed from <b>Edit details</b>; the username must stay unique.</p>
+        <% } else { %>
+          <p class="sp-note">No login is linked to this child yet.</p>
+        <% } %>
+      </div>
+    </div>
+
+    <%# ================= hostel & stay ================================================ %>
+    <div class="panel sp-card" id="sp-hostel">
+      <div class="panel-head">
+        <h3>🏠 Hostel &amp; stay</h3>
+        <span class="panel-head-note">decides which fee column a month is charged from</span>
+        <%- fold('hostel') %>
+      </div>
+      <div class="panel-body">
+        <p class="sp-note"><b><%= stayNote %></b><% if (student.hostel_bed) { %> · bed <%= student.hostel_bed %><% } %></p>
+        <%# switching the stay re-prices the months that have taken no money yet — the same
+            route the Hostel page uses, so the rule lives in one place (services/stay.js) %>
+        <form method="POST" action="/admin/hostel/boarders/<%= student.id %>/stay" class="sp-stay">
+          <input type="hidden" name="back_to" value="profile">
+          <div class="sp-pay-grid">
+            <div class="form-group">
+              <label>Stay</label>
+              <select name="stay">
+                <option value="day" <%= String(student.stay || 'day') === 'day' ? 'selected' : '' %>>Day scholar</option>
+                <option value="hostel" <%= String(student.stay || '') === 'hostel' ? 'selected' : '' %>>Hostel student</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Hostel from <span class="text-muted">(month)</span></label>
+              <input type="text" name="hostel_from" maxlength="12" value="<%= student.hostel_from || '' %>" placeholder="Jul 2026">
+            </div>
+            <div class="form-group">
+              <label>Hostel until <span class="text-muted">(month)</span></label>
+              <input type="text" name="hostel_until" maxlength="12" value="<%= student.hostel_until || '' %>" placeholder="leave blank while boarding">
+            </div>
+            <div class="form-group">
+              <label>Bed</label>
+              <input type="text" name="hostel_bed" maxlength="40" value="<%= student.hostel_bed || '' %>" placeholder="Room 4 · Bed 7">
+            </div>
+          </div>
+          <div class="sp-pay-actions">
+            <button type="submit" class="btn btn-primary btn-sm"
+                    onclick="return confirm('Save this stay for <%= String(student.full_name).replace(/'/g, '') %>? Months that have received no money yet are re-priced at the other column.');">🏠 Save stay</button>
+            <a href="/admin/hostel#boarders" class="btn btn-outline btn-sm">Hostel roster →</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <%# ================= store dues ================================================== %>
+    <div class="panel sp-card" id="sp-store">
+      <div class="panel-head">
+        <h3>🛍️ Uniform &amp; store</h3>
+        <span class="panel-head-note">what was issued to this child</span>
+        <%- fold('store') %>
+      </div>
+      <div class="panel-body">
+        <div class="sp-tiles">
+          <div class="sp-tile"><small>Charged</small><b>₹<%= Math.round(storeBill.charged).toLocaleString('en-IN') %></b></div>
+          <div class="sp-tile sp-tile--paid"><small>Paid</small><b>₹<%= Math.round(storeBill.paid).toLocaleString('en-IN') %></b></div>
+          <div class="sp-tile <%= storeBill.balance > 0 ? 'sp-tile--due' : 'sp-tile--clear' %>"><small>Balance</small><b>₹<%= Math.round(storeBill.balance).toLocaleString('en-IN') %></b></div>
+        </div>
+        <% if (storeBill.items.length) { %>
+          <ul class="sp-mini-list">
+            <% storeBill.items.slice(0, 5).forEach(it => { %>
+              <li>
+                <span><%= it.name %><% if (it.qty > 1) { %> × <%= it.qty %><% } %><% if (it.issued_on) { %> <small><%= fmtDate(it.issued_on) %></small><% } %></span>
+                <b>₹<%= Math.round(it.amount).toLocaleString('en-IN') %><%= it.balance > 0 ? ' · due' : ' · paid' %></b>
+              </li>
+            <% }) %>
+          </ul>
+          <% if (storeBill.items.length > 5) { %><p class="sp-note">…and <%= storeBill.items.length - 5 %> more on the store page.</p><% } %>
+        <% } else { %>
+          <p class="sp-note">Nothing has been issued to this child from the store.</p>
+        <% } %>
+        <a href="/admin/store" class="btn btn-outline btn-sm sp-card-foot">🛍️ Open the store</a>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  // ---- the parent password stays masked until the office asks for it -------------------
+  (function () {
+    var eye = document.getElementById('spEye');
+    var pass = document.getElementById('spPass');
+    if (!eye || !pass) return;
+    var shown = false;
+    eye.addEventListener('click', function () {
+      shown = !shown;
+      pass.textContent = shown ? (pass.dataset.real || '—') : '••••••••';
+      eye.setAttribute('aria-label', shown ? 'Hide the password' : 'Show the password');
+    });
+  })();
+
+  // ---- Photo upload — the SAME behaviour as the students list: pick a file, resize to ≤400px
+  //      in the browser, submit it as a small JPEG data-URI (the server stores what it is given)
+  document.querySelectorAll('.photo-form').forEach(function (form) {
+    var file = form.querySelector('.photo-file');
+    var hidden = form.querySelector('input[name="photo"]');
+    if (!file) return;
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      if (!f) return;
+      if (!/^image\//.test(f.type)) { alert('Please choose an image file (JPG/PNG).'); return; }
+      var img = new Image();
+      img.onload = function () {
+        var MAX = 400, w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          var r = MAX / Math.max(w, h);
+          w = Math.round(w * r); h = Math.round(h * r);
+        }
+        var cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        hidden.value = cv.toDataURL('image/jpeg', 0.82);
+        form.submit();
+      };
+      img.onerror = function () { alert('Could not read the image — please try again.'); };
+      img.src = URL.createObjectURL(f);
+    });
+  });
+
+  (function () {
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.sp-card'));
+
+    // ---- folding: every card's head is a door. The state is kept in this browser, so the
+    //      office's own arrangement is waiting for them the next time they open a child.
+    var KEY = 'spFolds.v1';
+    var read = function () {
+      try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; }
+    };
+    var write = function (state) { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} };
+    var state = read();
+
+    function setFolded(card, folded, remember) {
+      card.classList.toggle('is-folded', folded);
+      var btn = card.querySelector('.sp-fold');
+      if (btn) btn.setAttribute('aria-expanded', folded ? 'false' : 'true');
+      if (remember) { state[card.id || 'card'] = folded; write(state); }
+    }
+
+    cards.forEach(function (card) {
+      if (state[card.id] === true) setFolded(card, true, false);
+      var head = card.querySelector('.panel-head');
+      var btn = card.querySelector('.sp-fold');
+      // the button is the labelled control; the head is the easy target on a phone
+      if (btn) btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setFolded(card, !card.classList.contains('is-folded'), true);
+      });
+      if (head) head.addEventListener('click', function (e) {
+        if (e.target.closest('a, button, input, select, form')) return;   // links in a head keep working
+        setFolded(card, !card.classList.contains('is-folded'), true);
+      });
+    });
+
+    var foldAll = document.getElementById('spFoldAll');
+    var openAll = document.getElementById('spUnfoldAll');
+    if (foldAll) foldAll.addEventListener('click', function () {
+      cards.forEach(function (c) { setFolded(c, true, true); });
+    });
+    if (openAll) openAll.addEventListener('click', function () {
+      cards.forEach(function (c) { setFolded(c, false, true); });
+    });
+
+    // ---- the chip bar: jump to a card, opening it on the way, and keep the chip of the card
+    //      you are looking at lit (so a long page never leaves you wondering where you are)
+    var nav = document.getElementById('spNav');
+    if (nav) {
+      nav.addEventListener('click', function (e) {
+        var chip = e.target.closest('[data-goto]');
+        if (!chip) return;
+        var card = document.getElementById(chip.getAttribute('data-goto'));
+        if (!card) return;
+        e.preventDefault();
+        if (card.classList.contains('is-folded')) setFolded(card, false, true);
+        card.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+        if (history.replaceState) history.replaceState(null, '', '#' + card.id);
+        chip.classList.add('is-on');
+        setTimeout(function () { chip.classList.remove('is-on'); }, 900);
+      });
+    }
+    if (nav && 'IntersectionObserver' in window) {
+      var chips = {};
+      nav.querySelectorAll('[data-goto]').forEach(function (c) { chips[c.getAttribute('data-goto')] = c; });
+      var seen = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          var chip = chips[en.target.id];
+          if (!chip) return;
+          if (en.isIntersecting) {
+            Object.keys(chips).forEach(function (k) { chips[k].classList.remove('is-current'); });
+            chip.classList.add('is-current');
+          }
+        });
+      }, { rootMargin: '-45% 0px -45% 0px' });
+      cards.forEach(function (c) { if (chips[c.id]) seen.observe(c); });
+    }
+
+    // ---- the little life in the page: cards settle in one after another, the graph's bars
+    //      grow from the floor, and the big circle fills. Nothing is hidden without this —
+    //      with JavaScript off every card is simply already in place.
+    if (calm) return;
+    document.documentElement.classList.add('sp-anim');
+    cards.forEach(function (card, i) {
+      card.style.animationDelay = Math.min(i * 45, 360) + 'ms';
+    });
+    var bars = document.querySelectorAll('.pg-bar');
+    bars.forEach(function (bar, i) { bar.style.animationDelay = Math.min(i * 28, 700) + 'ms'; });
+    var fills = document.querySelectorAll('.ring-fill');
+    fills.forEach(function (f, i) {
+      var target = f.getAttribute('stroke-dashoffset');
+      if (target === null) return;
+      var total = parseFloat(f.getAttribute('stroke-dasharray')) || 326;
+      f.style.transition = 'none';
+      f.setAttribute('stroke-dashoffset', String(total));
+      setTimeout(function () {
+        f.style.transition = 'stroke-dashoffset .9s ease ' + Math.min(i * 90, 500) + 'ms';
+        f.setAttribute('stroke-dashoffset', target);
+      }, 30);
+    });
+  })();
+</script>
+<%- include('../partials/footer') %>

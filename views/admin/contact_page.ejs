@@ -1,0 +1,109 @@
+<%- include('../partials/header') %>
+
+<div class="page-head">
+  <h1>📞 Contact Page Content</h1>
+  <p>Edit everything shown on the public Contact Us page — timings, phone note, message form headings and the map.</p>
+</div>
+
+<% if (saved) { %><div class="alert success">✅ <b>Saved!</b> The Contact page is updated.</div><% } %>
+<% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+<form method="POST" action="/admin/contact-page">
+
+  <div class="panel">
+    <div class="panel-head"><h3>🕐 School Timings (top block)</h3><span class="text-muted">Each row: label on the left, time on the right</span></div>
+    <div class="panel-body">
+      <div class="form-group mb-3">
+        <label>Block heading</label>
+        <input type="text" name="ctTimingsHeading" value="<%= ct.ctTimingsHeading %>">
+      </div>
+      <% [1,2,3].forEach(function (n) { %>
+      <div class="form-grid" style="border:1px dashed var(--border); border-radius:12px; padding:10px; margin-bottom:10px; background:#fafafa;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Row <%= n %> — label (e.g. Classes 1 – 5)</label>
+          <input type="text" name="ctTime<%= n %>Label" value="<%= ct['ctTime' + n + 'Label'] %>">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Row <%= n %> — timing</label>
+          <input type="text" name="ctTime<%= n %>Value" value="<%= ct['ctTime' + n + 'Value'] %>">
+        </div>
+      </div>
+      <% }) %>
+      <div class="form-group mb-3">
+        <label>Small note under the table</label>
+        <input type="text" name="ctTimeNote" value="<%= ct.ctTimeNote %>">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>📱 Phone / WhatsApp block</h3><span class="text-muted">Tick "WhatsApp" on numbers that open WhatsApp chat when tapped</span></div>
+    <div class="panel-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Block heading</label>
+          <input type="text" name="ctPhoneHeading" value="<%= ct.ctPhoneHeading %>">
+        </div>
+        <div class="form-group">
+          <label>Note under the numbers</label>
+          <input type="text" name="ctPhoneNote" value="<%= ct.ctPhoneNote %>">
+        </div>
+      </div>
+      <div class="form-grid">
+        <% school.schoolPhones.forEach(function (p, i) { const num = p.number || p; %>
+        <div class="form-group" style="border:1px dashed var(--border); border-radius:12px; padding:10px; background:#fafafa; margin-bottom:0;">
+          <label style="font-weight:700;"><%= num %></label>
+          <label style="display:flex; align-items:center; gap:8px; margin-top:6px; font-weight:600;"><input type="checkbox" name="ctWa<%= i %>" value="1" <%= p.whatsapp ? 'checked' : '' %>> WhatsApp available</label>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>💬 Message form block</h3><span class="text-muted">Headings above the "Send us a message" form</span></div>
+    <div class="panel-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Form heading</label>
+          <input type="text" name="ctMsgHeading" value="<%= ct.ctMsgHeading %>">
+        </div>
+        <div class="form-group">
+          <label>Form small note</label>
+          <input type="text" name="ctMsgNote" value="<%= ct.ctMsgNote %>">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>📍 Map block (bottom of page)</h3><span class="text-muted">Show/hide the map and change its address</span></div>
+    <div class="panel-body">
+      <div class="form-group mb-3">
+        <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="ctMapShow" value="1" <%= ct.ctMapShow === '1' ? 'checked' : '' %>> Show the map on the Contact page</label>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Map block heading</label>
+          <input type="text" name="ctMapHeading" value="<%= ct.ctMapHeading %>">
+        </div>
+        <div class="form-group">
+          <label>Address shown under the map</label>
+          <input type="text" name="ctMapAddress" value="<%= ct.ctMapAddress %>">
+        </div>
+      </div>
+      <div class="form-group mb-3">
+        <label>Location search text (used to find the school on Google Maps)</label>
+        <input type="text" name="ctMapQuery" value="<%= ct.ctMapQuery %>">
+        <small class="text-muted">Keep it simple, e.g. "Demo Town, Demo District, Bihar" — the map pins this place.</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex-between">
+    <p class="text-muted" style="margin:0; font-size:13px;">💡 Phone numbers and emails are edited from the school settings — this page controls the headings, notes, timings and map.</p>
+    <button class="btn btn-primary" type="submit">💾 Save Contact Page</button>
+  </div>
+</form>
+
+<%- include('../partials/footer') %>

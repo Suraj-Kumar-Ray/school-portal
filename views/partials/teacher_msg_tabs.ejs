@@ -1,0 +1,33 @@
+<%#
+  THE TEACHER'S MESSAGE SECTION — two tabs, one page each (school's request, 2026-09-20).
+
+    📢 Notices   — the school's notices, the same list a parent reads (+ the “teachers
+                    only” memos). `services/notices.js` is the one filter.
+    📨 Messages  — ONLY what the school office sent him (`services/staff_messages.js`).
+                    A teacher can never write here, and nobody but the office can write
+                    to a teacher at all.
+
+  Both pages render this same bar, so the two halves can never look different, and the
+  blue pill always says where the teacher is. The badge on 📨 Messages is his own unread
+  count (set by the teacher router into `staffUnread`).
+
+  Needs: `msgTab` = 'notices' | 'messages', `noticeCount`, and optionally `staffUnread`.
+%>
+<%
+  const q = (typeof viewClass !== 'undefined' && viewClass) ? '?class=' + viewClass.id : '';
+  const unread = (typeof staffUnread === 'undefined') ? 0 : Number(staffUnread || 0);
+%>
+<nav class="msg-tabs no-print" aria-label="Notices and messages">
+  <a href="/teacher/notices<%= q %>" class="msg-tab<%= msgTab === 'notices' ? ' active' : '' %>"
+     <%= msgTab === 'notices' ? 'aria-current="page"' : '' %>>
+    <span class="msg-tab-ico">📢</span>
+    <span class="msg-tab-text">Notices</span>
+    <% if (noticeCount) { %><span class="msg-tab-count"><%= noticeCount %></span><% } %>
+  </a>
+  <a href="/teacher/messages<%= q %>" class="msg-tab<%= msgTab === 'messages' ? ' active' : '' %>"
+     <%= msgTab === 'messages' ? 'aria-current="page"' : '' %>>
+    <span class="msg-tab-ico">📨</span>
+    <span class="msg-tab-text">Messages</span>
+    <% if (unread) { %><span class="msg-tab-count is-new"><%= unread %></span><% } %>
+  </a>
+</nav>

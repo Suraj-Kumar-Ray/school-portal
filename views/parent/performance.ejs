@@ -1,0 +1,222 @@
+<%- include('../partials/header', { title }) %>
+  <%# ---- THE CHILD'S RESULT, IN THE ORDER A PARENT READS IT (school's request, 2026-09-17) ----
+      “The result section does not look good — make it easy to understand, and give me a
+      download button so the result and the graph go into one PDF.”
+
+      One panel answers one question, and the circles come first because a circle is read
+      faster than a column of numbers:
+
+        1. HOW IS MY CHILD DOING?   — one big circle (average + grade) and three chips
+                                      (best subject, the one to work on, terms entered).
+                                      There used to be two extra cards here repeating the very
+                                      same 75% and B+ — the same number twice makes a parent
+                                      wonder which one is right, so they are gone.
+        2. WHERE, SUBJECT BY SUBJECT? — one circle per subject, best first (§ ANALYSIS).
+        3. IS HE GOING UP?          — the terms, each with an ▲ / ▼ against the term before.
+        4. WHAT DOES IT LOOK LIKE?  — the bars, drawn as SVG so they PRINT (§ chart partial).
+        5. THE PAPER ITSELF         — the marks table, exactly as the school entered it.
+      Every number comes from services/analysis.js. Nothing on this page is worked out here. ---- %>
+  <%# ---- THE CHILD'S OWN CARD, exactly the one on the home tab (school's request, 2026-09-17):
+      “make the result section like this card — a download icon where the bell is.”
+
+      Same card, same photo (or the initials when the office has not added one), same class /
+      Roll No. chips — a parent recognises their child's card on every screen. ONE thing differs:
+      the round button in the corner is the DOWNLOAD (it prints this page, and the print rules turn
+      it into a one-page result card) instead of the bell that opens the inbox.
+
+      The card carries `no-print`: on paper the letter head below already says whose result this is,
+      and the sheet has to stay ONE page. The button keeps the classes the tests and the print rules
+      know — `btn btn-primary pg-pdf no-print` — and `data-confirm="off"` keeps the “are you sure?”
+      dialog away from a download. %>
+  <div class="kid-card pg-kid-card no-print">
+    <% if (child.photo) { %>
+      <img src="<%= child.photo %>" alt="<%= child.full_name %>" class="kid-photo">
+    <% } else { %>
+      <span class="kid-photo kid-photo-ph"><%= child.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+    <% } %>
+    <div class="kid-info">
+      <span class="kid-name-row">
+        <b><%= child.full_name %></b>
+        <%# the 📈 lives HERE (2026-09-18): the school asked for the graph icon on the
+            result card, right after the name — it scrolls to the subject circles below
+            (the same page's diagram), instead of leaving for another page. %>
+        <a href="#pg-subjects" class="kid-perf-btn"
+           title="See subject graphs" aria-label="See subject graphs">📈</a>
+      </span>
+      <span class="kid-meta">
+        <span class="badge blue"><%= child.class_name %><%= child.section ? ' ' + child.section : '' %></span>
+        <% if (child.roll_no) { %><span class="kid-roll">Roll No. <%= child.roll_no %></span><% } %>
+      </span>
+      <% if (!child.photo) { %><small class="kid-hint">📷 The school office will add the photo</small><% } %>
+    </div>
+    <button type="button" class="btn btn-primary pg-pdf no-print" data-confirm="off"
+            onclick="window.print()" title="Download the result — on the print screen choose “Save as PDF”"
+            aria-label="Download the whole result as a PDF">⬇️ Result PDF</button>
+  </div>
+
+  <%# on paper the picker is noise: the printed card is about ONE child %>
+  <div class="no-print"><%- include('../partials/child_picker', { children, childId }) %></div>
+
+  <%# the letter head that only exists on paper, so a shared PDF says whose result it is %>
+  <div class="print-only print-head pg-print-head">
+    <div>
+      <b><%= school.schoolName %></b>
+      <span class="pg-print-sub"><%= child.class_name %><%= child.section ? ' ' + child.section : '' %> · Roll No. <%= child.roll_no %></span>
+    </div>
+    <div class="pg-print-right">
+      <b><%= child.full_name %></b>
+      <span class="pg-print-sub">Result card · printed <%= fmtDate(new Date()) %></span>
+    </div>
+  </div>
+
+  <%# ---- 1. HOW IS MY CHILD DOING? -------------------------------------------------- %>
+  <div class="panel pg-glance">
+    <div class="panel-head">
+      <h3>🎯 Result at a glance</h3>
+      <span class="panel-head-note">
+        <% if (result.hasMarks) { %><%= result.totals.subjects %> subject<%= result.totals.subjects === 1 ? '' : 's' %> · <%= fmtDate(new Date()) %><% } else { %>waiting for the first result<% } %>
+      </span>
+    </div>
+    <div class="panel-body">
+      <%# the one plain sentence, above the circle — it reads the same numbers as everything else %>
+      <p class="result-line"><%= result.line %></p>
+
+      <%- include('../partials/result_rings', {
+        big: result.overall,
+        legend: false,
+        empty: 'No marks have been entered yet — the diagram fills in as the school adds results.',
+      }) %>
+
+      <% if (result.hasMarks) { %>
+        <%# school's request, 2026-09-18: the “Best subject / Work on this” fact chips are
+            GONE here too — the subject circles right below already show every subject with
+            its percentage, sorted best first; saying the best one twice is noise.
+            Terms-entered and marks-counted stay: they are facts the circles do not show. %>
+        <div class="pg-facts">
+          <div class="pg-fact">
+            <span class="pg-fact-ico" aria-hidden="true">📅</span>
+            <span class="pg-fact-body">
+              <span class="pg-fact-label">Terms entered</span>
+              <b><%= result.facts.termsEntered %> of <%= result.facts.termsTotal %></b>
+            </span>
+          </div>
+          <div class="pg-fact">
+            <span class="pg-fact-ico" aria-hidden="true">🧮</span>
+            <span class="pg-fact-body">
+              <span class="pg-fact-label">Marks counted</span>
+              <b><%= result.facts.obtained %> of <%= result.facts.max %></b>
+            </span>
+          </div>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <%# ---- 2. SUBJECT BY SUBJECT ------------------------------------------------------ %>
+  <div class="panel pg-subjects">
+    <div class="panel-head">
+      <h3>📚 Subject by subject</h3>
+      <span class="panel-head-note">
+        <% if (result.hasMarks) { %>best first · a written paper and its oral are one subject<% } else { %>nothing entered yet<% } %>
+      </span>
+    </div>
+    <div class="panel-body">
+      <%- include('../partials/result_rings', {
+        rings: result.subjects,
+        legend: true,
+        empty: 'No subject has marks yet.',
+      }) %>
+    </div>
+  </div>
+
+  <%# ---- 3. IS HE GOING UP? -------------------------------------------------------- %>
+  <div class="panel pg-terms">
+    <div class="panel-head">
+      <h3>📅 Term by term</h3>
+      <span class="panel-head-note">
+        <% if (result.hasMarks) { %>▲ up · ▼ down, against the term before<% } else { %>nothing entered yet<% } %>
+      </span>
+    </div>
+    <div class="panel-body">
+      <%- include('../partials/result_rings', {
+        strip: result.terms,
+        empty: 'No term has been entered yet.',
+      }) %>
+      <% if (result.hasMarks && result.totals.entries < result.totals.subjects * 3) { %>
+        <div class="result-more">
+          ℹ️ <%= result.terms.filter(t => t.value === null).length %> of <%= result.terms.length %> term<%= result.terms.length === 1 ? '' : 's' %>
+          not entered yet — the averages will move as the school adds the later terms.
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <%# ---- 4. WHAT DOES IT LOOK LIKE? ------------------------------------------------ %>
+  <%- include('../partials/performance_chart', { chart: result.chart }) %>
+
+  <%# ---- 5. THE PAPER ITSELF ------------------------------------------------------- %>
+  <div class="panel pg-table">
+    <div class="panel-head">
+      <h3>📊 Marks table</h3>
+      <span class="panel-head-note">exactly as the school entered it</span>
+    </div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Subject</th><th>Term 1</th><th>Term 2</th><th>Term 3</th><th class="text-right">Average</th></tr></thead>
+          <tbody>
+            <% marks.forEach(m => { %>
+            <tr>
+              <td><b><%= m.subject %></b></td>
+              <td><%= m['Term 1'] ? m['Term 1'].obtained + '/' + m['Term 1'].max : '—' %></td>
+              <td><%= m['Term 2'] ? m['Term 2'].obtained + '/' + m['Term 2'].max : '—' %></td>
+              <td><%= m['Term 3'] ? m['Term 3'].obtained + '/' + m['Term 3'].max : '—' %></td>
+              <td class="text-right">
+                <b><%= typeof m.avgText === 'string' ? m.avgText : m.avg + '%' %></b>
+                <% if (m.tone && m.tone !== 'none') { %>
+                  <span class="pg-band tone-<%= m.tone %>"><%= m.word %></span>
+                <% } %>
+              </td>
+            </tr>
+            <% }) %>
+            <% if (!marks.length) { %>
+            <tr><td colspan="5" class="empty">No marks have been entered yet. They appear here after the school publishes the result.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+      <% if (marks.length) { %>
+        <%# SCREEN-ONLY note (school's request, 2026-09-18): the long “how the numbers add up”
+            sentence is help for the person READING the screen; on the downloaded PDF it was
+            just the “content the whole result…” line the school asked to remove. %>
+        <div class="table-foot-note no-print">
+          A written paper and its <b>oral</b> are added together in the circles and the graph above (Maths 77 + 4 of 100),
+          because that is how the report card reads. This table lists every paper exactly as the school entered it.
+        </div>
+      <% } %>
+    </div>
+  </div>
+<%# ---- THE ONE-PAGE FIT (school's request, 2026-09-17) --------------------------------------
+    “the result and the graph should download as ONE PDF page.” The print rules in style.css
+    already trim the sheet, and the whole result of an ordinary child fits. This is the safety
+    valve for the heavy ones (a class with 19 papers x 3 terms): a moment before the browser
+    lays the sheet out, measure the printed page and shrink it by just enough. Nothing happens
+    on the screen, nothing is fetched, and with JavaScript switched off the worst case is one
+    extra sheet — never a missing section. Kept here, not in /js, so the page is still
+    self-contained when it is saved and printed offline.
+    Verified with: node .freebuff/print-check.js (a real headless browser counts the sheets). -‐ %>
+<script>
+(function () {
+  var PAPER = 1069;   // A4 (297mm) minus the two 7mm margins, at 96dpi
+  var FLOOR = 0.62;   // never shrink past this: a PDF nobody can read is not a result
+  var main = document.querySelector('.main') || document.body;
+  function fit() {
+    main.style.zoom = '';
+    var h = main.scrollHeight;
+    if (h > PAPER) main.style.zoom = String(Math.max(FLOOR, PAPER / h));
+  }
+  window.addEventListener('beforeprint', fit);
+  window.addEventListener('afterprint', function () { main.style.zoom = ''; });
+})();
+</script>
+<%- include('../partials/footer') %>

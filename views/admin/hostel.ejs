@@ -1,0 +1,316 @@
+<%- include('../partials/header') %>
+  <div class="page-head flex-between">
+    <div>
+      <h1>🏠 <%= hostel.name %></h1>
+      <p>
+        Everything the hostel needs from the office, on one page: what the boarders <b>eat</b>,
+        how their <b>day</b> runs, <b>who lives here</b>, and the charges shown on the public hostel page.
+      </p>
+    </div>
+    <a href="/hostel" target="_blank" class="btn btn-outline btn-sm">👀 View public hostel page →</a>
+  </div>
+
+  <% if (saved) { %><div class="alert success">✅ Hostel fee structure saved. The public hostel page is updated.</div><% } %>
+  <% if (menusaved !== null) { %><div class="alert success">✅ Mess menu saved — <b><%= menusaved %></b> meal<%= menusaved == 1 ? '' : 's' %> set, and the hostel parents see it in the app right away.<% if (menuclear) { %> <span class="text-muted">(<%= menuclear %> left empty, so those meals are not served.)</span><% } %></div><% } %>
+  <% if (routinesaved !== null) { %><div class="alert success">✅ Daily routine saved — <b><%= routinesaved %></b> entr<%= routinesaved == 1 ? 'y' : 'ies' %>. The hostel parents see it in the app.</div><% } %>
+  <% if (stayDone) { %><div class="alert success">✅ <b><%= stayDone %></b></div><% } %>
+  <%# the answer to the send-due icon beside a name — the same words the fees list uses %>
+  <% if (remindedOne) { %>
+    <div class="alert success">
+      📲 Due message sent to <b><%= remindedOne %></b>'s parent —
+      <%= remindMonths || 0 %> month<%= Number(remindMonths) == 1 ? '' : 's' %> ·
+      ₹<%= Number(remindAmount || 0).toLocaleString('en-IN') %> pending<% if (Number(remindAlerts)) { %>,
+      plus <b><%= remindAlerts %></b> SMS/WhatsApp alert<%= Number(remindAlerts) == 1 ? '' : 's' %><% } %>.
+    </div>
+  <% } %>
+  <% if (remindErr) { %><div class="alert error">⚠️ <%= remindErr %></div><% } %>
+  <%# a row that was skipped is named, so nobody believes a wrong amount was saved %>
+  <% if (skipped) { %><div class="alert error">⚠️ <%= skipped %> row(s) were not saved — a fee needs a label and a number (0 or more).</div><% } %>
+  <% if (err) { %><div class="alert error">⚠️ <%= err %></div><% } %>
+
+  <div class="cards">
+    <div class="card stat-card accent-orange">
+      <div class="stat-label">Boarders</div>
+      <div class="stat-value"><%= boarderCount %></div>
+      <div class="stat-sub">charged the hostel column of the fee sheet</div>
+    </div>
+    <div class="card stat-card accent-green">
+      <div class="stat-label">Meals set this week</div>
+      <div class="stat-value"><%= menuCount %><span style="font-size:15px; color:var(--muted);"> / 28</span></div>
+      <div class="stat-sub">7 days × breakfast, lunch, snacks, dinner</div>
+    </div>
+    <div class="card stat-card accent-blue">
+      <div class="stat-label">Today in the hostel</div>
+      <div class="stat-value" style="font-size:18px; padding-top:8px;"><%= today ? today.name : '—' %></div>
+      <div class="stat-sub"><%= today && today.meals[0].items ? today.meals[0].items : 'breakfast not set yet' %></div>
+    </div>
+    <%# the hostel half of the school's money, in one number the office can act on: the monthly
+        fee still owed by boarders plus what they took from the school store (services/fees.js
+        and services/store.js are the readers — nothing is added up on this page) %>
+    <div class="card stat-card <%= hostelMoney.pending ? 'accent-red' : 'accent-green' %>">
+      <div class="stat-label">To collect from boarders</div>
+      <div class="stat-value">₹<%= Math.round(hostelMoney.pending).toLocaleString('en-IN') %></div>
+      <div class="stat-sub">
+        <% if (hostelMoney.owing) { %>
+          <%= hostelMoney.owing %> of <%= hostelMoney.boarders %> famil<%= hostelMoney.owing === 1 ? 'y' : 'ies' %> owe
+          <% if (hostelMoney.overdue) { %>· <b><%= hostelMoney.overdue %></b> past the due date<% } %>
+        <% } else { %>
+          every boarder is settled — nothing pending
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <%# ================= WHO LIVES HERE ================= %>
+  <div class="panel" id="boarders">
+    <div class="panel-head">
+      <h3>🛏️ Boarders</h3>
+      <span class="panel-head-note">
+        <%= boarderCount %> in the hostel · hostel rate from the month each one joined
+        <% if (hostelMoney.pending) { %>· <b>₹<%= Math.round(hostelMoney.pending).toLocaleString('en-IN') %></b> to collect<% } %>
+      </span>
+    </div>
+    <div class="panel-body<%= boarders.length ? ' no-pad' : '' %>">
+      <% if (!boarders.length) { %>
+        <p class="text-muted" style="margin:0;">
+          Nobody is in the hostel yet. Open a child in <a href="/admin/students">Students</a> and
+          pick <b>🏠 Hostel student</b> — the hostel months, his room, the mess menu and the hostel fee all follow from that.
+        </p>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="card-table">
+            <thead>
+              <tr><th>Student</th><th>Stay</th><th>Hostel fee</th><th>Still to pay</th><th class="text-right">Actions</th></tr>
+            </thead>
+            <tbody>
+              <% boarders.forEach(b => { %>
+                <tr class="hostel-row">
+                  <td class="td-name" data-label="Student">
+                    <%# the same round send button the fees list, the reminder panel and the parent's
+                        own ledger use. It appears only where there is something to chase (the
+                        monthly fee or a book set), it pins to the card's top-right corner on a
+                        phone, and it BLINKS where a month has run past its due date — so the office
+                        can see which hostel families are late from across the room. `back=hostel`
+                        keeps the office on this roster after sending. %>
+                    <div class="fee-stu-name">
+                      <b><%= b.full_name %></b>
+                      <span class="badge blue"><%= b.class_label %></span>
+                      <% if (b.pending) { %>
+                        <form method="POST" action="/admin/fees/<%= b.id %>/remind" class="fee-name-send hostel-name-send"
+                              onsubmit="return confirm('Send the due message to <%= String(b.parent_name || 'this parent').replace(/'/g, '') %>?\n\nIt names ₹<%= Math.round(b.pending).toLocaleString('en-IN') %> pending<%= b.monthsDueCount ? ' (' + b.monthsDueCount + ' month' + (b.monthsDueCount == 1 ? '' : 's') + ' of fee)' : '' %><%= b.itemsDue ? ' (books and uniform ₹' + Math.round(b.itemsDue).toLocaleString('en-IN') + ')' : '' %>, and goes to the parent portal plus one SMS/WhatsApp alert.');">
+                          <input type="hidden" name="back" value="hostel">
+                          <button type="submit" class="remind-send-icon send-due-btn<%= b.overdueMonths ? ' is-overdue' : '' %>"
+                                  title="Send <%= b.full_name %>'s due message · ₹<%= Math.round(b.pending).toLocaleString('en-IN') %> pending<%= b.overdueMonths ? ' · ' + b.overdueMonths + ' month' + (b.overdueMonths == 1 ? '' : 's') + ' past the due date' : '' %>">
+                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2.5 11 13"/><path d="M21.5 2.5 15 21.5l-4-8.5-8.5-4z"/></svg>
+                            <span class="sr-only">Send the due message to <%= b.full_name %>'s parent</span>
+                          </button>
+                        </form>
+                      <% } %>
+                    </div>
+                    <div class="text-muted" style="font-size:12.5px; margin-top:3px;">
+                      Roll No. <%= b.roll_no %> · <code><%= b.admission_no %></code>
+                      <%= b.hostel_bed ? ' · 🛏️ Bed ' + b.hostel_bed : '' %>
+                      <% if (b.parent_phone) { %> · 📞 <%= b.parent_name ? b.parent_name + ' · ' : '' %><%= b.parent_phone %><% } %>
+                    </div>
+                  </td>
+                  <td data-label="Stay">
+                    <span class="badge orange">🏠 <%= b.months.length %> of <%= b.sessionMonths %> months</span>
+                    <div class="text-muted" style="font-size:12px; margin-top:4px;"><%= b.stay_note %></div>
+                  </td>
+                  <td data-label="Hostel fee">
+                    <b>₹<%= Math.round(b.hostelRate).toLocaleString('en-IN') %></b>
+                    <span class="text-muted" style="font-size:12px;">/month (hostel)</span>
+                    <div class="text-muted" style="font-size:12px; margin-top:4px;">
+                      day rate ₹<%= Math.round(b.dayRate).toLocaleString('en-IN') %>
+                      <% if (b.months.length && b.months.length < b.sessionMonths) { %>
+                        · <%= b.months[0] %> → <%= b.months[b.months.length - 1] %>
+                      <% } %>
+                    </div>
+                  </td>
+                  <td data-label="Still to pay">
+                    <% if (!b.pending) { %>
+                      <span class="badge green">✓ Nothing due</span>
+                    <% } else { %>
+                      <b class="fee-pending">₹<%= Math.round(b.pending).toLocaleString('en-IN') %></b>
+                      <div class="text-muted" style="font-size:12px; margin-top:4px;">
+                        <% if (b.monthsDueMoney) { %>
+                          <%= b.monthsDueCount %> month<%= b.monthsDueCount === 1 ? '' : 's' %> of fee
+                          <%# only worth a second line when the two are NOT the same number — a
+                              boarder from the start of the session owes hostel money on every
+                              month, and repeating the total would just be noise %>
+                          <% if (b.hostelDueMoney && b.hostelDueMoney !== b.monthsDueMoney) { %>
+                            <div>🏠 ₹<%= Math.round(b.hostelDueMoney).toLocaleString('en-IN') %> of it is hostel</div>
+                          <% } %>
+                        <% } %>
+                        <% if (b.itemsDue) { %>
+                          <div>📚 ₹<%= Math.round(b.itemsDue).toLocaleString('en-IN') %> books &amp; uniform</div>
+                        <% } %>
+                        <% if (b.overdueMonths) { %>
+                          <div><span class="badge overdue"><%= b.overdueMonths %> past the due date</span></div>
+                        <% } %>
+                      </div>
+                    <% } %>
+                  </td>
+                  <td class="td-actions text-right">
+                    <a href="/admin/students/<%= b.id %>/edit" class="btn btn-outline btn-sm">✏️ Edit</a>
+                    <a href="/admin/fees/<%= b.id %>" class="btn btn-outline btn-sm">🧾 Ledger</a>
+                    <form method="POST" action="/admin/hostel/boarders/<%= b.id %>/stay" style="display:inline;"
+                          onsubmit="return confirm('<%= b.full_name %> has left the hostel?\n\nEvery month that has not received money yet goes back to the day-scholar rate (₹<%= Math.round(b.dayRate).toLocaleString('en-IN') %>), and the months already paid stay exactly as they are.');">
+                      <input type="hidden" name="stay" value="day">
+                      <button type="submit" class="btn btn-outline btn-sm" title="He has gone home — charge him as a day scholar from now on">⚪ Day scholar</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-muted" style="font-size:12.5px; margin:12px 0 0;">
+          💡 To add a boarder, open the child in <a href="/admin/students">Students</a> and choose
+          <b>🏠 Hostel student</b> with the month he joined — a child who moves in during the session
+          keeps the day-scholar rate for the months before that.
+        </p>
+      <% } %>
+    </div>
+  </div>
+
+  <%# ================= MESS MENU ================= %>
+  <div class="panel" id="mess">
+    <div class="panel-head">
+      <h3>🍛 Mess menu</h3>
+      <span class="text-muted">What the boarders eat — the parents of a hostel student read this in the app</span>
+    </div>
+    <div class="panel-body">
+      <form method="POST" action="/admin/hostel/menu">
+        <input type="hidden" name="menuSet" value="1">
+        <div class="hm-grid">
+          <% week.forEach(d => { %>
+            <div class="hm-day<%= d.isToday ? ' is-today' : '' %>">
+              <div class="hm-day-head">
+                <b><%= d.name %></b>
+                <% if (d.isToday) { %><span class="badge green">Today</span><% } %>
+              </div>
+              <% d.meals.forEach(m => { %>
+                <label class="hm-meal">
+                  <span><%= m.icon %> <%= m.key %> <em class="text-muted"><%= m.time %></em></span>
+                  <input type="text" name="items_<%= d.name %>_<%= m.key %>" maxlength="200"
+                         value="<%= m.items %>" placeholder="not served — leave empty">
+                </label>
+              <% }) %>
+            </div>
+          <% }) %>
+        </div>
+        <div class="hm-actions">
+          <p class="text-muted" style="margin:0; font-size:13px;">
+            💡 One line per meal. A box left <b>empty</b> means that meal is not served that day — the
+            parent's app shows it as “not set yet”, never as a blank line.
+          </p>
+          <button class="btn btn-primary" type="submit">💾 Save mess menu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <%# ================= DAILY ROUTINE ================= %>
+  <div class="panel" id="routine">
+    <div class="panel-head">
+      <h3>🕗 Daily routine</h3>
+      <span class="text-muted">How a boarder's day runs — shown to his parents beside the menu</span>
+    </div>
+    <div class="panel-body">
+      <form method="POST" action="/admin/hostel/routine" id="routineForm">
+        <input type="hidden" name="routineSet" value="1">
+        <div class="rt-rows" id="routineRows">
+          <% const lines = routine.concat([{ time: '', activity: '', note: '' }, { time: '', activity: '', note: '' }]); %>
+          <% lines.forEach((r, i) => { %>
+            <div class="rt-row">
+              <input type="text" name="time" value="<%= r.time || '' %>" placeholder="5:30 am" class="rt-time" aria-label="Time">
+              <input type="text" name="activity" value="<%= r.activity || '' %>" maxlength="60" placeholder="What happens (e.g. Study hour)" class="rt-what" aria-label="What happens">
+              <input type="text" name="note" value="<%= r.note || '' %>" maxlength="60" placeholder="Note (optional)" class="rt-note" aria-label="Note">
+              <button type="button" class="btn btn-outline btn-sm rt-del" title="Remove this line"
+                      onclick="var rs=document.getElementById('routineRows'); if (rs.children.length > 1) this.parentNode.remove();">✕</button>
+            </div>
+          <% }) %>
+        </div>
+        <div class="rt-actions">
+          <button type="button" class="btn btn-outline btn-sm" id="routineAdd">➕ Add a line</button>
+          <button class="btn btn-primary" type="submit">💾 Save routine</button>
+        </div>
+        <p class="text-muted" style="margin:12px 0 0; font-size:13px;">
+          💡 Every line with something written in <b>What happens</b> is kept; a blank line is ignored
+          (so the two spare lines are free). Times may be typed as <code>5:30 am</code> or <code>05:30</code> —
+          the app shows them the way a parent reads a clock.
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3><span class="rupee-glyph">₹</span> Hostel fee charges</h3><span class="text-muted">Monthly total: <b><%= currency %><%= monthlyTotal.toLocaleString('en-IN') %>/mo</b></span></div>
+    <div class="panel-body no-pad">
+      <form method="POST" action="/admin/hostel">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:26%;">Charge label</th>
+                <th style="width:18%;">Amount (<%= currency %>)</th>
+                <th style="width:34%;">Note (shown under the charge)</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% fees.forEach(f => { %>
+              <tr>
+                <td><input type="text" name="label_<%= f.id %>" value="<%= f.label %>" style="width:100%;" required></td>
+                <td><input type="number" name="amount_<%= f.id %>" value="<%= f.amount %>" min="0" step="50" style="width:110px;" required></td>
+                <td><input type="text" name="note_<%= f.id %>" value="<%= f.note || '' %>" style="width:100%;"></td>
+                <td>
+                  <select name="kind_<%= f.id %>" style="width:110px;">
+                    <option value="monthly" <%= f.kind === 'monthly' ? 'selected' : '' %>>per month</option>
+                    <option value="onetime" <%= f.kind === 'onetime' ? 'selected' : '' %>>one-time</option>
+                  </select>
+                </td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel-body" style="border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <p class="text-muted" style="margin:0; font-size:13px;">💡 Parents and visitors see these charges on the public <a href="/hostel" target="_blank">Hostel page</a>. What a boarder is actually BILLED each month is the class's <a href="/admin/fee-structure">hostel tuition</a>.</p>
+          <button class="btn btn-primary" type="submit">💾 Save Hostel Fees</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>ℹ️ Hostel details (from config)</h3></div>
+    <div class="panel-body">
+      <div class="cards" style="margin-bottom:0;">
+        <div class="card stat-card accent-blue"><div class="stat-label">Who can stay</div><div class="stat-value" style="font-size:19px; padding-top:7px;"><%= hostel.classes %></div><div class="stat-sub"><%= hostel.location %></div></div>
+        <div class="card stat-card accent-green"><div class="stat-label">Capacity</div><div class="stat-value"><%= hostel.capacity %></div><div class="stat-sub"><%= hostel.perRoom %> per room</div></div>
+        <div class="card stat-card accent-orange"><div class="stat-label">Warden</div><div class="stat-value" style="font-size:17px; padding-top:8px;"><%= hostel.warden %></div><div class="stat-sub"><%= hostel.wardenPhone %></div></div>
+      </div>
+      <p class="text-muted" style="font-size:12.5px; margin:12px 0 0;">
+        The warden's name, capacity and location come from <code>src/config.js</code> → <code>hostel</code>.
+      </p>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var rows = document.getElementById('routineRows');
+    var add = document.getElementById('routineAdd');
+    if (!rows || !add) return;
+    add.addEventListener('click', function () {
+      var last = rows.children[rows.children.length - 1];
+      var copy = last.cloneNode(true);
+      copy.querySelectorAll('input').forEach(function (i) { i.value = ''; });
+      rows.appendChild(copy);
+      var first = copy.querySelector('input');
+      if (first) first.focus();
+    });
+  })();
+  </script>
+<%- include('../partials/footer') %>

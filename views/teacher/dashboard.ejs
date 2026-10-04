@@ -1,0 +1,54 @@
+<%- include('../partials/header', { title }) %>
+  <%# The header is just the title and his login chip (school's request, 2026-09-18): the
+      “x of y sections open” pill went first, then the line naming him, his class and the date —
+      his name and class are on the card right below, the day's date sits on the periods panel,
+      and the login the office hands over lives BESIDE the title, one tap from reading it.
+      One fact, one place. %>
+  <div class="page-head dash-head">
+    <h1><span class="dash-ico" aria-hidden="true">👩‍🏫</span> My Dashboard</h1>
+    <%- include('../partials/teacher_credentials') %>
+  </div>
+
+  <%# ---- his own cards FIRST: the school's request (2026-09-18) — a teacher opens the day by
+      seeing himself, before any count, right under the page title. This is the SAME block his
+      My Profile page prints (one partial, one set of facts), including his login name, the
+      classes he may work on and the at-a-glance counts. ---- %>
+  <%- include('../partials/teacher_profile_cards') %>
+
+  <% if (saved) { %><div class="alert success">✅ Saved.</div><% } %>
+
+  <% if (!permCount) { %>
+    <div class="alert error" style="display:block;">
+      <b>No section is open for your login yet.</b><br>
+      The school office decides what a teacher can open. Please call the office and ask them to
+      give you access to the sections you need (students, marks, timetable, messages…).
+    </div>
+  <% } %>
+
+  <%# ---- the school's notices: the last THREE under At a glance, then “See all”
+      (school's request, 2026-09-19: the notices that came from school should be readable here,
+      three of them under At a glance, then See all). Every teacher reads them — notices are news, not a
+      power; the full list and its extra powers stay on /teacher/notices. ---- %>
+  <% if (notices.length) { %>
+  <div class="panel pf-card pf-card--notices">
+    <div class="panel-head">
+      <h3>📢 Notices from the school</h3>
+      <a href="/teacher/notices" class="pf-see-all">See all →</a>
+    </div>
+    <div class="panel-body">
+      <div class="pf-notice-list">
+        <% notices.forEach(n => { %>
+          <article class="pf-notice">
+            <span class="pf-notice-ico" aria-hidden="true">📌</span>
+            <span class="pf-notice-body">
+              <b class="pf-notice-title"><%= n.title %></b>
+              <small class="pf-notice-meta"><%= n.class_name ? 'Class ' + n.class_name : 'All classes' %> · <%= fmtShortDate(n.created_at) %></small>
+            </span>
+          </article>
+        <% }) %>
+      </div>
+      <a href="/teacher/notices" class="pf-see-all-btn">See all notices →</a>
+    </div>
+  </div>
+  <% } %>
+<%- include('../partials/footer') %>

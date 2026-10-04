@@ -1,0 +1,123 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1>📋 Admission Applications</h1>
+    <p>Review applications from the website. Approving creates the student account. Then use "Create Parent Login" to give the parent their username &amp; password.</p>
+  </div>
+
+  <% if (flash.approved) { %>
+  <div class="alert success">
+    ✅ <b>Application approved!</b> Student account created — Username: <code style="background:#eef2ff; padding:2px 7px; border-radius:5px;"><%= flash.user %></code> · Password: <code style="background:#eef2ff; padding:2px 7px; border-radius:5px;"><%= flash.pwd %></code> · Admission No: <b><%= flash.admno %></b><br>
+    <span style="font-size:12.5px;">Share these credentials with the student. Now create the parent login below if the parent doesn't have one yet.</span>
+  </div>
+  <% } %>
+  <% if (flash.login) { %>
+  <div class="alert success">
+    🔐 <b>Parent login created!</b> Application <b><%= flash.appno %></b> — Username: <code style="background:#eef2ff; padding:2px 7px; border-radius:5px;"><%= flash.user %></code> · Password: <code style="background:#eef2ff; padding:2px 7px; border-radius:5px;"><%= flash.pwd %></code><br>
+    <span style="font-size:12.5px;">Share these with the parent. They can now log in and see their child's results, fees and timetable.</span>
+  </div>
+  <% } %>
+  <% if (flash.loginerr) { %>
+  <div class="alert error">⚠️ <%= flash.msg || 'Could not create the parent login.' %></div>
+  <% } %>
+  <% if (flash.already) { %><div class="alert success">This application was already approved — the student account already exists.</div><% } %>
+  <% if (flash.rejected) { %><div class="alert success">Application marked as Rejected. The parent has been notified.</div><% } %>
+
+  <div class="cards">
+    <div class="card stat-card accent-orange"><div class="stat-label">Pending</div><div class="stat-value"><%= counts.pending %></div><div class="stat-sub">need review</div></div>
+    <div class="card stat-card accent-green"><div class="stat-label">Approved</div><div class="stat-value"><%= counts.approved %></div><div class="stat-sub">admitted</div></div>
+    <div class="card stat-card accent-red"><div class="stat-label">Rejected</div><div class="stat-value"><%= counts.rejected %></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Filter</h3>
+      <form method="GET" action="/admin/admissions" class="filters">
+        <div class="form-group">
+          <select name="status" onchange="this.form.submit()">
+            <option value="">All applications</option>
+            <option value="Pending" <%= status === 'Pending' ? 'selected' : '' %>>Pending</option>
+            <option value="Approved" <%= status === 'Approved' ? 'selected' : '' %>>Approved</option>
+            <option value="Rejected" <%= status === 'Rejected' ? 'selected' : '' %>>Rejected</option>
+          </select>
+        </div>
+      </form>
+    </div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <%# eight columns at the desk; `data-label` makes the SAME row one application card on a
+            phone (see .card-table in style.css) — approve or reject with a thumb %>
+        <table class="card-table">
+          <thead><tr><th>App. No.</th><th>Child</th><th>Class</th><th>Parent</th><th>Phone</th><th>Submitted</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            <% applications.forEach(a => { %>
+            <tr>
+              <td data-label="App. No."><span class="roll"><%= a.application_no %></span></td>
+              <td class="td-name" data-label="Child"><b><%= a.child_name %></b><br><span class="text-muted" style="font-size:12px;">DOB: <%= a.child_dob || '—' %></span></td>
+              <td data-label="Class"><%= a.class_name %><%= a.section ? ' ' + a.section : '' %></td>
+              <td data-label="Parent"><%= a.parent_name %><br><span class="text-muted" style="font-size:12px;"><%= a.parent_username ? 'login: ' + a.parent_username : 'no login yet' %></span></td>
+              <td data-label="Phone"><%= a.parent_phone %><br><span class="text-muted" style="font-size:12px;"><%= a.previous_school || '' %></span></td>
+              <td data-label="Submitted"><%= fmtShortDate(a.submitted_at) %></td>
+              <td data-label="Status">
+                <span class="badge <%= a.status === 'Pending' ? 'orange' : a.status === 'Approved' ? 'green' : 'red' %>"><%= a.status %></span>
+              </td>
+              <td class="td-actions text-right" style="white-space:nowrap;">
+                <% if (a.status === 'Pending') { %>
+                <form method="POST" action="/admin/admissions/<%= a.id %>/approve" style="display:inline;" onsubmit="return confirm('Approve <%= a.child_name %> and create the student account?');">
+                  <button type="submit" class="btn btn-primary btn-sm">✅ Approve</button>
+                </form>
+                <form method="POST" action="/admin/admissions/<%= a.id %>/reject" style="display:inline;" onsubmit="return confirm('Reject this application?');">
+                  <button type="submit" class="btn btn-danger btn-sm">✖ Reject</button>
+                </form>
+                <% } else { %>
+                <span class="text-muted" style="font-size:12px;"><%= a.reviewed_by || '' %></span>
+                <% } %>
+                <% if (!a.parent_user_id) { %>
+                <br>
+                <button type="button" class="btn btn-outline btn-sm mt-1" onclick="toggleLogin(<%= a.id %>, '<%= a.parent_name %>')">🔑 Create Parent Login</button>
+                <% } %>
+              </td>
+            </tr>
+            <% if (!a.parent_user_id) { %>
+            <tr id="loginRow<%= a.id %>" class="is-empty" style="display:none;">
+              <td colspan="8" style="background:#f8fafc;">
+                <form method="POST" action="/admin/admissions/<%= a.id %>/create-login" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; padding: 6px 4px;">
+                  <input type="hidden" name="appno" value="<%= a.application_no %>">
+                  <div class="form-group" style="min-width:200px;">
+                    <label>Username for <b><%= a.parent_name %></b></label>
+                    <input type="text" name="username" required maxlength="30" placeholder="e.g. rahul_parent" pattern="[a-zA-Z0-9_.]{4,30}" title="4–30 letters, numbers, dot or underscore">
+                  </div>
+                  <div class="form-group" style="min-width:160px;">
+                    <label>Password</label>
+                    <input type="text" name="password" required minlength="4" maxlength="50" placeholder="at least 4 characters">
+                  </div>
+                  <button type="submit" class="btn btn-primary">Create Login</button>
+                  <button type="button" class="btn btn-outline" onclick="toggleLogin(<%= a.id %>)">Cancel</button>
+                </form>
+              </td>
+            </tr>
+            <% } %>
+            <% }) %>
+            <% if (!applications.length) { %><tr><td colspan="8" class="empty">No applications found.</td></tr><% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleLogin(id, parentName) {
+      var row = document.getElementById('loginRow' + id);
+      row.style.display = row.style.display === 'none' ? '' : 'none';
+      if (row.style.display === '') {
+        var input = row.querySelector('input[name="username"]');
+        var appno = row.querySelector('input[name="appno"]').value;
+        // suggest a username from the parent's name (e.g. "Ramesh Kumar" -> ramesh_parent)
+        if (!input.value && parentName) {
+          var first = parentName.trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
+          if (first) input.value = first + '_parent';
+        }
+        input.focus();
+      }
+    }
+  </script>
+<%- include('../partials/footer') %>

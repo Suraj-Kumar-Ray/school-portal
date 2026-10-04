@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<%# `appShell` is 1 only for the school's own APK — see partials/header.ejs for what it decides %>
+<html lang="en" data-app-shell="<%= typeof appShell === 'undefined' ? '' : (appShell ? '1' : '') %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title><%= role ? roleLabel + ' Login · ' : 'Login · ' %><%= school.schoolName %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="application-name" content="GVPS Parent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="GVPS Parent">
+  <%# the build this page came from — public/js/app-update.js compares it with /app-release.json and
+      offers one tap when the office has changed something (src/services/release.js). This is the
+      FIRST page an installed app opens onto when nobody is signed in, so it must carry it too. %>
+  <meta name="app-release" content="<%= typeof appRelease === 'undefined' ? '' : appRelease %>">
+  <%# FIRST VISIT, NO STYLES: win the tunnel's visit cookie on the very first load (see
+      partials/header.ejs) — the login page is a phone's first stop, so it must carry it too. %>
+  <script src="/js/visit.js" defer></script>
+</head>
+<body class="login-page">
+
+  <!-- ============ THE WAY BACK ============
+       One button in the page's top-left corner, pinned there so it stays reachable on a phone.
+       It is NOT a bar: the school wanted the top of the screen left to the school's name
+       (school's request, 2026-09-17). The strip at the bottom carries no second link. -->
+  <a class="login-back" href="/">
+    <span class="login-back-arrow" aria-hidden="true">←</span> Back to the school website
+  </a>
+
+  <div class="login-wrap">
+
+    <!-- ============ THE SCHOOL, ON TOP ============ -->
+    <div class="login-brand">
+      <img src="<%= school.logo %>" alt="<%= school.schoolName %> logo" class="login-brand-logo">
+      <h1><%= school.schoolName %></h1>
+      <p class="login-brand-type"><%= school.schoolTypeLine %></p>
+      <p class="login-brand-tag"><%= school.schoolTagline %></p>
+    </div>
+
+    <% if (!role) { %>
+      <!-- ============ STEP 1: WHICH WAY IN? ============ -->
+      <% if (error) { %><div class="alert error login-alert"><%= error %></div><% } %>
+
+      <div class="login-cards">
+        <article class="login-choice">
+          <div class="login-choice-ico">👨‍👩‍👧</div>
+          <h2>Parent Login</h2>
+          <p>
+            Sign in with the username and password the school office gave you, to see your
+            child's result, timetable, fee record and messages from school.
+          </p>
+          <a class="login-choice-btn" href="/login?role=parent">Login Now</a>
+        </article>
+
+        <article class="login-choice">
+          <div class="login-choice-ico">👩‍🏫</div>
+          <h2>Teacher Login</h2>
+          <p>
+            The school office creates your username and password, and decides which sections
+            open for you — students, marks, timetable or messages.
+          </p>
+          <a class="login-choice-btn" href="/login?role=teacher">Login Now</a>
+        </article>
+
+        <article class="login-choice">
+          <div class="login-choice-ico">🛠️</div>
+          <h2>School Office</h2>
+          <p>
+            For the office staff only — students, fee records, results, notices, teacher
+            logins and every school setting in one place.
+          </p>
+          <a class="login-choice-btn" href="/login?role=admin">Login Now</a>
+        </article>
+
+        <article class="login-choice">
+          <div class="login-choice-ico">📝</div>
+          <h2>Admission Enquiry</h2>
+          <p>
+            New admission for session <%= school.sessionLabel %> — fill the online form in two
+            minutes and track your application number anytime.
+          </p>
+          <a class="login-choice-btn" href="/apply">Apply Now</a>
+        </article>
+      </div>
+
+      <p class="login-note">
+        <b>Students do not sign in.</b> A child's parents use the Parent Login — one login for
+        every child, printed on the slip from the school office.
+      </p>
+
+    <% } else { %>
+      <!-- ============ STEP 2: SIGN IN FOR THE CHOSEN ONE ============ -->
+      <div class="login-panel">
+        <div class="login-panel-head">
+          <div class="login-panel-ico"><%= { parent: '👨‍👩‍👧', teacher: '👩‍🏫', admin: '🛠️' }[role] %></div>
+          <div>
+            <h2>Sign in as <%= roleLabel %></h2>
+            <a href="/login">← Choose a different login</a>
+          </div>
+        </div>
+
+        <% if (error) { %><div class="alert error"><%= error %></div><% } %>
+
+        <form method="POST" action="/login">
+          <input type="hidden" name="role" value="<%= role %>">
+          <div class="form-group mb-3">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username"
+                   placeholder="<%= role === 'parent' ? 'e.g. s13r1 (from the school)' : (role === 'teacher' ? 'e.g. teacher5 (from the office)' : 'Your username') %>"
+                   required autofocus autocomplete="username">
+          </div>
+          <div class="form-group mb-3">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="Your password" required autocomplete="current-password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+        </form>
+      </div>
+
+      <p class="login-note">
+        <% if (role === 'parent') { %>
+          <b>Forgot your login?</b><br>
+          Every child's login is printed on the slip from the school office. Ask them for
+          username + password, or call the school and the office can read it out / reset it.
+        <% } else if (role === 'teacher') { %>
+          <b>Teacher login</b><br>
+          The school office creates your username and password, and decides which sections
+          you can open (students, marks, timetable, messages…). If a page says “not open for
+          your login”, ask the office to give you that section.
+        <% } else { %>
+          <b>School office only</b><br>
+          Admin logins are issued by the school. Contact the office if you cannot sign in.
+        <% } %>
+      </p>
+    <% } %>
+
+  </div>
+
+  <!-- ============ THE SKY OVER THE SCHOOL, AND ITS OWN NUMBERS ============ -->
+  <footer class="login-band">
+
+    <!-- Weather + the place's clock. The words arrive from /weather.json through
+         /js/login-weather.js; the clock is worked out in the browser from the server's own
+         clock, so it keeps ticking even when the forecast cannot be fetched. With no
+         internet at all this row simply stays empty and the facts below are always there. -->
+    <div class="login-weather" id="loginWeather" hidden>
+      <div class="lw-now">
+        <span class="lw-icon" id="lwIcon">⛅</span>
+        <span class="lw-temp" id="lwTemp">—</span>
+        <span class="lw-cond" id="lwCond"></span>
+        <span class="lw-place">
+          <b><%= school.place.label %></b>
+          <small><%= school.place.district %> · <%= school.place.pin %></small>
+        </span>
+        <span class="lw-clock">🕐 <b id="lwClock">—</b> <small>IST</small></span>
+      </div>
+      <div class="lw-days" id="lwDays"></div>
+    </div>
+
+    <div class="login-band-inner">
+      <div class="login-band-item"><b>📞 Phone</b><%= school.schoolPhone %></div>
+      <div class="login-band-item"><b>✉️ Email</b><%= school.schoolEmail %></div>
+      <div class="login-band-item"><b>🕐 Office hours</b><%= school.schoolHours %></div>
+      <div class="login-band-item"><b>📍 Address</b><%= school.schoolAddress %></div>
+    </div>
+
+    <%# who built the app — the same credit block every other page ends with %>
+    <%- include('./partials/dev_credit') %>
+  </footer>
+
+  <script src="/js/login-weather.js" defer></script>
+
+  <%# the app's front image (partials/launch_screen.ejs) and the update check %>
+  <%- include('./partials/launch_screen') %>
+  <script src="/js/app-update.js" defer></script>
+  <script>
+    // service worker (so the app opens offline with a friendly page)
+    (function () {
+      var secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      if (secure && 'serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

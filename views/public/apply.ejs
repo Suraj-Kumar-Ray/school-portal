@@ -1,0 +1,174 @@
+<%- include('../partials/public_nav', { title }) %>
+  <div class="page-head">
+    <h1>📝 Apply for Admission</h1>
+    <p>Session <%= school.sessionLabel %> · <%= school.gradesLabel %> · Takes about 2 minutes. You'll get an application number — the school will contact you after review. Already applied? <a href="/apply/status">Check your status</a>.</p>
+  </div>
+
+  <% if (error) { %><div class="alert error"><b>⚠️ Please fix the mistakes below and submit again:</b><ul class="error-list"><%- error %></ul></div><% } %>
+
+  <div class="panel" style="max-width: 720px; margin: 0 auto;">
+    <div class="panel-head"><h3>Child & Parent Details</h3></div>
+    <div class="panel-body">
+      <form method="POST" action="/apply" novalidate id="applyForm"
+            data-confirm-title="Send this application?"
+            data-confirm-msg="Please check the name, class and phone number once — then send this admission application to the school?"
+            data-confirm-ok="Yes, send">
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Child's Full Name *</label>
+            <input type="text" name="child_name" id="child_name" required maxlength="80" autocomplete="name"
+                   value="<%= values.child_name || '' %>" placeholder="e.g. Rahul Kumar">
+            <small class="field-error" data-for="child_name"></small>
+          </div>
+          <div class="form-group">
+            <label>Date of Birth</label>
+            <input type="date" name="child_dob" id="child_dob" value="<%= values.child_dob || '' %>">
+            <small class="field-error" data-for="child_dob"></small>
+          </div>
+          <div class="form-group">
+            <label>Applying for Class *</label>
+            <select name="class_id" id="class_id" required>
+              <option value="">Select class…</option>
+              <% classes.forEach(c => { %>
+                <option value="<%= c.id %>" <%= String(values.class_id) === String(c.id) ? 'selected' : '' %>><%= c.name %><%= c.section ? ' ' + c.section : '' %></option>
+              <% }) %>
+            </select>
+            <small class="field-error" data-for="class_id"></small>
+          </div>
+          <div class="form-group">
+            <label>Previous School</label>
+            <input type="text" name="previous_school" maxlength="100" value="<%= values.previous_school || '' %>" placeholder="(if any)">
+          </div>
+          <div class="form-group">
+            <label>Parent / Guardian Name *</label>
+            <input type="text" name="parent_name" id="parent_name" required maxlength="80" autocomplete="name"
+                   value="<%= values.parent_name || '' %>" placeholder="e.g. Ramesh Kumar">
+            <small class="field-error" data-for="parent_name"></small>
+          </div>
+          <div class="form-group">
+            <label>Parent Phone * <span class="req-note">(10-digit mobile)</span></label>
+            <input type="tel" name="parent_phone" id="parent_phone" inputmode="numeric" maxlength="10"
+                   required autocomplete="tel-national" value="<%= values.parent_phone || '' %>" placeholder="e.g. 9876543210">
+            <small class="field-hint" id="phone_hint"></small>
+            <small class="field-error" data-for="parent_phone"></small>
+          </div>
+          <div class="form-group">
+            <label>Parent Email (optional)</label>
+            <input type="email" name="parent_email" id="parent_email" autocomplete="email"
+                   value="<%= values.parent_email || '' %>" placeholder="name@gmail.com">
+            <small class="field-error" data-for="parent_email"></small>
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Address</label>
+            <textarea name="address" rows="2" maxlength="250" placeholder="Village / town, district, PIN"><%= values.address || '' %></textarea>
+          </div>
+        </div>
+
+        <div class="alert success" style="margin: 18px 0 0; font-size: 13px;">
+          ℹ️ <b>No login needed now.</b> After the school approves the admission, the office will create your parent login and give you the username &amp; password. You can then see your child's results, fees and timetable.
+        </div>
+
+        <div class="mt-4">
+          <button type="submit" class="btn btn-primary btn-block">Submit Application</button>
+        </div>
+        <p class="text-muted mt-2" style="font-size:12.5px; text-align:center;">On submission, the school office is automatically notified so they can contact you.</p>
+      </form>
+
+      <script>
+        (function () {
+          var form = document.getElementById('applyForm');
+          if (!form) return;
+          var phone = document.getElementById('parent_phone');
+          var phoneHint = document.getElementById('phone_hint');
+
+          // ---------- helpers ----------
+          function setErr(name, msg) {
+            var slot = form.querySelector('.field-error[data-for="' + name + '"]');
+            var input = form.querySelector('[name="' + name + '"]');
+            if (slot) slot.textContent = msg || '';
+            if (input) input.classList.toggle('input-invalid', !!msg);
+          }
+          function clearErrs() {
+            form.querySelectorAll('.field-error').forEach(function (s) { s.textContent = ''; });
+            form.querySelectorAll('.input-invalid').forEach(function (i) { i.classList.remove('input-invalid'); });
+          }
+          function isBlank(v) { return !v || !v.trim(); }
+          function nameOk(v) { return /^[A-Za-z][A-Za-z .'-]{1,79}$/.test(v.trim()); }
+          function emailOk(v) { return /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(v.trim()); }
+          function phoneOk(v) { return /^[6-9][0-9]{9}$/.test(v); }
+
+          // ---------- live phone digits ----------
+          function cleanPhone() {
+            var digits = phone.value.replace(/\D/g, '').slice(0, 10);
+            phone.value = digits;
+            if (phoneOk(digits)) {
+              phoneHint.textContent = '✓ Number looks good'; phoneHint.style.color = '#16a34a';
+            } else if (digits.length === 10) {
+              phoneHint.textContent = '✗ Number should start with 6, 7, 8 or 9'; phoneHint.style.color = '#dc2626';
+            } else if (digits.length > 0) {
+              phoneHint.textContent = digits.length + '/10 digits'; phoneHint.style.color = '#6b7280';
+            } else { phoneHint.textContent = ''; }
+          }
+          phone.addEventListener('input', cleanPhone);
+          phone.addEventListener('change', cleanPhone);
+
+          // the date picker itself stops at today — no future date is selectable.
+          // The school's day is the IST day, so the server passes it in.
+          if (form.child_dob) form.child_dob.max = '<%= istToday() %>';
+
+          // ---------- validate everything, show all errors ----------
+          function validate(showAll) {
+            clearErrs();
+            var bad = [];
+            function mark(name, msg) { setErr(name, msg); bad.push(name); }
+
+            var cn = form.child_name.value;
+            if (isBlank(cn)) mark('child_name', '⚠ Please enter the child\'s full name');
+            else if (!nameOk(cn)) mark('child_name', '⚠ Name should use letters only (at least 2 letters)');
+
+            var dob = form.child_dob.value;
+            if (dob) {
+              // compare against the school's day (IST), passed down by the server
+              var d = new Date(dob), now = new Date('<%= istToday() %>T23:59:59');
+              // any age is fine — only a future date is rejected
+              if (isNaN(d.getTime())) mark('child_dob', '⚠ Please enter a valid date of birth');
+              else if (d > now) mark('child_dob', '⚠ Date of birth cannot be in the future');
+            }
+
+            if (isBlank(form.class_id.value)) mark('class_id', '⚠ Please select a class');
+
+            var pn = form.parent_name.value;
+            if (isBlank(pn)) mark('parent_name', '⚠ Please enter the parent/guardian\'s name');
+            else if (!nameOk(pn)) mark('parent_name', '⚠ Name should use letters only');
+
+            var ph = phone.value;
+            if (isBlank(ph)) mark('parent_phone', '⚠ Phone number is required (10 digits)');
+            else if (ph.length !== 10) mark('parent_phone', '⚠ Only ' + ph.length + ' digits entered — 10 digits needed');
+            else if (!phoneOk(ph)) mark('parent_phone', '⚠ Number should start with 6, 7, 8 or 9');
+
+            var em = form.parent_email.value;
+            if (!isBlank(em) && !emailOk(em)) mark('parent_email', '⚠ Invalid email — enter it like rahul@gmail.com (with @ and .com)');
+
+            return bad;
+          }
+
+          // show the field's error as soon as the user leaves it
+          ['child_name', 'child_dob', 'class_id', 'parent_name', 'parent_email'].forEach(function (n) {
+            var el = form.querySelector('[name="' + n + '"]');
+            if (el) el.addEventListener('blur', function () { validate(false); });
+          });
+
+          form.addEventListener('submit', function (e) {
+            var bad = validate(true);
+            if (bad.length) {
+              e.preventDefault();
+              var first = form.querySelector('.input-invalid');
+              if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); first.focus({ preventScroll: true }); }
+            }
+          });
+        })();
+      </script>
+    </div>
+  </div>
+<%- include('../partials/public_footer') %>

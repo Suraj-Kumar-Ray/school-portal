@@ -1,0 +1,32 @@
+<%#
+  THE QUESTION BEFORE A CHANGE — one dialog for the whole school app
+  ==================================================================
+
+  School's request (2026-09-16): “everywhere something is saved or deleted, ask once —
+  do you really want to change this? — so that nothing goes wrong by mistake.”
+
+  This partial is the dialog itself. `public/js/save-confirm.js` decides WHICH forms get
+  asked and writes the words. A page never talks to this dialog directly: it either lets
+  the shared asker handle its form, or says so in the form tag —
+
+      data-confirm="own"    this form shows its own question (do not ask twice)
+      data-confirm="off"    never ask about this form (a search, a download, a lookup)
+      data-confirm-msg…     use my own words instead
+
+  Included once per page from partials/footer.ejs (any signed-in user) and
+  partials/public_footer.ejs (website forms).
+%>
+<div class="save-confirm-overlay" id="saveConfirm" role="dialog" aria-modal="true"
+     aria-labelledby="saveConfirmTitle" aria-describedby="saveConfirmMsg">
+  <div class="save-confirm-box">
+    <div class="save-confirm-icon" id="saveConfirmIcon" aria-hidden="true">💾</div>
+    <h3 id="saveConfirmTitle">Apply the changes?</h3>
+    <p id="saveConfirmMsg">Please check once before saying yes.</p>
+    <p class="save-confirm-keys">Press <kbd>Esc</kbd> or “No, go back” to cancel — nothing is
+      changed until you say yes.</p>
+    <div class="save-confirm-actions">
+      <button type="button" class="btn btn-outline" id="saveNo">No, go back</button>
+      <button type="button" class="btn btn-primary" id="saveYes">Yes, save</button>
+    </div>
+  </div>
+</div>

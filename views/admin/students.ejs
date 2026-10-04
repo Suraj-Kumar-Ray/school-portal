@@ -1,0 +1,305 @@
+<%- include('../partials/header', { title }) %>
+<%
+  // the PDF download follows whatever is on screen right now (class + search)
+  const dlParams = [];
+  if (classId) dlParams.push('class=' + classId);
+  if (q) dlParams.push('q=' + encodeURIComponent(q));
+  const dlQuery = dlParams.length ? '?' + dlParams.join('&') : '';
+%>
+  <div class="page-head flex-between">
+    <div>
+      <h1>🎓 Students</h1>
+      <p>
+        <span id="stu-summary">
+        <%= students.length %> <%= students.length === 1 ? 'student' : 'students' %>
+        <% if (classId && students.length) { %>of <b><%= students[0].class_name %><%= students[0].section ? ' ' + students[0].section : '' %></b><% } else if (!classId) { %>from every class<% } %>
+        <% if (q) { %>matching “<b><%= q %></b>”<% } %>
+        </span>
+      </p>
+    </div>
+    <div class="head-actions">
+      <a href="/admin/students/new<%= classId ? '?class=' + classId : '' %>" class="btn btn-primary">➕ Add Student</a>
+      <a href="/admin/students/export.pdf<%= dlQuery %>" class="btn btn-outline" title="A4 PDF of the students you are seeing now">⬇️ Download PDF<%= classId ? ' (' + (q ? 'filtered' : 'this class') + ')' : ' (all classes)' %></a>
+      <button type="button" class="btn btn-outline" onclick="window.print()" title="Print the list you are seeing now">🖨️ Print</button>
+    </div>
+  </div>
+
+  <div class="print-only print-head">
+    <b><%= school.schoolName %></b>
+    <span>Students <%= classId && students.length ? '· ' + students[0].class_name + (students[0].section ? ' ' + students[0].section : '') : '· all classes' %> · <%= students.length %></span>
+  </div>
+
+  <% if (query.created) { %><div class="alert success">✅ Student added successfully.</div><% } %>
+  <% if (query.updated) { %><div class="alert success">✅ Student updated.</div><% } %>
+  <% if (query.deleted) { %><div class="alert success">🗑️ Student removed.</div><% } %>
+  <% if (query.photo === 'saved') { %><div class="alert success">📷 Photo saved. If this student is a topper, it shows on the landing page right away.</div><% } %>
+  <% if (query.photo === 'removed') { %><div class="alert success">📷 Photo removed.</div><% } %>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>🔎 Search students</h3>
+      <%# One simple order, left to right: pick a class, type a name, press Search. Two things went
+          away on purpose — the ✕ Clear button (typing in the box already brings everyone back, so
+          there is nothing to clear) and the auto-search when a class was picked (it reloaded the
+          page and threw away what had just been typed). %>
+      <form method="GET" action="/admin/students" class="stu-filter">
+        <div class="form-group sf-class">
+          <label for="class">Class</label>
+          <select id="class" name="class">
+            <option value="0">All classes</option>
+            <% classes.forEach(c => { %>
+              <option value="<%= c.id %>" <%= c.id === classId ? 'selected' : '' %>><%= c.name %><%= c.section ? ' ' + c.section : '' %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group sf-name">
+          <label for="q">Name, mobile or admission no.</label>
+          <input type="text" id="q" name="q" value="<%= q %>" placeholder="e.g. Aarav · Ramesh · 9876543210" autocomplete="off">
+        </div>
+        <button type="submit" class="btn btn-primary sf-go">🔎 Search</button>
+      </form>
+
+    </div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <%# The table is the office's; `data-label` on each cell is what turns the SAME row into a
+            readable CARD below 900px (see .card-table in style.css) — one markup, two layouts. %>
+        <table class="card-table">
+          <thead><tr><th>Photo</th><th>Roll No.</th><th>Student &amp; class</th><th>Admission No.</th><th>Father / parent</th><th>Mobile</th><th></th></tr></thead>
+          <tbody>
+            <% students.forEach(s => { %>
+            <%# THE WHOLE ROW OPENS THE PROFILE (school's request, 2026-09-20): tapping anywhere on a
+                child's line — the name, the photo, the blank space, and on a phone anywhere on the
+                card — opens their full profile. A tap that lands on a button, a link or the photo
+                picker is left to that control (see the script at the end of this file), so Edit,
+                🎒 Profile, 📝 HW, 🗑 Delete and the photo buttons all keep working exactly as
+                before; the row is also reachable by keyboard (Enter). %>
+            <tr data-class="<%= s.class_name %><%= s.section ? ' ' + s.section : '' %>"
+                data-open="/admin/students/<%= s.id %><%= classId ? '?class=' + classId : '' %>"
+                tabindex="0" role="link"
+                aria-label="Open <%= s.full_name %>'s full profile"
+                title="Open <%= s.full_name %>'s full profile"
+                data-search="<%= [s.full_name, s.admission_no, s.parent_name, s.father_name, s.mother_name,
+                  s.parent_phone, s.alt_phone, s.guardian_name, s.guardian_phone, s.blood_group, s.caste, s.category,
+                  s.aadhaar, s.father_aadhaar, s.mother_aadhaar,
+                  s.class_name].filter(Boolean).join(' ').toLowerCase() %>">
+              <td class="td-photo" data-label="Photo">
+                <% if (s.photo) { %>
+                  <img src="<%= s.photo %>" alt="<%= s.full_name %>" class="stu-photo">
+                <% } else { %>
+                  <span class="stu-photo stu-photo-ph"><%= s.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+                <% } %>
+                <form method="POST" action="/admin/students/<%= s.id %>/photo" class="photo-form">
+                  <input type="hidden" name="photo">
+                  <input type="hidden" name="filter_class" value="<%= classId %>">
+                  <label class="btn btn-outline btn-sm" style="margin:0; cursor:pointer;" title="Upload photo">📷
+                    <input type="file" accept="image/*" class="photo-file" style="display:none;">
+                  </label>
+                  <% if (s.photo) { %>
+                  <%# the ✕ ASKS FIRST — one stray tap on a phone used to wipe the photo with no
+                      warning. (The upload path is untouched: the file input calls form.submit(),
+                      which never fires a click on this button.) %>
+                  <button type="submit" name="remove" value="1" class="btn btn-danger btn-sm" title="Remove photo"
+                          onclick="return confirm('Remove this photo? The card shows the initials until you upload a new one.');">✕</button>
+                  <% } %>
+                </form>
+              </td>
+              <td data-label="Roll No."><span class="roll"><%= s.roll_no %></span></td>
+              <td class="td-name" data-label="Student &amp; class">
+                <%# the NAME opens the child's whole profile (2026-09-20): details, fee ledger,
+                    result, timetable, homework, hostel and store on one page — Edit stays the
+                    pencil next to it for whoever came just to change a spelling. %>
+                <a href="/admin/students/<%= s.id %><%= classId ? '?class=' + classId : '' %>" class="stu-name-link" title="Open <%= s.full_name %>'s full profile"><b><%= s.full_name %></b></a>
+                <span class="badge blue" style="margin-left:7px;"><%= s.class_name %><%= s.section ? ' ' + s.section : '' %></span>
+                <%# whose fee is charged from the hostel column — the office can see a boarder
+                    at a glance here, on the fee list and in the class lists %>
+                <% if (String(s.stay || '') === 'hostel') { %>
+                  <span class="badge orange" style="margin-left:6px;" title="Hostel student<%= s.hostel_bed ? ' · Bed ' + s.hostel_bed : '' %> — the hostel column of the fee sheet<%= s.hostel_from ? ' from ' + s.hostel_from : '' %>">🏠 Hostel</span>
+                <% } %>
+              </td>
+              <td data-label="Admission No."><span class="roll"><%= s.admission_no %></span>
+                <% if (s.aadhaar) { %><br><span class="text-muted" style="font-size:11.5px; font-family:ui-monospace, Menlo, Consolas, monospace;">🆔 <%= fmtAadhaar(s.aadhaar) %></span><% } %>
+              </td>
+              <td data-label="Father / parent">
+                <span><%= s.father_name || s.parent_name || '—' %>
+                <% if (s.blood_group) { %><span class="badge red" style="margin-left:6px;">🩸 <%= s.blood_group %></span><% } %></span>
+              </td>
+              <td data-label="Mobile">
+                <span><%= s.parent_phone || '—' %>
+                <% if (s.alt_phone) { %><br><span class="text-muted" style="font-size:12px;">alt: <%= s.alt_phone %></span><% } %></span>
+              </td>
+              <td class="td-actions text-right" style="white-space:nowrap;">
+                <%# On a phone Edit is the card's own button (it takes the whole row — a student has
+                    no login to open) and Delete is lifted into the card's TOP-RIGHT corner: see
+                    .card-table in style.css. On a desk both stay on their one row, unchanged.
+                    The inline display on the form is what keeps that desk row on ONE line —
+                    position: absolute blockifies it on a phone. %>
+                <a href="/admin/students/<%= s.id %>/edit<%= classId ? '?class=' + classId : '' %>" class="btn btn-outline btn-sm btn-edit">✏️ Edit</a>
+                <a href="/admin/students/<%= s.id %><%= classId ? '?class=' + classId : '' %>" class="btn btn-outline btn-sm" title="Everything about this child in one place">🎒 Profile</a>
+                <%# the 📝 HW door — mark a child's homework done / not done (2026-09-18) %>
+                <a href="/admin/students/<%= s.id %>/homework" class="btn btn-outline btn-sm" title="Mark homework done / not done for this child">📝 HW</a>
+                <%# `del-form` is what gives this form the card's top-right chip treatment on a phone
+                    (style.css) — a plain `<form>` in an action cell could be anything, so the
+                    destructive one names itself. %>
+                <form method="POST" action="/admin/students/<%= s.id %>/delete" class="del-form" style="display:inline;" onsubmit="return confirm('Delete <%= s.full_name %> (Roll No. <%= s.roll_no %>)? Their marks, fees, payments and login are removed for good, and Roll No. <%= s.roll_no %> becomes free to use again.');">
+                  <input type="hidden" name="filter_class" value="<%= classId %>">
+                  <button type="submit" class="btn btn-danger btn-sm" title="Delete this student">🗑 Delete</button>
+                </form>
+              </td>
+            </tr>
+            <% }) %>
+            <tr id="live-empty" class="is-empty" style="display:none;"><td colspan="7" class="empty">Nobody here matches that search.<br><span style="font-size:12.5px;">Empty the box to see everyone in this list again.</span></td></tr>
+            <% if (!students.length) { %><tr class="is-empty"><td colspan="7" class="empty">No students found<%= q ? ' for “' + q + '”' : '' %>.<br><span style="font-size:12.5px;">Empty the search box and press Search to see all students again.</span></td></tr><% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <%# The per-class PDF chips live BELOW the list, folded away: on a desk the office wants them in
+      view (a small script opens the box above 900px), but on a phone fourteen chips used to sit
+      between the search box and the students and push the list off the screen. %>
+  <details class="panel dl-box no-print" id="dlBox">
+    <summary>⬇️ Download a class list as PDF</summary>
+    <div class="dl-row">
+      <span class="dl-label">One A4 sheet per class, with the school's name and address on top:</span>
+      <% classes.forEach(c => { %>
+        <a class="dl-chip<%= c.id === classId ? ' active' : '' %>" href="/admin/students/export.pdf?class=<%= c.id %>"><%= c.name %><%= c.section ? ' ' + c.section : '' %></a>
+      <% }) %>
+      <a class="dl-chip all" href="/admin/students/export.pdf">📚 All classes (one file)</a>
+    </div>
+  </details>
+
+  <script>
+    // The download box is open for the office, folded on a phone — one tap opens it there.
+    (function () {
+      var box = document.getElementById('dlBox');
+      if (box && window.innerWidth > 900) box.open = true;
+    })();
+
+    // Photo upload: pick a file → resize to ≤400px in the browser → submit as a small JPEG
+    document.querySelectorAll('.photo-form').forEach(function (form) {
+      var file = form.querySelector('.photo-file');
+      var hidden = form.querySelector('input[name="photo"]');
+      if (!file) return;
+      file.addEventListener('change', function () {
+        var f = file.files && file.files[0];
+        if (!f) return;
+        if (!/^image\//.test(f.type)) { alert('Please choose an image file (JPG/PNG).'); return; }
+        var img = new Image();
+        img.onload = function () {
+          var MAX = 400, w = img.width, h = img.height;
+          if (w > MAX || h > MAX) {
+            var r = MAX / Math.max(w, h);
+            w = Math.round(w * r); h = Math.round(h * r);
+          }
+          var cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          hidden.value = cv.toDataURL('image/jpeg', 0.82);
+          form.submit();
+        };
+        img.onerror = function () { alert('Could not read the image — please try again.'); };
+        img.src = URL.createObjectURL(f);
+      });
+    });
+
+    // Live filter: typing narrows the list instantly (the Search button does a full server search)
+    (function () {
+      var input = document.getElementById('q');
+      var summary = document.getElementById('stu-summary');
+      var emptyRow = document.getElementById('live-empty');
+      var table = document.querySelector('.table-wrap table');
+      if (!input || !table) return;
+      var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr')).filter(function (r) {
+        return r.id !== 'live-empty' && !r.querySelector('td.empty');
+      });
+      var original = summary ? summary.innerHTML : '';
+      // "Class 10" / "10th" / "class10" all become "10" so the live filter behaves like the server search
+      function normalise(v) {
+        return v.toLowerCase().replace(/\bclass\b/g, ' ').replace(/(\d+)\s*(st|nd|rd|th)\b/g, '$1').replace(/\s+/g, ' ').trim();
+      }
+      // A 336-row list must not be restyled once per keystroke: the pass is coalesced into one
+      // per animation frame, it stops early when the term has not actually changed and it only
+      // writes `display` on the rows whose state really flipped. Typing feels immediate, and the
+      // slowest part is gone on the office's older machine.
+      var raf = 0;
+      var lastTerm = null;
+      var visible = rows.map(function () { return true; });   // every row starts shown
+
+      function pass() {
+        raf = 0;
+        var raw = input.value.trim();
+        var term = normalise(raw);
+        if (term === lastTerm) return;
+        lastTerm = term;
+        var shown = 0;
+        for (var i = 0; i < rows.length; i++) {
+          var r = rows[i];
+          var hit = true;
+          if (term) {
+            if (/^\d{1,2}$/.test(term)) {
+              // 1–2 digits → the class itself only (same rule as the server);
+              // a longer number (mobile / admission) falls through to the text search
+              hit = normalise(r.getAttribute('data-class') || '') === term;
+            } else {
+              hit = (r.getAttribute('data-search') || '').indexOf(term) !== -1;
+            }
+          }
+          if (visible[i] !== hit) { r.style.display = hit ? '' : 'none'; visible[i] = hit; }
+          if (hit) shown++;
+        }
+        if (emptyRow) emptyRow.style.display = (shown === 0 && rows.length) ? '' : 'none';
+        if (summary) {
+          summary.innerHTML = (!term || shown === rows.length)
+            ? original
+            : '<b>' + shown + '</b> of ' + rows.length + ' students shown (matching “' + raw + '”)';
+        }
+      }
+      function run() { if (!raf) raf = requestAnimationFrame(pass); }
+      input.addEventListener('input', run);
+      // keep the URL clean — no empty "?q=" when only the class is filtered
+      var form = input.form;
+      if (form) form.addEventListener('submit', function () { if (!input.value.trim()) input.disabled = true; });
+      // the first pass only records the starting state — nothing is hidden on load
+      lastTerm = '__start__';
+      run();
+    })();
+
+    // ---- THE WHOLE ROW OPENS THE PROFILE (school's request, 2026-09-20) ------------------
+    // Every child's line carries `data-open` (see the <tr> above), so the office can tap the
+    // name, the photo, the roll number or the blank space and land on the full profile — no
+    // need to aim at a small button. Three rules keep the row's own controls working:
+    //   • a click that lands on a link, button, input, label or form belongs to THAT control
+    //     (Edit · 🎒 Profile · 📝 HW · 🗑 Delete · 📷 upload · ✕ remove all behave as before),
+    //   • a long press / drag that selected text is not a tap — the office may be copying a
+    //     mobile number — so a selection means “do nothing”,
+    //   • Enter opens the row for anyone on a keyboard (the name link stays the primary door).
+    (function () {
+      var list = document.querySelector('table.card-table');
+      if (!list) return;
+      var MOVE = 8;                          // px of travel that turns a tap into a scroll
+      var down = null;
+      list.addEventListener('mousedown', function (e) { down = { x: e.clientX, y: e.clientY }; });
+      list.addEventListener('touchstart', function (e) {
+        var t = e.touches[0];
+        down = t ? { x: t.clientX, y: t.clientY } : null;
+      }, { passive: true });
+      list.addEventListener('click', function (e) {
+        var row = e.target.closest('tr[data-open]');
+        if (!row) return;
+        if (e.target.closest('a, button, input, select, textarea, label, form')) return;
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.button) return;   // “open in a new tab” stays the link's job
+        if (String(window.getSelection && window.getSelection() || '').trim()) return;
+        if (down && (Math.abs(e.clientX - down.x) > MOVE || Math.abs(e.clientY - down.y) > MOVE)) return;
+        window.location.href = row.getAttribute('data-open');
+      });
+      list.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        var row = e.target.closest('tr[data-open]');
+        if (!row || e.target.closest('a, button, input, select, textarea, label, form')) return;
+        window.location.href = row.getAttribute('data-open');
+      });
+    })();
+  </script>
+<%- include('../partials/footer') %>

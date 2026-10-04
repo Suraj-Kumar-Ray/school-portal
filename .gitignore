@@ -1,0 +1,10 @@
+node_modules/
+
+# The school's data lives in ONE SQLite file — it is never source and never committed.
+data/
+*.db
+*.db-shm
+*.db-wal
+
+*.log
+.env

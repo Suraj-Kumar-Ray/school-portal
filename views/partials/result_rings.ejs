@@ -1,0 +1,132 @@
+<%
+  /* ==========================================================================
+     RING DIAGRAM — percentages drawn as circles
+     ==========================================================================
+     One partial for every “result analysis” diagram in the app (the child's Result
+     page, the office's marks page, the admin dashboard). Values come from
+     src/services/analysis.js, which also decides the word and the colour band, so
+     this file only draws.
+
+     Call it with:
+       big    — the one ring to look at first ({ label, value, note, tone, word, grade })
+       rings  — the strip of rings under it (subjects · classes · whatever fits)
+       strip  — an optional second, quieter row (terms, for example)
+       empty  — the line to show when there is nothing to draw
+
+     A value of null is a REAL state (“no marks yet”), not an error: the ring stays
+     grey and dashed and the number reads “—”. Never print 0% for missing marks.
+     ======================================================================= */
+  const C = 2 * Math.PI * 52;                      // circumference of r=52 in the 120 viewBox
+  const dashFor = (v) => {
+    if (v === null || v === undefined) return 0;
+    const p = Math.max(0, Math.min(100, Number(v) || 0));
+    return Number(((1 - p / 100) * C).toFixed(2));
+  };
+  const bigRing = typeof big !== 'undefined' ? big : null;
+  const ringList = (typeof rings !== 'undefined' && Array.isArray(rings)) ? rings : [];
+  const stripList = (typeof strip !== 'undefined' && Array.isArray(strip)) ? strip : [];
+  const emptyText = typeof empty === 'string' && empty ? empty
+    : 'No marks have been entered yet — this fills in as the school adds results.';
+
+  // the trend chip under a term ring: how this term stands against the one before it.
+  // 'first' / 'none' say nothing — a chip only appears when there really is a movement.
+  const TREND = {
+    up:   { sym: '▲', word: 'up',   cls: 'is-up' },
+    down: { sym: '▼', word: 'down', cls: 'is-down' },
+    same: { sym: '=', word: 'unchanged', cls: 'is-same' },
+  };
+  const trendOf = (r) => {
+    const t = r && r.direction ? TREND[r.direction] : null;
+    if (!t || r.delta === null || r.delta === undefined) return null;
+    return { ...t, text: r.delta === 0 ? '=' : `${t.sym}${Number(Math.abs(r.delta)).toFixed(1)}` };
+  };
+
+  const drawRing = (r, cls) => ({ ...r, cls, trend: trendOf(r), dash: (r && typeof r.dash === 'number') ? r.dash : dashFor(r ? r.value : null) });
+  const main = ringList.map((r) => drawRing(r, ''));
+  // named `termRow`, NOT `strip`: a `const strip` here would shadow the caller's `strip`
+  // local and the `typeof strip` check above would hit its own TDZ (ReferenceError)
+  const termRow = stripList.map((r) => drawRing(r, 'ring-sm'));
+%>
+
+<% if (!bigRing && !main.length && !termRow.length) { %>
+  <div class="rings-empty">📊 <%= emptyText %></div>
+<% } else { %>
+
+<div class="rings-wrap">
+  <% if (bigRing) { %>
+    <%# school's request, 2026-09-18: the big ring BLINKS — the same soft breathing glow the
+        home bell uses, so the page's first number says “look here”. The “Grade A · Good” line
+        under it is GONE: the number and the colour band already say it. %>
+    <div class="ring-hero tone-<%= bigRing.tone %>">
+      <div class="ring-blink">
+      <svg class="ring ring-big" viewBox="0 0 120 120" role="img"
+           aria-label="<%= bigRing.label %> <%= bigRing.value === null ? 'no marks yet' : bigRing.value + ' percent' %>">
+        <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+        <circle class="ring-fill" cx="60" cy="60" r="52"
+                stroke-dasharray="<%= C.toFixed(2) %>" stroke-dashoffset="<%= bigRing.dash %>"
+                transform="rotate(-90 60 60)"></circle>
+        <text class="ring-num" x="60" y="60" dy="0.35em" text-anchor="middle"><%= bigRing.value === null ? '—' : (bigRing.text || bigRing.value + '%') %></text>
+      </svg>
+      </div>
+      <div class="ring-hero-text">
+        <div class="ring-hero-label"><%= bigRing.label %></div>
+        <% if (bigRing.note) { %><div class="ring-hero-note"><%= bigRing.note %></div><% } %>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (main.length) { %>
+    <div class="rings">
+      <% main.forEach(r => { %>
+        <div class="ring-card tone-<%= r.tone %>">
+          <svg class="ring <%= r.cls %>" viewBox="0 0 120 120" role="img"
+               aria-label="<%= r.label %> <%= r.value === null ? 'no marks yet' : r.value + ' percent' %>">
+            <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+            <circle class="ring-fill" cx="60" cy="60" r="52"
+                    stroke-dasharray="<%= C.toFixed(2) %>" stroke-dashoffset="<%= r.dash %>"
+                    transform="rotate(-90 60 60)"></circle>
+            <text class="ring-num" x="60" y="60" dy="0.35em" text-anchor="middle"><%= r.value === null ? '—' : (r.text || r.value + '%') %></text>
+          </svg>
+          <div class="ring-label"><%= r.label %><% if (r.rank) { %><span class="ring-rank" title="position in the school by average">#<%= r.rank %></span><% } %></div>
+          <% if (r.note) { %><div class="ring-note"><%= r.note %></div><% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <% if (termRow.length) { %>
+    <div class="rings rings-strip">
+      <% termRow.forEach(r => { %>
+        <div class="ring-card <%= r.value === null ? 'ring-gap' : '' %> tone-<%= r.tone %>">
+          <svg class="ring ring-sm" viewBox="0 0 120 120" role="img"
+               aria-label="<%= r.label %> <%= r.value === null ? 'not entered yet' : r.value + ' percent' %>">
+            <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+            <circle class="ring-fill" cx="60" cy="60" r="52"
+                    stroke-dasharray="<%= C.toFixed(2) %>" stroke-dashoffset="<%= r.dash %>"
+                    transform="rotate(-90 60 60)"></circle>
+            <text class="ring-num" x="60" y="60" dy="0.35em" text-anchor="middle"><%= r.value === null ? '—' : (r.text || r.value + '%') %></text>
+          </svg>
+          <div class="ring-label"><%= r.label %></div>
+          <% if (r.trend) { %>
+            <div class="ring-trend tone-<%= r.tone %> <%= r.trend.cls %>" title="against the term before it">
+              <%= r.trend.text %> <span class="ring-trend-word"><%= r.trend.word %></span>
+            </div>
+          <% } %>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</div>
+
+<% if (typeof legend !== 'undefined' && legend) { %>
+  <div class="rings-legend">
+    <span class="tone-good">A · Super 90%+</span>
+    <span class="tone-good">A · Excellent 80–89%</span>
+    <span class="tone-ok">B+ · Good 70–79%</span>
+    <span class="tone-ok">B · Progressive 60–69%</span>
+    <span class="tone-warn">C+ · Can do better 50–59%</span>
+    <span class="tone-warn">C · Need attention 40–49%</span>
+    <span class="tone-bad">C · Need more hard work below 40%</span>
+  </div>
+<% } %>
+<% } %>

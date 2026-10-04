@@ -1,0 +1,405 @@
+<%- include('../partials/public_nav', { title }) %>
+
+  <!-- APPLICATION SUBMITTED (success banner, shown once) -->
+  <% if (applySuccess) { %>
+  <div class="panel applied-banner" style="border: 2px solid #16a34a; background: #f0fdf4;">
+    <div class="panel-body" style="text-align:center;">
+      <div style="font-size:42px;">🎉</div>
+      <h3 style="margin: 4px 0;">Application submitted successfully!</h3>
+      <p style="margin: 4px 0;">Thank you, <b><%= applySuccess.parentName %></b> — your application for <b><%= applySuccess.childName %></b> has been received.</p>
+      <p style="margin: 10px 0;">
+        <span style="display:inline-block; background:#fff; border:2px dashed var(--primary); border-radius:10px; padding:10px 22px; font-size:21px; font-weight:800; color:var(--primary-dark); letter-spacing:1px;"><%= applySuccess.applicationNo %></span>
+      </p>
+      <p class="text-muted" style="font-size:13px; margin: 4px 0;">Thank you for choosing GREEN VALLEY PUBLIC SCHOOL — our team will soon contact you on <b><%= applySuccess.phone %></b>.</p>
+      <% if (applySuccess.waSchool === 'sent') { %>
+      <p style="margin:8px 0 0; font-size:13.5px; color:#15803d; font-weight:600;">✅ Your application details have been sent to the school on WhatsApp.</p>
+      <% } else if (applySuccess.waChatUrl) { %>
+      <!-- Big, unmissable WhatsApp button: opens the school chat with the full form filled in -->
+      <div class="wa-btn-wrap">
+        <span class="wa-send-hint">👇 Tap here to send your details</span>
+        <span class="wa-send-tip" role="tooltip">Click here — your application details will open in WhatsApp</span>
+        <a id="waSendBtn" class="wa-send-btn" href="<%= applySuccess.waChatUrl %>" target="_blank" rel="noopener" title="Click here — your application details will open in WhatsApp">
+            <svg viewBox="0 0 24 24" width="27" height="27" fill="currentColor" aria-hidden="true"><path d="M20.52 3.48A11.86 11.86 0 0 0 12.08 0C5.53 0 .2 5.33.2 11.89c0 2.1.55 4.15 1.6 5.96L.1 24l6.3-1.65a11.9 11.9 0 0 0 5.68 1.45h.01c6.55 0 11.89-5.33 11.9-11.89a11.86 11.86 0 0 0-3.47-8.43Zm-8.44 18.27h-.01a9.9 9.9 0 0 1-5.04-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.87 9.87 0 0 1-1.51-5.23c0-5.45 4.44-9.88 9.9-9.88a9.84 9.84 0 0 1 6.99 2.9 9.83 9.83 0 0 1 2.89 6.99c0 5.45-4.44 9.88-9.88 9.88Zm5.42-7.4c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.39-1.47-.89-.79-1.48-1.76-1.66-2.06-.17-.3-.02-.46.13-.61.14-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.22 3.08c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.69.25-1.29.17-1.41-.07-.13-.27-.2-.57-.35Z"/></svg>
+            <span class="wa-send-text">
+              <b>Send my details to the school on WhatsApp</b>
+              <small>One tap — your complete application reaches the school</small>
+            </span>
+          <span class="wa-send-arrow" aria-hidden="true">→</span>
+        </a>
+      </div>
+      <p id="waNote" style="margin:10px 0 0; font-size:13px; color:var(--muted); font-weight:600;">📲 Opening WhatsApp…</p>
+      <script>
+        // try to open the school's WhatsApp chat on its own; the green button above
+        // is always there as the sure way to send the details
+        (function () {
+          // the banner has its own big WhatsApp action, so the floating
+          // call/WhatsApp buttons step aside and never cover it
+          if (document.body) document.body.classList.add('has-applied-banner');
+          var url = <%- JSON.stringify(applySuccess.waChatUrl) %>;
+          var note = document.getElementById('waNote');
+          var opened = null;
+          try { opened = window.open(url, '_blank'); } catch (e) { opened = null; }
+          if (note) {
+            note.innerHTML = opened
+              ? '📲 <b>WhatsApp opened in a new tab</b> — press <b>Send</b> there to deliver your details.'
+              : '📲 <b>Tap the green button above</b> to send your details to the school.';
+          }
+        })();
+      </script>
+      <% } %>
+      <div style="margin-top:14px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        <a href="/apply/status" class="btn btn-primary">Check Application Status</a>
+        <a href="/" class="btn btn-outline">Back to Home</a>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- ANNOUNCEMENT TICKER -->
+  <% if (tickerNotices.length) { %>
+  <div class="ticker">
+    <div class="ticker-label">📢 Announcements</div>
+    <div class="ticker-viewport">
+      <div class="ticker-track">
+        <span class="ticker-group">
+          <% tickerNotices.forEach(n => { %><span class="ticker-item"><%= n.title %> — <%= n.body %></span><em>•</em><% }) %>
+        </span>
+        <span class="ticker-group" aria-hidden="true">
+          <% tickerNotices.forEach(n => { %><span class="ticker-item"><%= n.title %> — <%= n.body %></span><em>•</em><% }) %>
+        </span>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- PHOTO SLIDER -->
+  <section class="hs" id="homeSlider">
+    <div class="hs-track">
+      <div class="hs-slide active">
+        <img src="/images/slides/slide-1.png" alt="Students with teacher">
+        <div class="hs-shade"></div>
+        <div class="hs-content">
+          <span class="hs-kicker"><%= home.hero1Kicker %></span>
+          <h1><%= home.hero1Title %></h1>
+          <p><%= home.hero1Sub %></p>
+          <div class="hs-actions">
+            <a href="/apply" class="btn btn-primary btn-lg">📝 Apply Now</a>
+            <a href="/fee-structure" class="btn btn-ghost btn-lg">₹ Fee Structure</a>
+            <a href="/login?role=parent" class="btn btn-ghost btn-lg">👨‍👩‍👧 Parent Login</a>
+          </div>
+        </div>
+      </div>
+      <div class="hs-slide">
+        <img src="/images/slides/slide-2.png" alt="Classroom">
+        <div class="hs-shade"></div>
+        <div class="hs-content">
+          <span class="hs-kicker"><%= home.hero2Kicker %></span>
+          <h1><%= home.hero2Title %></h1>
+          <p><%= home.hero2Sub %></p>
+          <div class="hs-actions">
+            <a href="/apply" class="btn btn-primary btn-lg">📝 Apply Now</a>
+            <a href="/fee-structure" class="btn btn-ghost btn-lg">₹ Fee Structure</a>
+            <a href="/login?role=parent" class="btn btn-ghost btn-lg">👨‍👩‍👧 Parent Login</a>
+          </div>
+        </div>
+      </div>
+      <div class="hs-slide">
+        <img src="/images/slides/slide-3.png" alt="School campus and students">
+        <div class="hs-shade"></div>
+        <div class="hs-content">
+          <span class="hs-kicker"><%= home.hero3Kicker %></span>
+          <h1><%= home.hero3Title %></h1>
+          <p><%= home.hero3Sub %></p>
+          <div class="hs-actions">
+            <a href="/apply" class="btn btn-primary btn-lg">📝 Apply Now</a>
+            <a href="/fee-structure" class="btn btn-ghost btn-lg">₹ Fee Structure</a>
+            <a href="/login?role=parent" class="btn btn-ghost btn-lg">👨‍👩‍👧 Parent Login</a>
+          </div>
+        </div>
+      </div>
+      <div class="hs-slide">
+        <img src="/images/slides/slide-4.png" alt="School building">
+        <div class="hs-shade"></div>
+        <div class="hs-content">
+          <span class="hs-kicker"><%= home.hero4Kicker %></span>
+          <h1><%= home.hero4Title %></h1>
+          <p><%= home.hero4Sub %></p>
+          <div class="hs-actions">
+            <a href="/apply" class="btn btn-primary btn-lg">📝 Apply Now</a>
+            <a href="/fee-structure" class="btn btn-ghost btn-lg">₹ Fee Structure</a>
+            <a href="/login?role=parent" class="btn btn-ghost btn-lg">👨‍👩‍👧 Parent Login</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <button class="hs-nav hs-prev" aria-label="Previous slide">❮</button>
+    <button class="hs-nav hs-next" aria-label="Next slide">❯</button>
+    <div class="hs-dots" id="hsDots"></div>
+  </section>
+
+  <!-- QUICK STATS (circle orbs, one row) -->
+  <div class="stats">
+    <div class="orb-item c-green"><div class="stat-orb c-green"><span class="counter" data-target="<%= home.statStudents %>" data-suffix="+">0</span></div><div class="orb-label"><%= home.statLabelStudents %></div><div class="orb-sub"><%= home.statSubStudents %></div></div>
+    <div class="orb-item c-orange"><div class="stat-orb c-orange"><span class="counter" data-target="<%= home.statTeachers %>" data-suffix="+">0</span></div><div class="orb-label"><%= home.statLabelTeachers %></div><div class="orb-sub"><%= home.statSubTeachers %></div></div>
+    <div class="orb-item c-blue"><div class="stat-orb c-blue"><span class="counter" data-target="<%= home.statClasses %>" data-suffix="+">0</span></div><div class="orb-label"><%= home.statLabelClasses %></div><div class="orb-sub"><%= home.statSubClasses %></div></div>
+    <div class="orb-item c-purple"><div class="stat-orb c-purple"><span class="orb-portal"><%= home.statSince %></span></div><div class="orb-label"><%= home.statLabelSince %></div><div class="orb-sub"><%= home.statSubSince %></div></div>
+  </div>
+
+  <!-- CLASS TOPPERS — every class in ONE swipeable row (admin manages: Admin -> Toppers) -->
+  <% if (topperGroups.length) {
+       // show the percentage exactly as the school entered it —
+       // 94.6 stays 94.6, 93.75 stays 93.75, a whole number stays whole
+       const fmtPct = (v) => String(Math.round((Number(v) || 0) * 100) / 100);
+       const pctWidth = (v) => Math.min(100, Math.max(0, Number(v) || 0));
+  %>
+  <div class="panel toppers-panel">
+    <div class="panel-head">
+      <h3><%= home.toppersHeading %></h3>
+      <div class="ts-nav">
+        <button class="ts-btn" id="tsPrev" aria-label="Previous toppers">❮</button>
+        <button class="ts-btn" id="tsNext" aria-label="Next toppers">❯</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="ts-track" id="tsTrack" tabindex="0" role="region" aria-label="Class toppers — swipe or scroll sideways to see every class">
+            <% topperGroups.forEach(g => { %>
+            <div class="topper-class-card">
+              <div class="tcc-head">
+                <span class="tcc-accent"></span>
+                <span class="tcc-title">🏆 <%= g.class_name %> Toppers</span>
+                <span class="tcc-session">Session <%= school.sessionLabel %></span>
+              </div>
+              <div class="tcc-list">
+                <% g.toppers.forEach((t, i) => { %>
+                <div class="topper-stu r<%= i + 1 %>">
+                  <span class="ts-medal m<%= i + 1 %>"><%= i + 1 %></span>
+                  <div class="ts-avatar">
+                    <% if (t.photo) { %>
+                      <img src="<%= t.photo %>" alt="<%= t.name %>">
+                    <% } else { %>
+                      <span class="ts-initials"><%= t.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+                    <% } %>
+                  </div>
+                  <div class="ts-name"><%= t.name %></div>
+                  <div class="ts-class"><%= g.class_name %></div>
+                  <div class="ts-pct"><%= fmtPct(t.percentage) %>%</div>
+                  <div class="ts-bar"><i style="width:<%= pctWidth(t.percentage) %>%"></i></div>
+                </div>
+                <% }) %>
+              </div>
+            </div>
+            <% }) %>
+      </div>
+      <p class="ts-hint">👈 Swipe / drag sideways to see every class</p>
+      <p class="text-muted mt-3" style="text-align:center">Results published by the school — see every detail on the <a href="/login">Parent Portal</a>.</p>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- ABOUT THE SCHOOL (teaser) -->
+  <div class="panel about-teaser">
+    <div class="about-teaser-media">
+      <img src="/images/school-building.png" alt="<%= school.schoolName %> school building" loading="lazy">
+      <div class="about-teaser-badge">Est. <%= about.established %></div>
+    </div>
+    <div class="about-teaser-text">
+      <span class="hs-kicker">🏫 About our school</span>
+      <h2><%= home.aboutHeading %></h2>
+      <p><%= home.aboutIntro %></p>
+      <div class="fee-pills" style="margin-bottom:14px;">
+        <span>📚 <%= school.gradesLabel %></span>
+        <span><%= about.affiliation %></span>
+        <span>✅ Safe &amp; disciplined</span>
+      </div>
+      <a href="/about" class="btn btn-primary">More About Our School →</a>
+    </div>
+  </div>
+
+  <!-- ADMISSIONS OPEN -->
+  <% if (home.admShow === '1') { %>
+  <div class="admissions-banner">
+    <div>
+      <b><%= home.admTitle %></b>
+      <span><%= home.admSub %></span>
+    </div>
+    <a href="/apply" class="btn btn-primary btn-sm">Apply Now →</a>
+  </div>
+  <% } %>
+
+  <!-- FEE STRUCTURE (simple call to action — full cards live on /fee-structure) -->
+  <div class="panel fee-cta">
+    <div class="fee-cta-icon rupee-glyph">₹</div>
+    <div style="flex:1; min-width:220px;">
+      <h3><%= home.feeCtaHeading %></h3>
+      <p><%= home.feeCtaText %></p>
+      <div class="fee-pills">
+        <% [home.feePill1, home.feePill2, home.feePill3, home.feePill4].filter(p => p).forEach(p => { %>
+        <span><%= p %></span>
+        <% }) %>
+      </div>
+    </div>
+    <a href="/fee-structure" class="btn btn-primary btn-lg">View Full Fee Structure →</a>
+  </div>
+
+  <!-- SCHOOL LIFE / PHOTO GALLERY -->
+  <div class="panel">
+    <div class="panel-head"><h3><%= home.galleryHeading %></h3><span class="panel-head-note"><%= home.galleryNote %></span></div>
+    <div class="panel-body">
+      <div class="gl-grid">
+        <figure class="gl-tile gl-tall"><img src="/images/gallery/g3.png" alt="Classroom"><figcaption><%= home.glCaption3 %></figcaption></figure>
+        <figure class="gl-tile"><img src="/images/gallery/g2.png" alt="Students"><figcaption><%= home.glCaption2 %></figcaption></figure>
+        <a href="/teachers" class="gl-tile gl-link" style="display:block; text-decoration:none;"><figure class="gl-tile-inner"><img src="/images/gallery/g1.png" alt="Teacher"><figcaption><%= home.glCaption1 %></figcaption></figure></a>
+        <figure class="gl-tile gl-tall"><img src="/images/gallery/g5.png" alt="Students"><figcaption><%= home.glCaption5 %></figcaption></figure>
+        <figure class="gl-tile"><img src="/images/gallery/g6.png" alt="School buses and van"><figcaption><%= home.glCaption6 %></figcaption></figure>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCHOOL HOSTEL -->
+  <% if (home.hostelShow === '1') { %>
+  <div class="panel hostel-feature">
+    <div class="hostel-feature-icon">🏠</div>
+    <div style="flex:1; min-width:240px;">
+      <h3><%= home.hostelHeading %></h3>
+      <p><%= home.hostelText %></p>
+      <div class="fee-pills">
+        <% [home.hostelPill1, home.hostelPill2, home.hostelPill3].filter(p => p).forEach(p => { %>
+        <span><%= p %></span>
+        <% }) %>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <a href="/hostel" class="btn btn-primary">Hostel Details &amp; Fees →</a>
+      <a href="/apply" class="btn btn-outline">Apply for Hostel</a>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- WHY PARENTS CHOOSE US -->
+  <div class="panel">
+    <div class="panel-head"><h3><%= home.whyHeading %></h3></div>
+    <div class="panel-body">
+      <div class="feature-grid" style="margin-bottom:0;">
+        <div class="panel feature f-blue"><div class="feature-icon t-blue"><%= home.feat1Icon %></div><h3><%= home.feat1Title %></h3><p><%= home.feat1Text %></p></div>
+        <div class="panel feature f-green"><div class="feature-icon t-green"><%= home.feat2Icon %></div><h3><%= home.feat2Title %></h3><p><%= home.feat2Text %></p></div>
+        <div class="panel feature f-orange"><div class="feature-icon t-orange"><%= home.feat3Icon %></div><h3><%= home.feat3Title %></h3><p><%= home.feat3Text %></p></div>
+        <div class="panel feature f-purple"><div class="feature-icon t-purple"><%= home.feat4Icon %></div><h3><%= home.feat4Title %></h3><p><%= home.feat4Text %></p></div>
+      </div>
+    </div>  </div>
+
+  <!-- HOW IT WORKS FOR PARENTS -->
+  <div class="panel">
+    <div class="panel-head"><h3><%= home.howItWorksHeading %></h3></div>
+    <div class="panel-body">
+      <div class="steps">
+        <div class="step"><div class="step-no">1</div><b><%= home.hiw1Title %></b><span><%= home.hiw1Text %></span></div>
+        <div class="step"><div class="step-no">2</div><b><%= home.hiw2Title %></b><span><%= home.hiw2Text %></span></div>
+        <div class="step"><div class="step-no">3</div><b><%= home.hiw3Title %></b><span><%= home.hiw3Text %></span></div>
+        <div class="step"><div class="step-no">4</div><b><%= home.hiw4Title %></b><span><%= home.hiw4Text %></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTICES -->
+  <% if (notices.length) { %>
+  <div class="panel">
+    <div class="panel-head"><h3>📢 School Notices</h3><a href="/login">Login to see class-specific notices →</a></div>
+    <div class="panel-body">
+      <% notices.forEach(n => { %>
+      <div class="notice-item">
+        <div class="notice-title"><%= n.title %></div>
+        <div class="notice-meta"><%= fmtDate(n.created_at) %></div>
+        <div class="notice-body"><%= n.body %></div>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+  <% } %>
+
+  <script>
+    // --- photo slider ---
+    (function () {
+      var slides = document.querySelectorAll('#homeSlider .hs-slide');
+      if (slides.length < 2) return;
+      var dotsWrap = document.getElementById('hsDots');
+      var dots = [];
+      var idx = 0, timer = null;
+      slides.forEach(function (s, i) {
+        var d = document.createElement('button');
+        d.setAttribute('aria-label', 'Go to slide ' + (i + 1));
+        d.addEventListener('click', function () { go(i); restart(); });
+        dotsWrap.appendChild(d);
+        dots.push(d);
+      });
+      function go(i) {
+        slides[idx].classList.remove('active');
+        dots[idx].classList.remove('on');
+        idx = (i + slides.length) % slides.length;
+        slides[idx].classList.add('active');
+        dots[idx].classList.add('on');
+      }
+      function restart() { clearInterval(timer); timer = setInterval(function () { go(idx + 1); }, 5500); }
+      document.querySelector('#homeSlider .hs-prev').addEventListener('click', function () { go(idx - 1); restart(); });
+      document.querySelector('#homeSlider .hs-next').addEventListener('click', function () { go(idx + 1); restart(); });
+      dots[0].classList.add('on');
+      timer = setInterval(function () { go(idx + 1); }, 5500);
+    })();
+
+    // --- class toppers: ONE swipeable row (scroll-snap); arrows move one card ---
+    (function () {
+      var track = document.getElementById('tsTrack');
+      if (!track) return;
+      var prev = document.getElementById('tsPrev');
+      var next = document.getElementById('tsNext');
+      function cardStep() {
+        var card = track.querySelector('.topper-class-card');
+        if (!card) return track.clientWidth;
+        var gap = parseFloat(getComputedStyle(track).columnGap) || 14;
+        return card.getBoundingClientRect().width + gap;
+      }
+      function sync() {
+        var max = track.scrollWidth - track.clientWidth;
+        var atStart = track.scrollLeft <= 4;
+        var atEnd = track.scrollLeft >= max - 4;
+        if (prev) prev.disabled = atStart;
+        if (next) next.disabled = atEnd || max <= 4;
+      }
+      function move(dir) { track.scrollBy({ left: dir * cardStep(), behavior: 'smooth' }); }
+      if (prev) prev.addEventListener('click', function () { move(-1); });
+      if (next) next.addEventListener('click', function () { move(1); });
+      track.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowLeft') { e.preventDefault(); move(-1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); move(1); }
+      });
+      track.addEventListener('scroll', sync, { passive: true });
+      window.addEventListener('resize', sync);
+      sync();
+    })();
+
+    // --- count-up stat numbers ---
+    (function () {
+      var counters = document.querySelectorAll('.counter');
+      if (!counters.length) return;
+      function animate(c) {
+        var target = parseInt(c.getAttribute('data-target'), 10) || 0;
+        var dur = 900, t0 = null;
+        function step(ts) {
+          if (!t0) t0 = ts;
+          var p = Math.min((ts - t0) / dur, 1);
+          c.textContent = Math.round(target * (1 - Math.pow(1 - p, 3))) + (c.getAttribute('data-suffix') || '');
+          if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      }
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting) { animate(e.target); io.unobserve(e.target); }
+          });
+        }, { threshold: 0.4 });
+        counters.forEach(function (c) { io.observe(c); });
+      } else { counters.forEach(animate); }
+    })();
+  </script>
+
+<%- include('../partials/public_footer') %>

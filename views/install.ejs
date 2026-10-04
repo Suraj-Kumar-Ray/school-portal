@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Install the app · <%= school.schoolName %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="GVPS Parent">
+  <style>
+    .install-page { max-width: 620px; margin: 0 auto; padding: 22px 16px 40px; }
+    .install-hero { text-align: center; margin-bottom: 18px; }
+    .install-hero img { width: 84px; height: 84px; border-radius: 20px; box-shadow: var(--shadow); }
+    .install-hero h1 { font-size: 22px; margin: 12px 0 4px; }
+    .install-hero p { color: var(--muted); font-size: 14px; }
+    .check-list { list-style: none; }
+    .check-list li { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; font-size: 13.5px; border-bottom: 1px dashed var(--border); }
+    .check-list li:last-child { border-bottom: 0; }
+    .check-list .mark { flex: 0 0 20px; font-size: 15px; }
+    .check-list b { display: block; }
+    .check-list small { color: var(--muted); font-size: 12px; }
+    .install-steps { counter-reset: s; }
+    .install-steps li { margin: 0 0 10px 0; font-size: 14px; line-height: 1.7; }
+    .install-steps b { color: var(--primary-dark); }
+    .kbd { background: #f1f5f9; border: 1px solid var(--border); border-radius: 7px; padding: 1px 7px; font-weight: 700; font-size: 12.5px; }
+    .install-note { font-size: 12.5px; color: var(--muted); }
+    .install-url { word-break: break-all; background: #f8fafc; border: 1px dashed var(--border); border-radius: 10px; padding: 9px 12px; font-size: 12.5px; }
+  </style>
+</head>
+<body>
+  <div class="install-page">
+    <div class="install-hero">
+      <img src="/icons/icon-192.png" alt="app icon">
+      <h1>📲 Install the school app</h1>
+      <p><%= school.schoolName %> · Parent app</p>
+    </div>
+
+    <div class="alert blue" id="verdict" style="display:none"></div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🔎 Check on your phone</h3><span class="roll" id="uaLine"></span></div>
+      <div class="panel-body">
+        <ul class="check-list" id="checkList">
+          <li><span class="mark">⏳</span><span><b>Checking…</b></span></li>
+        </ul>
+        <button type="button" class="btn btn-primary btn-block" id="installBtn" style="display:none">📲 Install app</button>
+        <button type="button" class="btn btn-outline btn-block" id="recheck" style="margin-top:8px">🔄 Check again</button>
+      </div>
+    </div>
+
+    <%# ---- the APK (school's request, 2026-09-17): “give me an APK so I can share it.” A parent
+        cannot be asked to fight a browser — send them the file, they tap it and it installs. The
+        app inside is a WebView on the live portal, so there is no new version to send again.
+        This page is the hidden help page (nothing links to it); the only way here is the office
+        typing the address, which is why a download button is allowed on it. ---- %>
+<div class="panel">
+      <div class="panel-head"><h3>📋 How to install</h3></div>
+      <div class="panel-body">
+        <div id="stepsAndroid">
+          <ol class="install-steps">
+            <li>On the phone, open <b>Google Chrome</b> and open this same page <span class="install-note">(install does not work inside WhatsApp or Instagram)</span></li>
+            <li>Tap the <span class="kbd">⋮</span> menu at the top right</li>
+            <li>Choose <b>“Install app”</b> or <b>“Add to Home screen”</b></li>
+            <li>Confirm — the school's icon appears on the home screen</li>
+          </ol>
+        </div>
+        <div id="stepsIos" style="display:none">
+          <ol class="install-steps">
+            <li>On the phone, open <b>Safari</b> and open this same page <span class="install-note">(install does not work from Chrome on an iPhone)</span></li>
+            <li>Tap the <b>Share</b> button <span class="kbd">□↑</span> at the bottom</li>
+            <li>Scroll down and choose <b>“Add to Home Screen”</b></li>
+            <li>Tap <b>Add</b> — the icon appears on the home screen</li>
+          </ol>
+        </div>
+        <div id="stepsOther" style="display:none">
+          <ol class="install-steps">
+            <li>On the phone, open <b>Chrome</b> (or Samsung Internet) and open this same page</li>
+            <li>From the browser menu choose <b>“Install app” / “Add to Home screen”</b></li>
+            <li>If there is no such option, choose <b>“Open in Chrome”</b> in the browser menu and try again</li>
+          </ol>
+        </div>
+        <p class="install-url" id="urlLine"></p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>❓ After installing</h3></div>
+      <div class="panel-body" style="font-size:13.5px; line-height:1.8">
+        <p>• Tap the school's icon on the home screen → the app opens full screen (no browser bar).</p>
+        <p>• To sign in choose <b>Parent</b> → your username and password (both are on the slip the school office gave you).</p>
+        <p>• The app updates by itself — whatever the school changes appears here straight away.</p>
+        <p>• With no internet you get the “You are offline” page; your data stays safe.</p>
+      </div>
+    </div>
+
+    <p style="text-align:center; margin-top:16px">
+      <a href="/login?role=parent" class="btn btn-primary">Parent login →</a>
+      <a href="/" class="btn btn-outline" style="margin-top:8px">← School website</a>
+    </p>
+  </div>
+
+  <script>
+  (function () {
+    var list = document.getElementById('checkList');
+    var verdict = document.getElementById('verdict');
+    var btn = document.getElementById('installBtn');
+    var deferred = null;
+    var problems = [];          // lives here so finish() can read it too
+
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      deferred = e;
+      btn.style.display = 'block';
+    });
+
+    btn.addEventListener('click', function () {
+      if (!deferred) return;
+      deferred.prompt();
+      deferred.userChoice && deferred.userChoice.then(function () { deferred = null; btn.style.display = 'none'; });
+    });
+    document.getElementById('recheck').addEventListener('click', run);
+
+    function row(ok, title, hint) {
+      var li = document.createElement('li');
+      li.innerHTML = '<span class="mark">' + (ok === true ? '✅' : ok === false ? '❌' : '⚠️') + '</span>'
+        + '<span><b>' + title + '</b>' + (hint ? '<small>' + hint + '</small>' : '') + '</span>';
+      list.appendChild(li);
+    }
+
+    var UA = navigator.userAgent;
+    var isIos = /iPhone|iPad|iPod/i.test(UA);
+    var isAndroid = /Android/i.test(UA);
+    var inApp = /FBAN|FBAV|FB_IAB|Instagram|WhatsApp|Line\/|MicroMessenger|TikTok|Twitter/i.test(UA);
+    var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+    var browserName = /Chrome\//.test(UA) && !/Edg|OPR/.test(UA) ? 'Chrome'
+      : /Safari\//.test(UA) ? 'Safari'
+      : /SamsungBrowser/.test(UA) ? 'Samsung Internet'
+      : /Firefox\//.test(UA) ? 'Firefox' : 'Browser';
+    document.getElementById('uaLine').textContent = (isIos ? 'iPhone/iPad' : isAndroid ? 'Android' : 'Computer') + ' · ' + browserName;
+    document.getElementById('urlLine').textContent = location.origin;
+
+    document.getElementById('stepsIos').style.display = isIos ? 'block' : 'none';
+    document.getElementById('stepsAndroid').style.display = isAndroid && !isIos ? 'block' : 'none';
+    document.getElementById('stepsOther').style.display = (!isIos && !isAndroid) ? 'block' : 'none';
+
+    function run() {
+      list.innerHTML = '';
+      problems = [];
+      verdict.className = 'alert blue';
+      verdict.style.display = 'none';
+      verdict.innerHTML = '';
+
+      if (standalone) {
+        verdict.style.display = 'block';
+        verdict.innerHTML = '✅ <b>The app is already installed.</b> You are using it on this screen right now. The school\'s icon is on your home screen too.';
+      } else {
+        verdict.style.display = 'none';
+      }
+
+      // 1) secure connection (install requires HTTPS)
+      var secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      row(secure, secure ? 'Secure (HTTPS) connection' : 'No HTTPS connection',
+        secure ? location.origin : 'Installing only works over an https link. This page was opened with http:// — please open the https link.');
+      if (!secure) problems.push('https');
+
+      // 2) in-app browser (WhatsApp/Instagram) — the most common blocker
+      if (inApp) {
+        row(false, 'You are inside WhatsApp or Instagram',
+          'Install is not possible in this browser. Tap ⋮ → “Open in Chrome”, then install there.');
+        problems.push('inapp');
+      } else {
+        row(true, 'Normal browser (' + (isAndroid ? 'Chrome' : isIos ? 'Safari' : 'desktop') + ')',
+          'The right kind of browser for installing.');
+      }
+
+      // 3) service worker
+      var swOk = 'serviceWorker' in navigator;
+      if (!swOk) {
+        row(false, 'This browser cannot install apps', 'Please use Chrome (Android) or Safari (iPhone).');
+        problems.push('sw');
+      } else {
+        // two-argument then(): a throw in our own checks can never look like a failed install
+        navigator.serviceWorker.getRegistration().then(function (reg) {
+          var active = !!(reg && reg.active);
+          row(active, active ? 'App engine (service worker) is running' : 'App engine is still loading',
+            active ? 'The app will work offline too' : 'Reload the page once and this check will pass ✅');
+          if (!active) problems.push('swpending');
+          finish();
+        }, function (err) {
+          console.warn('service worker check failed:', err);
+          row(false, 'App engine did not register', 'Reload the page — if it still fails, check that the link is https');
+          problems.push('sw');
+          finish();
+        });
+      }
+
+      // 4) manifest + icons
+      fetch('/manifest.webmanifest').then(function (r) { return r.json(); }).then(function (m) {
+        var big = (m.icons || []).filter(function (i) { return i.sizes === '512x512'; }).length;
+        var ok = !!(m.name && m.start_url && m.display === 'standalone' && big);
+        row(ok, ok ? 'App settings (manifest) are correct' : 'Something is missing from the manifest',
+          ok ? 'Name, icon and full-screen mode are set' : 'Tell the developer — the manifest needs fixing');
+        if (!ok) problems.push('manifest');
+        return fetch('/icons/icon-512.png').then(function (r2) {
+          row(r2.ok, r2.ok ? 'App icon is loading' : 'App icon is missing', r2.ok ? '512×512 icon found' : 'The icon file is not being served');
+          if (!r2.ok) problems.push('icon');
+        });
+      }).catch(function () {
+        row(false, 'App settings (manifest) could not load', 'Check the internet or reload the page');
+        problems.push('manifest');
+      });
+    }
+
+    function finish() {
+      if (standalone) return;
+      if (problems.length === 0) {
+        verdict.style.display = 'block';
+        verdict.innerHTML = '✅ <b>Everything is fine — the install option should now be in the browser menu.</b>'
+          + ' Tap <b>⋮</b> → <b>Install app</b> / <b>Add to Home screen</b>.'
+          + (deferred ? '' : ' If you do not see the option, reload the page once.');
+      } else if (problems.indexOf('https') >= 0) {
+        verdict.style.display = 'block';
+        verdict.className = 'alert error';
+        verdict.innerHTML = '❌ <b>Open this link with https://</b> — that is why installing is not working.';
+      } else if (problems.indexOf('inapp') >= 0) {
+        verdict.style.display = 'block';
+        verdict.className = 'alert error';
+        verdict.innerHTML = '❌ <b>Installing does not work inside WhatsApp or Instagram.</b> First tap ⋮ → “Open in Chrome”.';
+      } else {
+        verdict.style.display = 'block';
+        verdict.className = 'alert blue';
+        verdict.innerHTML = '⚠️ <b>Reload</b> the page once to install, then choose ⋮ → <b>Install app</b>.';
+      }
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
+    }
+    run();
+    setTimeout(finish, 1500);
+  })();
+  </script>
+</body>
+</html>

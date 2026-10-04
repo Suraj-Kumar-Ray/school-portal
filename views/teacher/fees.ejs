@@ -1,0 +1,78 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1><span class="rupee-glyph">₹</span> Fees — <%= cls.label %></h1>
+    <p>How much fee is still pending in my class. <b>Money is recorded by the school office</b> — this page is for looking.</p>
+  </div>
+
+  <div class="cards">
+    <div class="card stat-card accent-blue">
+      <div class="stat-label">Fee for the session</div>
+      <div class="stat-value">₹<%= Math.round(totals.sessionTotal).toLocaleString('en-IN') %></div>
+      <div class="stat-sub"><%= totals.students %> student<%= totals.students === 1 ? '' : 's' %></div>
+    </div>
+    <div class="card stat-card accent-green">
+      <div class="stat-label">Received so far</div>
+      <div class="stat-value">₹<%= Math.round(totals.collected).toLocaleString('en-IN') %></div>
+      <div class="stat-sub"><%= totals.paidMonths %> of <%= totals.totalMonths %> month instalments settled</div>
+    </div>
+    <div class="card stat-card accent-red">
+      <div class="stat-label">Still to collect</div>
+      <div class="stat-value">₹<%= Math.round(totals.pending).toLocaleString('en-IN') %></div>
+      <div class="stat-sub">
+        <%= totals.dueStudents %> student<%= totals.dueStudents === 1 ? '' : 's' %><% if (totals.overdue > 0) { %> · ₹<%= Math.round(totals.overdue).toLocaleString('en-IN') %> past the due date<% } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Who still owes fee</h3>
+      <span class="text-muted"><%= students.length %> student<%= students.length === 1 ? '' : 's' %></span>
+    </div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <%# desk: a five-column table. Below 900px the SAME row is a card (see .card-table in
+            style.css), so a teacher on a phone reads one child per card with every line named. %>
+        <table class="card-table">
+          <thead>
+            <tr><th>Roll No.</th><th>Student</th><th>Months pending</th><th class="text-right">Balance</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <% students.forEach(s => { %>
+              <tr>
+                <td data-label="Roll No."><span class="roll"><%= s.roll_no %></span></td>
+                <td class="td-name" data-label="Student">
+                  <b><%= s.full_name %></b>
+                  <div class="text-muted" style="font-size:12px;"><%= s.paidMonths %> of <%= s.totalMonths %> months settled</div>
+                </td>
+                <td class="cell-stack" data-label="Months pending">
+                  <div class="fee-months">
+                    <% s.months.slice(0, 4).forEach(m => { %>
+                      <span class="badge <%= m.overdue ? 'overdue' : 'due' %>"><%= m.term %> · ₹<%= Math.round(m.balance).toLocaleString('en-IN') %></span>
+                    <% }) %>
+                    <% if (s.months.length > 4) { %><span class="text-muted">+<%= s.months.length - 4 %> more</span><% } %>
+                  </div>
+                </td>
+                <td class="text-right fee-mono <%= s.pending ? 'fee-pending' : '' %>" data-label="Balance">₹<%= Math.round(s.pending).toLocaleString('en-IN') %></td>
+                <td data-label="Status">
+                  <% if (s.overdueAmount > 0) { %><span class="badge overdue">Past due date</span>
+                  <% } else { %><span class="badge due">Due</span><% } %>
+                </td>
+              </tr>
+            <% }) %>
+            <% if (!students.length) { %>
+              <tr class="is-empty"><td colspan="5" class="empty">🎉 Every month of every student in this class is fully paid.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel-body">
+      <p class="text-muted" style="font-size:12.5px; margin:0;">
+        Parents can see their own month-by-month ledger and receipts in the parent app.
+        For any payment, fine or correction, please send the parent to the school office.
+        <% if (schoolPhone) { %>Office phone: <b><%= schoolPhone %></b>.<% } %>
+      </p>
+    </div>
+  </div>
+<%- include('../partials/footer') %>

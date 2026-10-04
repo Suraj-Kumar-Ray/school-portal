@@ -1,0 +1,388 @@
+<%- include('../partials/header', { title }) %>  <% const kindOf = (key) => kinds.find(k => k.key === key) || kinds.find(k => k.key === 'class'); %>
+  <%# Compare the actual rolling-strip dates, not weekday indexes. On Sunday tt.todayName() is empty,
+      so a weekday-only comparison incorrectly treated Saturday as editable. %>
+  <% const isPastDay = !!(viewing && viewing.iso && todayISO && viewing.iso < todayISO); %>
+  <% const isFutureDay = !!(viewing && viewing.iso && todayISO && viewing.iso > todayISO); %>
+  <div class="page-head teacher-own-timetable-head">
+    <h1>🕒 Timetable &amp; Homework</h1>
+  </div>
+
+  <%# ---- save/delete banners for the office's pen (canTimetable teachers) ---- %>
+  <% if (query.slotsaved === '1') { %><div class="alert success">✅ Period saved — the class grid and every teacher's own week updated at once.</div><% } %>
+  <% if (query.sloterr) { %><div class="alert" style="background:#fef2f2;border:1px solid #fca5a5">⚠️ <%= query.sloterr %></div><% } %>
+  <% if (query.slotdel === '1') { %><div class="alert" style="background:#f1f5f9;border:1px solid #cbd5e1">🧹 That period was removed from the grid.</div><% } %>
+  <%# ---- homework saved from a period card — the card is the ONLY editor now, so its answer shows here ---- %>
+  <% if (homeworkSaved) { %><div class="alert success">✅ Homework saved — parents can see it on the timetable now.</div><% } %>
+  <% if (homeworkCleared) { %><div class="alert" style="background:#f1f5f9;border:1px solid #cbd5e1">🧹 That homework note was removed.</div><% } %>
+  <% if (homeworkMissed) { %><div class="alert" style="background:#fef2f2;border:1px solid #fca5a5">⚠️ That could not be saved — please try again.</div><% } %>
+
+  <%# ================= EXAM DAYS =================
+      The office's date-sheet, shown instead of the week grid while exam mode is on. %>
+  <% if (exam && exam.showing === 'exam') { %>
+    <div class="exam-banner">
+      <span class="exam-banner-ico">📝</span>
+      <div>
+        <b><%= exam.label %> — exam time table</b>
+        <small>The regular weekly timetable is paused until the exams are over.</small>
+      </div>
+    </div>
+
+    <% if (exam.note) { %><div class="exam-note"><%= exam.note %></div><% } %>
+
+    <% if (exam.next) { %>
+      <div class="exam-next">
+        <span class="exam-next-ico">⏭</span>
+        <div class="exam-next-text">
+          <b><%= exam.next.subject %></b>
+          <small><%= exam.next.isToday ? 'Today' : (exam.next.isTomorrow ? 'Tomorrow' : exam.next.dateLong) %><% if (exam.next.timeLabel) { %> · 🕗 <%= exam.next.timeLabel %><% } %></small>
+        </div>
+        <span class="exam-next-tag">Next paper</span>
+      </div>
+    <% } %>
+
+    <div class="exam-day-list">
+      <% exam.days.forEach(d => { %>
+        <div class="exam-day-card<%= d.isToday ? ' is-today' : '' %><%= d.isPast ? ' is-past' : '' %>">
+          <div class="exam-day-head">
+            <b><%= d.isToday ? 'Today' : d.dateShort %></b>
+            <span><%= d.dateLong %></span>
+          </div>
+          <% d.papers.forEach(p => { %>
+            <div class="exam-paper">
+              <span class="exam-paper-dot"></span>
+              <div class="exam-paper-body">
+                <b><%= p.subject %></b>
+                <% if (p.note) { %><small><%= p.note %></small><% } %>
+              </div>
+              <span class="exam-paper-time"><%= p.timeLabel || '—' %></span>
+            </div>
+          <% }) %>
+        </div>
+      <% }) %>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <div class="panel-body">
+        <p class="text-muted" style="margin:0; font-size:13px;">
+          📝 <%= exam.papers.length %> paper<%= exam.papers.length === 1 ? '' : 's' %> on <%= exam.days.length %> day<%= exam.days.length === 1 ? '' : 's' %>
+          — the timetable comes back when the office switches exam mode off.
+        </p>
+      </div>
+    </div>
+  <% } else { %>
+
+  <% if (exam && exam.on) { %>
+    <div class="exam-note">📝 Exam mode is on, but no paper is listed for <%= cls.label %> yet — the office will add the date-sheet. Meanwhile here is the regular timetable.</div>
+  <% } %>
+
+  <%# A refresh returns the teacher to today's date instead of reopening yesterday's
+      selected day. Tapping a day still works normally because that is a navigation, not reload. %>
+  <script>
+    (function () {
+      var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+      var params = new URLSearchParams(location.search);
+      if (nav && nav.type === 'reload' && params.has('day')) {
+        params.delete('day'); params.delete('edit');
+        var target = location.pathname + (params.toString() ? '?' + params.toString() : '');
+        location.replace(target);
+      }
+    })();
+  </script>
+  <%# ---- day chips: tap a day to see its periods. HIS count (own periods), not the
+      class grid's — the chips belong to HIS week now. ---- %>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('.tt-inline-students[data-class]').forEach(function (box) {
+        fetch('/teacher/students/names.json?class=' + encodeURIComponent(box.dataset.class), { credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var list = box.querySelector('.tt-name-list');
+            list.innerHTML = (data.students || []).map(function (s) {
+              return '<span class="tt-student-name">' + s.full_name + (s.roll_no ? ' <small>Roll No. ' + s.roll_no + '</small>' : '') + '</span>';
+            }).join('') || '<span class="text-muted">No students found.</span>';
+          });
+      });
+    });
+  </script>
+  <div class="tt-days">
+    <% dateStrip.forEach(d => { %>
+      <a href="/teacher/timetable?class=<%= viewClass.id %>&day=<%= d.name %>"
+         class="tt-day <%= (viewing && viewing.name === d.name) ? 'active' : '' %> <%= d.isToday ? 'today' : '' %><%= d.isClosed ? ' tt-day-off' : '' %>"
+         <% if (d.holiday) { %>title="<%= d.holidayName %> — school closed"<% } %>>
+        <span class="tt-day-name"><%= d.short %></span>
+        <span class="tt-day-num"><%= d.date %></span>
+        <% if (d.isClosed) { %>
+          <span class="tt-day-cnt tt-hol-long">Holiday</span>
+          <span class="tt-day-cnt tt-hol-short">Off</span>
+        <% } else { %>
+        <% } %>
+        <% if (d.isToday) { %><span class="tt-day-dot" title="Today"></span><% } %>
+        <% if (d.holiday) { %><span class="tt-day-mark" title="<%= d.holidayName %>">🎉</span><% } %>
+      </a>
+    <% }) %>
+  </div>
+
+  <div class="tt-day-head">
+    <div class="tt-day-head-left">
+      <% if (showingHoliday) { %>
+        <b><%= holidayIsToday ? 'Today' : 'Sunday' %></b>
+        <span><%= holidayLabel %></span>
+      <% } else { %>
+        <b><%= selected && selected.isToday ? 'Today' : (selected ? selected.name : day) %></b>
+        <span><%= selected ? selected.long : day %></span>
+      <% } %>
+    </div>
+    <div class="tt-day-head-right">
+      <% if (showingHoliday) { %>
+        <span class="badge red">HOLIDAY</span>
+      <% } else { %>
+        <% if (selected && selected.isToday) { %><span class="badge green">TODAY</span><% } %>
+        <span class="tt-count"><%= myPeriods.length %> period<%= myPeriods.length === 1 ? '' : 's' %> · <%= myDayFree %> free</span>
+      <% } %>
+      <% if (viewingOtherDay || (isSunday && !showingHoliday) || (showingHoliday && !holidayIsToday)) { %>
+        <a class="tt-today-link" href="/teacher/timetable">↩ <%= isSunday ? 'Today' : 'Today (' + today + ')' %></a>
+      <% } %>
+    </div>
+  </div>
+
+  <%# ---- a day the school is shut: Sunday, or a festival the office marked (Admin →
+      Holidays). The reason and the “opens again” day come from services/holidays.js. ---- %>
+  <% if (showingHoliday && holidayCard) { %>
+    <div class="tt-holiday<%= holidayCard.greeting ? ' has-wish' : '' %>">
+      <span class="tt-holiday-ico">🎉</span>
+      <% if (holidayCard.isSunday && !holidayCard.greeting) { %>
+        <% if (holidayCard.isToday) { %>
+          <b>It's Sunday — school is closed today.</b>
+          <small><% if (openAgain) { %>Classes open again on <b><%= openAgain.long %></b>.<% } %></small>
+        <% } else { %>
+          <b>Sunday is a holiday — the school stays closed.</b>
+          <small>Every Sunday is a day off for the children and the staff.</small>
+        <% } %>
+      <% } else { %>
+        <b><%= holidayCard.greeting || ('Holiday: ' + holidayCard.name) %></b>
+        <small>
+          School stays closed <%= holidayCard.isToday ? 'today' : 'on ' + holidayCard.label %>
+          for <b><%= holidayCard.name %></b>.
+          <% if (openAgain) { %>Classes open again on <b><%= openAgain.long %></b>.<% } %>
+        </small>
+        <% if (holidayCard.note) { %><small class="tt-holiday-note"><%= holidayCard.note %></small><% } %>
+      <% } %>
+      <small class="tt-holiday-hint">Tap any day above to see that day's periods.</small>
+    </div>
+  <% } else if (myTimeline.length) { %>
+    <% const cardHomework = (homeworkWeek && homeworkWeek[day]) || {}; %>
+    <%# One teacher timeline: every card, including Leisure, follows the school clock. %>
+    <div class="tt-cards">
+      <% myTimeline.forEach(item => { %>
+        <% if (item.type === 'busy' && item.duty) { %>
+          <%# the school's OTHER work (2026-09-20): lunch duty and extra classes the office handed
+              out — they take the hour, so they are never “Leisure”, and they carry no homework %>
+          <article class="tt-card tt-card-duty c-<%= item.color %>">
+            <div class="tt-card-head">
+              <span class="tt-subject"><span class="tt-emoji"><%= item.emoji %></span> <%= item.label %></span>
+              <span class="tt-pnum">Period <%= item.period %></span>
+            </div>
+            <div class="tt-card-foot">
+              <span class="tt-chip">🕗 <%= item.timeLabel || '—' %></span>
+              <span class="tt-chip tt-chip-note"><%= item.kind === 'special' ? '📚 Special class' : '🛡 Lunch break coverage' %></span>
+            </div>
+          </article>
+        <% } else if (item.type === 'break') { %>
+          <%# the school's break (assembly · lunch · games) — NAMED on his own week, so it can
+              never be mistaken for a spare hour (school's ask, 2026-09-20: “teachers ka lunch
+              break was not mentioned here at all). His own period wins over the break, and a
+              duty he holds in that hour wins over both. %>
+          <article class="tt-card tt-card-break c-<%= item.color %>">
+            <div class="tt-card-head">
+              <span class="tt-subject"><span class="tt-emoji"><%= item.emoji %></span> <%= item.kindLabel %></span>
+              <span class="tt-pnum">Period <%= item.period %></span>
+            </div>
+            <div class="tt-card-foot">
+              <span class="tt-chip">🕗 <%= item.timeLabel || '—' %></span>
+              <span class="tt-chip tt-chip-note"><%= item.kindNote || 'School break' %></span>
+            </div>
+          </article>
+        <% } else if (item.type === 'busy') { const isThisClass = item.classLabel === cls.label; %>
+          <article class="tt-card c-<%= item.color %><%= isThisClass ? '' : ' tt-card-other' %>">
+            <div class="tt-card-head">
+              <span class="tt-subject"><span class="tt-emoji"><%= item.emoji %></span> <%= item.subject %></span>
+              <span class="tt-pnum">Period <%= item.period %></span>
+            </div>
+            <div class="tt-card-foot">
+              <span class="tt-chip">🕗 <%= item.timeLabel || '—' %></span>
+              <span class="tt-chip tt-chip-note">🏫 <%= item.classLabel %></span>
+              <% if (canTimetable && isThisClass) { %>
+                <a class="tt-chip tt-edit-link" href="/teacher/timetable?class=<%= viewClass.id %>&day=<%= day %>&edit=<%= item.period %>#tt-slot-editor">✏️ Edit</a>
+              <% } %>
+            </div>
+            <% const assigned = cardHomework[item.period]; %>
+            <div class="tt-homework-box">
+              <div class="tt-homework-box-head"><b>📓 Assigned Homework</b><span><%= assigned && (assigned.note || '').trim() ? 'Assigned' : 'Check your copy' %></span></div>
+              <div class="tt-homework-box-note"><%= assigned && (assigned.note || '').trim() ? assigned.note : 'Check your copy' %></div>
+              <div class="tt-homework-box-actions">
+                <% if (!isPastDay && !showingHoliday) { %><details class="tt-card-homework"><summary class="btn btn-primary btn-sm">Assign homework</summary><form method="post" action="/teacher/timetable/homework"><input type="hidden" name="class_id" value="<%= item.classId %>"><input type="hidden" name="day" value="<%= day %>"><input type="hidden" name="date" value="<%= viewing && viewing.iso ? viewing.iso : todayISO %>"><input type="hidden" name="period" value="<%= item.period %>"><input type="hidden" name="subject" value="<%= item.subject %>"><input class="hw-input" type="text" name="note" maxlength="300" placeholder="Type homework…"><button type="submit" class="btn btn-primary btn-sm">Assign</button></form></details><% } else if (isPastDay) { %><button type="button" class="btn btn-primary btn-sm tt-update-parents-btn tt-open-students" data-class="<%= item.classId %>" data-class-label="<%= item.classLabel %>" data-period="<%= item.period %>" data-subject="<%= item.subject %>">📣 Update parents</button><% } %>
+              </div>
+            </div>
+          </article>
+        <% } else { %>
+          <article class="tt-card tt-card-leetcode">
+            <div class="tt-card-head">
+              <span class="tt-subject"><span class="tt-emoji">😌</span> Leisure</span>
+              <span class="tt-pnum">Period <%= item.period %></span>
+            </div>
+            <div class="tt-card-foot">
+              <span class="tt-chip">🕗 <%= item.timeLabel || '—' %></span>
+              <span class="tt-chip tt-chip-note">free for you</span>
+            </div>
+          </article>
+        <% } %>
+      <% }) %>
+    </div>
+  <% } else { %>
+    <div class="tt-empty">
+      <span class="tt-empty-ico">🎈</span>
+      <b>No periods listed for <%= day %></b>
+      <small>Tap another day above, or ask the school office to fill the timetable.</small>
+    </div>
+  <% } %>
+
+  <%# ================= HOMEWORK — on HIS periods only (2026-09-19) =================
+      “The teacher should see his OWN timetable, and right there on the first period's
+      column an option to assign homework — simple — and it should reach the parents'
+      portal easily.” So the editor lists the periods that carry HIS name in the CLASS
+      IN VIEW for the day on screen (myPeriodsThisClass, from the office's grid), each
+      with its own inline input; saving writes the same `homework` row the parents'
+      timetable reads. The class picker above switches the class; the rows follow it. %>
+
+  <% if (periods.length) { %>
+  <%# ================= MY WEEK — HIS own grid, FREE hours marked =================
+      The teacher reads his OWN timetable, Monday to Sunday, and any period he has no class in
+      shows as leisure. One row per period, HIS name or Free. %>
+  <%# Collapsed by default (school's request, 2026-09-20): the week is long, so it stays shut
+      until the teacher asks for it — one tap on the summary opens it. %>
+  <details class="tt-week">
+    <summary>🗓 My week — Monday to Sunday (my periods + my free hours)</summary>
+    <div class="tt-week-body">
+      <div class="table-wrap">
+        <table class="tt-grid tt-grid-mine">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <% days.forEach(d => { %><th><%= shorts[d] %></th><% }) %>
+              <th class="tt-sun-col">Sun</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% const mw = (typeof myWeekGrid !== 'undefined' && myWeekGrid) ? myWeekGrid : myWeek; %>
+            <% mw.periods.forEach(p => { %>
+              <tr>
+                <td class="tt-grid-period">
+                  <b><%= p %></b>
+                  <% const t = timeByPeriod.get(p); if (t) { %><small><%= t.label %></small><% } %>
+                </td>
+                <% days.forEach(d => { const cell = mw.week[d] && mw.week[d][p]; %>
+                  <td>
+                    <% if (cell && cell.busy) { %>
+                      <span class="tt-cell<%= cell.classLabel === cls.label ? ' is-mine' : ' is-other' %>">
+                        <span class="tt-subject"><%= cell.subject %></span>
+                        <span class="tt-teacher"><%= cell.classLabel %></span>
+                      </span>
+                    <% } else { %>
+                      <span class="tt-cell tt-cell-free" title="No class carries your name this hour"><span class="tt-subject">😌 Free</span><span class="tt-teacher">leisure</span></span>
+                    <% } %>
+                  </td>
+                <% }) %>
+                <td class="tt-sun-col"><span class="tt-cell tt-cell-off">Holiday</span></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <p class="pf-note" style="margin:10px 2px 0">Green = your period · grey = another teacher takes that class this hour · 😌 Free = leisure for you. Sunday the school stays closed.</p>
+    </div>
+  </details>
+  <% } %>
+
+  <%# ================= THE SLOT EDITOR — the office's pen =================
+      With the timetable grant ("the office assigned ME to update the timetable") a
+      teacher edits any slot of HIS class grid: subject + a PICK list of the real
+      staff, so each name builds that teacher's own week correctly. %>
+  <% if (canTimetable && !showingHoliday) { %>
+    <% const editP = parseInt(query.edit, 10) || 0; %>
+    <% if (editP) { %>
+      <% const editSlot = grid[day] && grid[day][editP]; %>
+      <div class="panel tt-slot-editor" id="tt-slot-editor">
+        <div class="panel-head">
+          <h3>✏️ Edit period — <%= day %> · P<%= editP %></h3>
+          <a class="panel-more" href="/teacher/timetable?class=<%= viewClass.id %>&day=<%= day %>">Close ✕</a>
+        </div>
+        <div class="panel-body">
+          <p class="hw-hint">Pick the subject and the teacher from the staff list — the timetable builds each teacher's own week from this name.</p>
+          <form method="post" action="/teacher/timetable/slot" class="tt-slot-form">
+            <input type="hidden" name="day" value="<%= day %>">
+            <input type="hidden" name="period" value="<%= editP %>">
+            <div class="tt-slot-grid">
+              <div class="form-group">
+                <label for="ts-kind">What is this period?</label>
+                <select name="kind" id="ts-kind">
+                  <% kinds.forEach(k => { %>
+                    <option value="<%= k.key %>" <%= editSlot && (editSlot.kind || 'class') === k.key ? 'selected' : '' %>><%= k.emoji %> <%= k.label %></option>
+                  <% }) %>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="ts-subject">Subject / name *</label>
+                <input type="text" name="subject" id="ts-subject" maxlength="60" required
+                       value="<%= editSlot ? editSlot.subject : '' %>" placeholder="e.g. Maths">
+              </div>
+              <div class="form-group">
+                <label for="ts-teacher">Teacher</label>
+                <select name="teacher" id="ts-teacher">
+                  <option value="">— no teacher yet —</option>
+                  <%# a name that came with the imported sheet and has no staff login yet stays
+                      selectable, so an old period can be saved without losing its teacher %>
+                  <% if (editSlot && editSlot.teacher && !(staffNames || []).includes(editSlot.teacher)) { %>
+                    <option value="<%= editSlot.teacher %>" selected><%= editSlot.teacher %> (already on the grid)</option>
+                  <% } %>
+                  <% (staffNames || []).forEach(name => { %>
+                    <option value="<%= name %>" <%= editSlot && editSlot.teacher === name ? 'selected' : '' %>><%= name %></option>
+                  <% }) %>
+                </select>
+              </div>
+            </div>
+            <div class="tt-slot-actions">
+              <button type="submit" class="btn btn-primary">💾 Save period</button>
+              <% if (editSlot) { %>
+              <form method="post" action="/teacher/timetable/slot/delete" onsubmit="return confirm('Remove this period from the grid?');">
+                <input type="hidden" name="day" value="<%= day %>">
+                <input type="hidden" name="period" value="<%= editP %>">
+                <button type="submit" class="btn btn-danger btn-sm">🗑 Remove</button>
+              </form>
+              <% } %>
+            </div>
+          </form>
+        </div>
+      </div>
+    <% } %>
+    <%# NO children's class grid here (school's request, 2026-09-19: keep the children's class grid
+        out of it) — the assigned teacher fixes a slot through the period strip below, which
+        opens the same editor the office uses. The children's timetable stays on the
+        parents' portal and the office's page alone. %>
+    <div class="panel tt-fix-strip">
+      <div class="panel-head">
+        <h3>✏️ Change a period — <%= day %></h3>
+        <span class="text-muted"><%= cls.label %> · assigned by the office</span>
+      </div>
+      <div class="panel-body">
+        <p class="hw-hint">Tap a period, then set its subject and pick the teacher from the staff list — each name builds that teacher's own week everywhere.</p>
+        <div class="tt-fix-chips">
+          <% (periods.length ? periods : [1,2,3,4,5,6,7,8]).forEach(p => { %>
+            <a class="tt-fix-chip<%= editP === p ? ' active' : '' %>" href="/teacher/timetable?class=<%= viewClass.id %>&day=<%= day %>&edit=<%= p %>#tt-slot-editor"><%= editP === p ? '✏️ ' : '' %>P<%= p %></a>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+  <% } %>
+
+  <% } %><%# /exam branch %>
+<div class="tt-student-modal" id="tt-student-modal" hidden><div class="tt-student-modal-card"><button type="button" class="tt-student-modal-close" aria-label="Close">×</button><h3>👥 <span id="tt-student-subject"></span> · <span id="tt-student-class"></span></h3><p class="text-muted">Select students who did not complete this subject homework.</p><div id="tt-student-names" class="tt-student-names">Loading students…</div></div></div><script>(function(){var modal=document.getElementById('tt-student-modal'), list=document.getElementById('tt-student-names'), label=document.getElementById('tt-student-class');if(!modal)return;function close(){modal.hidden=true}document.querySelectorAll('.tt-open-students').forEach(function(b){b.addEventListener('click',function(){modal.hidden=false;label.textContent=b.dataset.classLabel||'';document.getElementById('tt-student-subject').textContent=b.dataset.subject||'';list.textContent='Loading students…';fetch('/teacher/students/names.json?class='+encodeURIComponent(b.dataset.class)+'&period='+encodeURIComponent(b.dataset.period||'')).then(function(r){return r.json()}).then(function(d){list.innerHTML=(d.students||[]).map(function(s){return '<button type="button" class="tt-student-circle">'+s.full_name+'</button>'}).join('')||'No students found.'})})});modal.querySelector('.tt-student-modal-close').addEventListener('click',close);modal.addEventListener('click',function(e){if(e.target===modal)close()})})()</script><%- include('../partials/footer') %>

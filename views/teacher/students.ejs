@@ -1,0 +1,70 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1>🎓 Students — <%= cls.label %></h1>
+    <p>The class you are looking at. This page is for looking — the school office adds and edits students.</p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Class list</h3>
+      <span class="text-muted"><%= students.length %><%= q ? ' of ' + total : '' %> students</span>
+    </div>
+    <%# the fast door (2026-09-19): the whole-class board marks every child at once —
+        the per-child 📝 HW button below stays for a single child's detail %>
+    <div class="panel-body" style="padding-top:0;">
+      <a class="btn btn-primary btn-sm" href="/teacher/homework-board?class=<%= viewClass.id %>">✅ Homework board — mark the whole class at once</a>
+    </div>
+    <div class="panel-body">
+      <form method="GET" action="/teacher/students" class="filters">
+        <input type="hidden" name="class" value="<%= viewClass.id %>">
+        <input type="search" name="q" value="<%= q %>" placeholder="🔎 Name, roll no., admission no., phone…">
+        <button type="submit" class="btn btn-outline btn-sm">Search</button>
+        <% if (q) { %><a href="/teacher/students?class=<%= viewClass.id %>" class="btn btn-outline btn-sm">Clear</a><% } %>
+      </form>
+    </div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <%# The table is the desk's; `data-label` on each cell is what turns the SAME row into a
+            readable card below 900px (see .card-table in style.css) — one markup, two layouts. %>
+        <table class="card-table">            <thead>
+            <tr>
+              <th>Roll No.</th><th>Student</th><th>Parents</th><th>Phone</th><th>Blood group / HW</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% students.forEach(s => { %>
+            <tr>
+              <td data-label="Roll No."><span class="roll"><%= s.roll_no %></span></td>
+              <td class="td-name" data-label="Student">
+                <b><%= s.full_name %></b>
+                <div class="text-muted" style="font-size:12px;"><code><%= s.admission_no %></code><% if (s.category) { %> · <%= s.category %><% } %></div>
+              </td>
+              <td data-label="Parents">
+                <span style="text-align:right;">
+                  <%= s.father_name || s.parent_name || '—' %>
+                  <% if (s.mother_name) { %><div class="text-muted" style="font-size:12px;"><%= s.mother_name %></div><% } %>
+                </span>
+              </td>
+              <td data-label="Phone">
+                <span>
+                  <% if (s.parent_phone) { %>
+                    <a href="tel:<%= s.parent_phone %>" class="btn btn-outline btn-sm">📞 <%= s.parent_phone %></a>
+                  <% } else { %>—<% } %>
+                  <% if (s.alt_phone) { %><div style="margin-top:4px;"><a href="tel:<%= s.alt_phone %>" class="btn btn-outline btn-sm">📞 <%= s.alt_phone %></a></div><% } %>
+                </span>
+              </td>
+              <td data-label="Blood group"><%= s.blood_group || '—' %>
+                <%# the 📝 HW door — mark who did and who did not (2026-09-18) %>
+                <div style="margin-top:6px;"><a class="btn btn-outline btn-sm" href="/teacher/students/<%= s.id %>/homework?class=<%= viewClass.id %>" title="Mark homework done / not done for this child">📝 HW</a></div>
+              </td>
+            </tr>
+            <% }) %>
+            <% if (!students.length) { %>
+              <tr class="is-empty"><td colspan="5" class="empty"><%= q ? 'No student matches “' + q + '”.' : 'No student in this class yet.' %></td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+<%- include('../partials/footer') %>

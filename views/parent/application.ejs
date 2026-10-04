@@ -1,0 +1,41 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1>📋 Admission Status</h1>
+    <p>Track your admission application — no child is linked to this account yet.</p>
+  </div>
+
+  <div class="panel" style="max-width: 560px;">
+    <div class="panel-head"><h3>Application <b style="color:var(--primary);"><%= app.application_no %></b></h3></div>
+    <div class="panel-body">
+      <table>
+        <tbody>
+          <tr><td>Child</td><td class="text-right"><b><%= app.child_name %></b></td></tr>
+          <tr><td>Class applied</td><td class="text-right"><b><%= app.class_name %><%= app.section ? ' ' + app.section : '' %></b></td></tr>
+          <tr><td>Submitted on</td><td class="text-right"><%= fmtDateTime(app.submitted_at) %> <span class="tz-tag">IST</span></td></tr>
+          <tr><td>Status</td>
+            <td class="text-right">
+              <% if (app.status === 'Pending') { %><span class="badge orange">Pending — under review</span><% } %>
+              <% if (app.status === 'Approved') { %><span class="badge green">Approved ✅</span><% } %>
+              <% if (app.status === 'Rejected') { %><span class="badge red">Rejected</span><% } %>
+            </td>
+          </tr>
+          <% if (app.reviewed_by) { %><tr><td>Reviewed by</td><td class="text-right"><%= app.reviewed_by %> (<%= app.reviewed_at ? fmtDate(app.reviewed_at) : '—' %>)</td></tr><% } %>
+        </tbody>
+      </table>
+
+      <% if (app.status === 'Pending') { %>
+      <div class="alert" style="background:#fef3c7; border:1px solid #fcd34d; margin-top:16px;">
+        <b>⏳ Under review.</b> The school office has been notified of your application and will contact you on <b><%= app.parent_phone %></b>. Please wait — this usually takes a few days.
+      </div>
+      <% } else if (app.status === 'Approved') { %>
+      <div class="alert" style="background:#dcfce7; border:1px solid #bbf7d0; margin-top:16px;">
+        <b>🎉 Congratulations!</b> Your child has been admitted. If you cannot see the child in this portal yet, please contact the school office.
+      </div>
+      <% } else { %>
+      <div class="alert" style="background:#fee2e2; border:1px solid #fecaca; margin-top:16px;">
+        <b>❌ Application not approved.</b> Please contact the school office on <b><%= school.schoolPhone %></b> for details.
+      </div>
+      <% } %>
+    </div>
+  </div>
+<%- include('../partials/footer') %>

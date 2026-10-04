@@ -1,0 +1,215 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1>📬 Parent Messages</h1>
+    <p>Every message is structured — you can see exactly which child and category it belongs to. Reply here, or send messages (PTM invites, updates) to parents.</p>
+  </div>
+
+  <% if (query.replied) { %><div class="alert success" data-flash="sent">✅ Reply sent to the parent.</div><% } %>
+  <% if (query.sent) { %><div class="alert success" data-flash="sent">✅ Message sent to <%= query.sent %> parent(s).</div><% } %>
+  <% if (query.nosend) { %><div class="alert error">No matching parents found for that target.</div><% } %>
+  <% if (query.tsent) { %><div class="alert success" data-flash="sent">✅ Message sent to <%= query.tsent %> teacher login<%= query.tsent === '1' ? '' : 's' %> — it is in their Messages tab now.</div><% } %>
+  <% if (query.tnone) { %><div class="alert error">No teacher login could receive it. Please ask the office to switch the teacher's login on.</div><% } %>
+
+  <!-- SEND MESSAGE -->
+  <div class="panel">
+    <div class="panel-head"><h3>📣 Send a message to parents</h3><span class="badge blue">PTM invites · fee reminders · updates</span></div>
+    <div class="panel-body">
+      <form method="POST" action="/admin/messages/send">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>To *</label>
+            <select name="target" id="target" onchange="toggleTarget()">
+              <option value="all">All parents</option>
+              <option value="class">Parents of a class</option>
+              <option value="parent">One specific parent</option>
+            </select>
+          </div>
+          <div class="form-group" id="classPicker" style="display:none;">
+            <label>Class</label>
+            <select name="class_id">
+              <% classes.forEach(c => { %><option value="<%= c.id %>"><%= c.name %><%= c.section ? ' ' + c.section : '' %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group" id="parentPicker" style="display:none;">
+            <label>Parent</label>
+            <select name="parent_user_id">
+              <% parents.forEach(p => { %><option value="<%= p.id %>"><%= p.full_name %> (<%= p.phone %>) — <%= p.children || 'no children' %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Category *</label>
+            <select name="category">
+              <% categories.forEach(c => { %><option value="<%= c %>" <%= c === 'PTM' ? 'selected' : '' %>><%= c %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Subject *</label>
+            <input type="text" name="subject" required placeholder="e.g. Parent-Teacher Meeting on Saturday">
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Message *</label>
+            <textarea name="body" rows="3" required placeholder="Meeting date, time, what parents should bring…"></textarea>
+          </div>
+        </div>
+        <div class="mt-3"><button type="submit" class="btn btn-primary">📤 Send to Parents</button></div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function toggleTarget() {
+      const v = document.getElementById('target').value;
+      document.getElementById('classPicker').style.display = v === 'class' ? '' : 'none';
+      document.getElementById('parentPicker').style.display = v === 'parent' ? '' : 'none';
+    }
+  </script>
+
+  <%# ================= THE OFFICE'S LETTER TO A TEACHER =================
+      The teacher portal has two tabs — Notices (the school's notices) and Messages. THIS
+      form is the only writer of the second one: the school's rule is that only the office
+      may message a teacher, so a teacher, a parent or a colleague can never appear here. %>
+  <div class="panel" id="teacher-staff">
+    <div class="panel-head">
+      <h3>👩‍🏫 Message a teacher</h3>
+      <span class="badge blue">Goes to the teacher portal → 📨 Messages</span>
+    </div>
+    <div class="panel-body">
+      <form method="POST" action="/admin/messages/teachers/send">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>To *</label>
+            <select name="target" id="tTarget" onchange="toggleTeacher()">
+              <option value="teacher">One teacher</option>
+              <option value="all">All teachers</option>
+            </select>
+          </div>
+          <div class="form-group" id="teacherPicker">
+            <label>Teacher</label>
+            <select name="teacher_id">
+              <% teacherList.forEach(t => { %>
+                <option value="<%= t.teacher_id %>"><%= t.name %> — <%= t.class_name %><%= t.section ? ' ' + t.section : '' %><%= t.can_login ? '' : ' (login off)' %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>About *</label>
+            <select name="category">
+              <% staffCategories.forEach(c => { %>
+                <option value="<%= c %>" <%= c === 'General' ? 'selected' : '' %>><%= staffIcon(c) %> <%= c %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Subject *</label>
+            <input type="text" name="subject" required placeholder="e.g. Take period 5 lunch duty this week">
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Message *</label>
+            <textarea name="body" rows="3" required placeholder="Write it in simple words — the teacher reads it on his portal, next to the school's notices."></textarea>
+          </div>
+        </div>
+        <div class="mt-3"><button type="submit" class="btn btn-primary">📨 Send to teacher</button></div>
+        <p class="text-muted" style="font-size:12.5px; margin:12px 0 0;">
+          A teacher can only READ this tab — no teacher, parent or visitor can write to a teacher from their own portal.
+        </p>
+      </form>
+
+      <% if (recentStaff.length) { %>
+        <details class="staff-sent">
+          <summary>Last <%= recentStaff.length %> sent</summary>
+          <ul class="staff-sent-list">
+            <% recentStaff.forEach(s => { %>
+              <li>
+                <b><%= s.subject %></b>
+                <span class="text-muted">→ <%= s.teacher_name %> · <%= s.category %><%= s.sent_by ? ' · by ' + s.sent_by : '' %> · <%= fmtShortDate(s.created_at) %></span>
+              </li>
+            <% }) %>
+          </ul>
+        </details>
+      <% } %>
+    </div>
+  </div>
+
+  <script>
+    function toggleTeacher() {
+      const v = document.getElementById('tTarget').value;
+      document.getElementById('teacherPicker').style.display = v === 'teacher' ? '' : 'none';
+    }
+  </script>
+
+  <!-- PARENT QUERIES -->
+  <div class="panel">
+    <div class="panel-head">
+      <h3>💬 Parent queries <span class="badge orange"><%= conversations.filter(c => c.status === 'unread').length %> unread</span><% if (newParentReplies) { %> <span class="badge red">💬 <%= newParentReplies %> replied to you</span><% } %></h3>
+      <form method="GET" action="/admin/messages" class="filters">
+        <div class="form-group">
+          <select name="category" onchange="this.form.submit()">
+            <option value="">All categories</option>
+            <% categories.forEach(c => { %><option value="<%= c %>" <%= category === c ? 'selected' : '' %>><%= c %></option><% }) %>
+          </select>
+        </div>
+      </form>
+    </div>
+    <div class="panel-body">
+      <% conversations.forEach(c => {
+           const thread = c.thread || [];
+           const newCount = thread.filter(r => r.direction === 'to_school' && newReplyIds.includes(r.id)).length;
+           const total = 1 + thread.length;
+           const when = d => fmtDateTime(d);   // IST, always (see src/services/time.js)
+      %>
+      <div class="notice-item conv-card<%= newCount ? ' has-new-reply' : '' %>">
+        <div class="flex-between">
+          <div>
+            <span class="badge blue" style="margin-right:6px;"><%= c.category %></span>
+            <b><%= c.subject %></b>
+            <% if (c.status === 'unread') { %><span class="badge orange" style="margin-left:6px;">new</span><% } %>
+            <% if (newCount) { %><span class="badge red" style="margin-left:6px;">💬 Parent replied — <%= newCount %></span><% } %>
+          </div>
+          <span class="text-muted" style="font-size:12px;"><%= when(c.created_at) %> <span class="tz-tag">IST</span></span>
+        </div>
+        <div class="notice-meta">
+          👤 <b><%= c.parent_name %></b> · 📞 <%= c.parent_phone %> ·
+          👦 <%= c.child_name ? `${c.child_name} (${c.class_name}${c.section ? ' ' + c.section : ''})` : 'General query' %>
+          · 💬 <%= total %> message<%= total === 1 ? '' : 's' %> in this conversation
+        </div>
+
+        <!-- the whole conversation: the parent's query + every reply, oldest first.
+             The office must be able to READ what the parent wrote, not just a count. -->
+        <div class="conv">
+          <div class="conv-row">
+            <div class="conv-bubble conv-parent">
+              <div class="conv-who">👤 <b><%= c.parent_name %></b> · <%= when(c.created_at) %></div>
+              <div class="conv-body"><%= c.body %></div>
+            </div>
+          </div>
+
+          <% thread.forEach(r => {
+               const isNew = r.direction === 'to_school' && newReplyIds.includes(r.id);
+          %>
+          <div class="conv-row<%= r.direction === 'to_parent' ? ' conv-row-school' : '' %>">
+            <div class="conv-bubble <%= r.direction === 'to_school' ? 'conv-parent' : 'conv-school' %><%= isNew ? ' conv-unread' : '' %>">
+              <div class="conv-who">
+                <%= r.direction === 'to_school' ? '👤 ' + (r.author_name || c.parent_name) : '🏫 School office' %> · <%= when(r.created_at) %>
+                <% if (isNew) { %><span class="badge red" style="margin-left:6px;">new reply</span><% } %>
+              </div>
+              <div class="conv-body"><%= r.body %></div>
+            </div>
+          </div>
+          <% }) %>
+
+          <% if (!thread.length) { %>
+          <div class="conv-none">No reply yet — the parent is waiting to hear from the school.</div>
+          <% } %>
+        </div>
+
+        <form method="POST" action="/admin/messages/reply" class="reply-row">
+          <input type="hidden" name="thread_id" value="<%= c.id %>">
+          <input type="text" name="body" placeholder="Reply to <%= c.parent_name %>…" required>
+          <button type="submit" class="btn btn-primary btn-sm">Reply</button>
+        </form>
+      </div>
+      <% }) %>
+      <% if (!conversations.length) { %><div class="empty">No parent queries found.</div><% } %>
+    </div>
+  </div>
+<%- include('../partials/footer') %>

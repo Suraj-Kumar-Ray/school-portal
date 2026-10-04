@@ -1,0 +1,74 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1><%= teacher ? '✏️ Edit Teacher' : '➕ Add Teacher' %></h1>
+    <p>These details show on the public "Our Teachers" profile cards. The photo can also be added later from the Teachers list.</p>
+  </div>
+
+  <form method="POST" action="<%= teacher ? '/admin/teachers/' + teacher.id : '/admin/teachers' %>">
+    <div class="panel">
+      <div class="panel-head"><h3>Basic details</h3></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Full Name *</label>
+            <input type="text" name="full_name" required value="<%= teacher ? teacher.full_name : '' %>" placeholder="e.g. Mrs. Anita Verma">
+          </div>
+          <div class="form-group">
+            <label>Assigned Class *</label>
+            <select name="class_id" required>
+              <% classes.forEach(c => { %>
+                <option value="<%= c.id %>" <%= teacher && teacher.class_id === c.id ? 'selected' : '' %>><%= c.name %><%= c.section ? ' ' + c.section : '' %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Subject (optional)</label>
+            <input type="text" name="subject" value="<%= teacher && teacher.subject || '' %>" placeholder="blank = class teacher (all subjects)">
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input type="text" name="phone" value="<%= teacher && teacher.phone || '' %>">
+          </div>
+          <% if (!teacher) { %>
+          <div class="form-group">
+            <label>Login Username *</label>
+            <input type="text" name="username" required placeholder="e.g. teacher11">
+          </div>
+          <div class="form-group">
+            <label>Login Password</label>
+            <input type="text" name="password" placeholder="default: teacher123">
+          </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>👤 Profile card (public website)</h3><span class="text-muted">Shown to parents</span></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Qualification / Education</label>
+            <input type="text" name="qualification" value="<%= teacher && teacher.qualification || '' %>" placeholder="e.g. M.A. Hindi, B.Ed.">
+          </div>
+          <div class="form-group">
+            <label>Experience (years)</label>
+            <input type="number" name="experience_years" min="0" max="50" value="<%= teacher ? teacher.experience_years : '' %>">
+          </div>
+          <div class="form-group">
+            <label>Rating (0 – 5)</label>
+            <input type="number" name="rating" min="0" max="5" step="0.1" value="<%= teacher ? teacher.rating : '' %>" placeholder="e.g. 4.8">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Short bio (1 – 2 lines)</label>
+          <textarea name="bio" rows="2" placeholder="e.g. Hindi & language teacher — makes reading and writing easy for children."><%= teacher && teacher.bio || '' %></textarea>
+        </div>
+        <div class="mt-4">
+          <button type="submit" class="btn btn-primary"><%= teacher ? '💾 Save Changes' : '➕ Add Teacher' %></button>
+          <a href="/admin/teachers" class="btn btn-outline">Cancel</a>
+        </div>
+      </div>
+    </div>
+  </form>
+<%- include('../partials/footer') %>

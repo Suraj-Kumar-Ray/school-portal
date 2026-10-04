@@ -1,0 +1,135 @@
+<%- include('../partials/header', { title }) %>
+<%#
+  THE MESSAGE SECTION — two tabs (school's request, 2026-09-20).
+
+    📢 Notices  → /teacher/notices   the same notices a parent reads
+    📨 Messages → THIS page          ONLY what the school office sent him
+
+  The school's rule is one-way: only the office writes to a teacher, so this tab is a plain
+  inbox — nothing to write, nothing to reply to, no teacher's name anywhere to send to. The
+  parents' writing desk (when the office granted “Message parents”) sits at the very bottom,
+  folded away, so the inbox reads first.
+%>
+<% const canSend = (typeof canMessages === 'undefined') ? false : !!canMessages; %>
+  <div class="page-head">
+    <h1>📨 Messages — <%= cls.label %></h1>
+    <p>These are the notes the school office sent you. Only the school office can message a teacher — nothing here can be sent by you.</p>
+  </div>
+
+  <%- include('../partials/teacher_msg_tabs', { msgTab: 'messages', noticeCount, staffUnread: staffNew }) %>
+
+  <% if (sent) { %>
+    <div class="alert success">✅ Sent to <%= sent %> parent<%= sent === 1 ? '' : 's' %> of <%= cls.label %>. It is in their app inbox now.</div>
+  <% } %>
+  <% if (err) { %><div class="alert error">⚠️ <%= err %></div><% } %>
+  <% if (staffNew) { %>
+    <div class="alert success">📨 <%= staffNew %> new message<%= staffNew === 1 ? '' : 's' %> from the school office.</div>
+  <% } %>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>📨 From the school office</h3>
+      <span class="badge gray"><%= staffInbox.length %></span>
+    </div>
+    <div class="panel-body">
+      <% if (!staffInbox.length) { %>
+        <div class="empty">
+          <span class="empty-ico">📭</span>
+          No message from the office yet.<br>
+          <small>When the office sends you something it appears here, and you get a badge on this tab.</small>
+        </div>
+      <% } else { %>
+        <div class="staff-inbox">
+          <% staffInbox.forEach((m, i) => { const isNew = m.status === 'unread'; %>
+            <article class="staff-msg<%= isNew ? ' is-new' : '' %>" style="--i:<%= Math.min(i, 8) %>">
+              <div class="staff-msg-top">
+                <span class="staff-msg-ico"><%= staffIcon(m.category) %></span>
+                <div class="staff-msg-head">
+                  <div class="staff-msg-subject"><%= m.subject %></div>
+                  <div class="staff-msg-meta">
+                    <span class="staff-msg-cat"><%= m.category %></span>
+                    · from the school office
+                    <% if (m.sent_by) { %> · <%= m.sent_by %><% } %>
+                    · <%= fmtDateTime(m.created_at) %> <span class="tz-tag">IST</span>
+                  </div>
+                </div>
+                <% if (isNew) { %><span class="new-flag">New</span><% } %>
+              </div>
+              <p class="staff-msg-body"><%= m.body %></p>
+            </article>
+          <% }) %>
+        </div>
+        <p class="pf-note" style="margin:12px 2px 0">
+          The office can see whether you have opened a message.
+        </p>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (notesToClass.length) { %>
+  <details class="tt-week msg-fold">
+    <summary>📮 Notes the office sent to my class's parents (<%= notesToClass.length %>)</summary>
+    <div class="tt-week-body">
+      <div class="t-inbox">
+        <% notesToClass.forEach(m => { %>
+          <div class="t-inbox-item">
+            <span class="t-inbox-ico"><%= m.category === 'Fee' ? '₹' : m.category === 'Notice' ? '📢' : m.category === 'PTM' ? '🗓' : '🏫' %></span>
+            <div class="t-inbox-body">
+              <b><%= m.subject %></b>
+              <p><%= m.body.length > 140 ? m.body.slice(0, 139) + '…' : m.body %></p>
+              <small><%= m.category %><%= m.class_name ? ' · ' + m.class_name : '' %> · <%= fmtShortDate(m.created_at) %></small>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <p class="pf-note" style="margin:10px 2px 0">
+        These are the same notes the parents of my class read in their app.
+      </p>
+    </div>
+  </details>
+  <% } %>
+
+  <%# ---- the office's grant, folded away: the parents' writing desk is not an inbox ---- %>
+  <% if (canSend) { %>
+  <details class="tt-week msg-fold">
+    <summary>✍️ Write to the parents of <%= cls.label %> — <%= parentCount %> parent<%= parentCount === 1 ? '' : 's' %> will get it (the office opened this for you)</summary>
+    <div class="tt-week-body">
+      <p class="pf-note" style="margin:2px 2px 12px">
+        One message goes to <b>every parent of my own class</b> — it lands in their parent app inbox.
+        The school office can see every message a teacher sends.
+      </p>
+      <% if (!parentCount) { %>
+        <div class="empty">No parent login is linked to this class yet — please ask the school office.</div>
+      <% } else { %>
+      <form method="POST" action="/teacher/messages"
+            data-confirm-title="Send this message?"
+            data-confirm-msg="Do you really want to send this message to the parents of your class?"
+            data-confirm-ok="Yes, send">
+        <input type="hidden" name="class_id" value="<%= viewClass.id %>">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>What is it about?</label>
+            <select name="category">
+              <% categories.forEach(c => { %>
+                <option value="<%= c %>" <%= c === 'General' ? 'selected' : '' %>><%= c %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Subject / short title *</label>
+            <input type="text" name="subject" maxlength="120" required placeholder="e.g. Bring the maths notebook tomorrow">
+          </div>
+        </div>
+        <div class="form-group mt-3">
+          <label>Message *</label>
+          <textarea name="body" rows="5" maxlength="2000" required placeholder="Write in simple words. e.g. Dear parents, tomorrow (Friday) the maths test will be held in the first period. Please send the child with a notebook and geometry box."></textarea>
+        </div>
+        <div class="mt-3">
+          <button type="submit" class="btn btn-primary">📤 Send to all parents of <%= cls.label %></button>
+        </div>
+      </form>
+      <% } %>
+    </div>
+  </details>
+  <% } %>
+<%- include('../partials/footer') %>

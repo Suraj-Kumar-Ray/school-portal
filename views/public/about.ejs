@@ -1,0 +1,90 @@
+<%- include('../partials/public_nav', { title }) %>
+
+  <!-- ABOUT HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+      <div class="hero-text">
+        <span class="hero-badge"><img src="<%= school.logo %>" alt="" class="hero-badge-logo"><%= school.schoolName %></span>
+        <h1>About our school</h1>
+        <p><%= about.affiliation %> · Established <%= about.established %> · <%= school.gradesLabel %> · Hostel (Boys &amp; Girls)</p>
+        <div class="hero-actions">
+          <a href="/apply" class="btn btn-light btn-lg">📝 Apply Now</a>
+          <a href="/contact" class="btn btn-light btn-lg" style="background:rgba(255,255,255,0.14); color:#fff; border:1px solid rgba(255,255,255,0.4);">Contact Us</a>
+        </div>
+      </div>
+      <img src="/images/school-building.png" alt="<%= school.schoolName %> school building" class="about-hero-img">
+    </div>
+  </section>
+
+  <!-- QUICK FACTS -->
+  <div class="cards">
+    <div class="card stat-card accent-blue"><div class="stat-label">Established</div><div class="stat-value" style="font-size:24px; padding-top:4px;"><%= about.established %></div><div class="stat-sub"><%= about.affiliation %></div></div>
+    <div class="card stat-card accent-green"><div class="stat-label">Classes</div><div class="stat-value"><%= counts.classes %></div><div class="stat-sub"><%= school.gradesLabel %></div></div>
+    <div class="card stat-card accent-orange"><div class="stat-label">Students</div><div class="stat-value"><%= counts.students %></div><div class="stat-sub">enrolled this session</div></div>
+    <div class="card stat-card accent-red"><div class="stat-label">Teachers</div><div class="stat-value"><%= counts.teachers %></div><div class="stat-sub">dedicated class teachers</div></div>
+  </div>
+
+  <!-- OUR STORY -->
+  <div class="panel">
+    <div class="panel-head"><h3>🏫 Our story</h3><span class="text-muted">Why this school was built</span></div>
+    <div class="panel-body">
+      <p style="font-size:15.5px; color:#1e293b; line-height:1.75;"><%= about.intro %></p>
+    </div>
+  </div>
+
+  <!-- MISSION & VISION -->
+  <div class="feature-grid">
+    <div class="panel feature">
+      <div class="feature-icon">🎯</div>
+      <h3>Our Mission</h3>
+      <p><%= about.mission %></p>
+    </div>
+    <div class="panel feature">
+      <div class="feature-icon">🔭</div>
+      <h3>Our Vision</h3>
+      <p><%= about.vision %></p>
+    </div>
+  </div>
+
+  <!-- PRINCIPAL -->
+  <div class="panel">
+    <div class="panel-head"><h3>👩‍🏫 From the Principal's desk</h3></div>
+    <div class="panel-body">
+      <div class="principal-block">
+        <div class="principal-avatar"><%= about.principalName.split(' ').filter(w => w[0] && w[0] === w[0].toUpperCase()).map(w => w[0]).join('').slice(0, 2) || 'P' %></div>
+        <div>
+          <p style="font-size:15px; color:#1e293b; line-height:1.7; font-style:italic;">“<%= about.principalMessage %>”</p>
+          <div style="margin-top:10px;"><b><%= about.principalName %></b><div class="text-muted" style="font-size:13px;">Principal, <%= school.schoolName %></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FACILITIES -->
+  <% if (about.facilitiesList.length) { %>
+  <div class="panel">
+    <div class="panel-head"><h3>🛠️ School facilities</h3><span class="text-muted">Everything on one campus</span></div>
+    <div class="panel-body">
+      <div class="amenity-grid">
+        <% const facIcons = ['🧑‍🏫','💻','📚','🔬','🏏','🚰','🏠','🍽️','🚌']; %>
+        <% about.facilitiesList.forEach((f, i) => { %>
+        <div class="amenity"><b><%= facIcons[i % facIcons.length] %> <%= f %></b></div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- CTA -->
+  <div class="panel contact-strip">
+    <div>
+      <h3>💡 Ready to join <%= school.schoolName %>?</h3>
+      <p><%= school.gradesLabel %> admissions open for Session <%= school.sessionLabel %> · monthly fee system · hostel available for boys &amp; girls.</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <a href="/apply" class="btn btn-primary">Apply Now →</a>
+      <a href="/fee-structure" class="btn btn-outline">See Fee Structure</a>
+    </div>
+  </div>
+
+<%- include('../partials/public_footer') %>

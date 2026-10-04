@@ -1,0 +1,373 @@
+<%- include('../partials/header') %>
+  <div class="page-head">
+    <h1>📚 School store</h1>
+    <p>
+      What a child pays for <b>besides the monthly fee</b> — books, uniform, stationery. Keep the
+      price list here, hand the things over, and receive the money (in full or in parts). Parents
+      see it beside their months on the <b>Fees</b> page, and a fee reminder asks for it too.
+    </p>
+  </div>
+
+  <% if (itemCreated) { %><div class="alert success">✅ <b><%= itemSaved %></b> added to the price list.</div><% } %>
+  <% if (itemSaved && !itemCreated) { %><div class="alert success">✅ <b><%= itemSaved %></b> saved.</div><% } %>
+  <% if (itemOff) { %><div class="alert success">✅ <b><%= itemOff %></b>.</div><% } %>
+  <% if (itemDeleted) { %><div class="alert success">✅ <b><%= itemDeleted %></b> removed from the price list.</div><% } %>
+  <% if (issued) { %><div class="alert success">✅ Recorded: <b><%= issued %></b><% if (issuedAmount) { %> — ₹<%= issuedAmount.toLocaleString('en-IN') %><% } %>. The parent sees it on the Fees page.</div><% } %>
+  <% if (settled) { %><div class="alert success">✅ <%= settled %></div><% } %>
+  <% if (unsettled) { %><div class="alert success">↩ <b><%= unsettled %></b> marked unpaid again — the money was cleared from that row.</div><% } %>
+  <% if (issueDeleted) { %><div class="alert success">🗑️ Removed: <b><%= issueDeleted %></b>.</div><% } %>
+  <% if (err) { %><div class="alert error">⚠️ <%= err %></div><% } %>
+
+  <div class="cards">
+    <div class="card stat-card accent-blue">
+      <div class="stat-label">Items on the list</div>
+      <div class="stat-value"><%= stats.catalogue %></div>
+      <div class="stat-sub">offered to families right now</div>
+    </div>
+    <div class="card stat-card accent-orange">
+      <div class="stat-label">Given out</div>
+      <div class="stat-value"><%= stats.issues %></div>
+      <div class="stat-sub">₹<%= Math.round(stats.charged).toLocaleString('en-IN') %> billed<%= classId ? ' in this class' : '' %></div>
+    </div>
+    <div class="card stat-card accent-green">
+      <div class="stat-label">Received</div>
+      <div class="stat-value">₹<%= Math.round(stats.paid).toLocaleString('en-IN') %></div>
+      <div class="stat-sub">against those items</div>
+    </div>
+    <div class="card stat-card <%= stats.balance ? 'accent-red' : 'accent-green' %>">
+      <div class="stat-label">Still to pay</div>
+      <div class="stat-value">₹<%= Math.round(stats.balance).toLocaleString('en-IN') %></div>
+      <div class="stat-sub"><%= stats.owing %> student<%= stats.owing === 1 ? '' : 's' %> owe for something</div>
+    </div>
+  </div>
+
+  <%# ================= RECORD WHAT A STUDENT TOOK =================
+      One hand-over = one row. The amount is the price list × the quantity (no typing money
+      by hand), and anything not on the list can be entered as a one-off. %>
+  <div class="panel" id="record">
+    <div class="panel-head">
+      <h3>➕ Record what a student took</h3>
+      <span class="text-muted">Counted in the school's own day (IST)</span>
+    </div>
+    <div class="panel-body">
+      <form method="POST" action="/admin/store/issue" class="store-issue-form">
+        <input type="hidden" name="filter_class" value="<%= classId || '' %>">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Student</label>
+            <select name="student_id" required>
+              <option value="">Pick a child…</option>
+              <% let curClass = null; students.forEach(s => { %>
+                <% if (s.class_name !== curClass) { %>
+                  <% if (curClass) { %></optgroup><% } %>
+                  <% curClass = s.class_name; %>
+                  <optgroup label="<%= s.class_name %><%= s.section ? ' ' + s.section : '' %>">
+                <% } %>
+                <option value="<%= s.id %>"><%= s.roll_no %>. <%= s.full_name %></option>
+              <% }) %>
+              <% if (curClass) { %></optgroup><% } %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Item</label>
+            <select name="item_id" id="storeItem">
+              <% sellable.forEach(it => { %>
+                <option value="<%= it.id %>" data-price="<%= it.price %>"><%= it.name %> — ₹<%= Math.round(it.price).toLocaleString('en-IN') %><%= it.unit ? ' / ' + it.unit : '' %></option>
+              <% }) %>
+              <option value="" data-price="">— something else (type it below) —</option>
+            </select>
+            <% if (!sellable.length) { %>
+              <small class="text-muted">The price list is empty — add items below, or type a one-off on the right.</small>
+            <% } %>
+          </div>
+          <div class="form-group">
+            <label>Quantity</label>
+            <input type="number" name="qty" id="storeQty" value="1" min="1" max="99">
+          </div>
+          <div class="form-group">
+            <label>Given on</label>
+            <input type="date" name="issued_on" value="<%= istToday() %>" max="<%= istToday() %>">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>One-off item (only if it is not on the list)</label>
+            <input type="text" name="free_name" maxlength="80" placeholder="e.g. Drawing file">
+          </div>
+          <div class="form-group">
+            <label>One-off amount (₹)</label>
+            <input type="number" name="free_price" min="0" step="1" placeholder="e.g. 150">
+          </div>
+          <div class="form-group">
+            <label>Note (optional)</label>
+            <input type="text" name="note" maxlength="120" placeholder="e.g. Given to his uncle">
+          </div>
+        </div>
+        <div class="store-amount-line">
+          <span>Amount on this row: <b id="storeAmount">₹0</b></span>
+          <button class="btn btn-primary" type="submit">✅ Record it</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <%# ================= WHO OWES FOR ITEMS ================= %>
+  <div class="panel" id="dues">
+    <div class="panel-head">
+      <h3>🔔 Who owes for items</h3>
+      <span class="text-muted"><%= dues.length %> student<%= dues.length === 1 ? '' : 's' %><%= classId ? ' in this class' : '' %></span>
+    </div>
+    <div class="panel-body<%= dues.length ? ' no-pad' : '' %>">
+      <% if (!dues.length) { %>
+        <p class="text-muted" style="margin:0;">Nobody owes anything for books or uniform. 🎉</p>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="card-table">
+            <thead>
+              <tr><th>Student</th><th class="text-right">Billed</th><th class="text-right">Paid</th><th class="text-right">Balance</th><th class="text-right">Actions</th></tr>
+            </thead>
+            <tbody>
+              <% dues.forEach(d => { %>
+                <tr>
+                  <td class="td-name" data-label="Student">
+                    <b><%= d.full_name %></b>
+                    <span class="badge blue" style="margin-left:7px;"><%= d.class_label %></span>
+                    <div class="text-muted" style="font-size:12.5px; margin-top:3px;">
+                      <%= d.dueCount %> item<%= d.dueCount === 1 ? '' : 's' %> pending ·
+                      <%= d.pending.slice(0, 3).map(p => p.name).join(' · ') %><%= d.pending.length > 3 ? ' …' : '' %>
+                    </div>
+                  </td>
+                  <td data-label="Billed" class="text-right">₹<%= Math.round(d.charged).toLocaleString('en-IN') %></td>
+                  <td data-label="Paid" class="text-right">₹<%= Math.round(d.paid).toLocaleString('en-IN') %></td>
+                  <td data-label="Balance" class="text-right"><b class="pm-bad">₹<%= Math.round(d.balance).toLocaleString('en-IN') %></b></td>
+                  <td class="td-actions text-right" data-label="Actions">
+                    <a href="/admin/fees/<%= d.student_id %>" class="btn btn-outline btn-sm">🧾 Ledger</a>
+                    <%# the same one-family due message the fee ledger sends (portal + SMS/WhatsApp);
+                        it now names the item balance too — see messages.notifyFeesDue %>
+                    <form method="POST" action="/admin/fees/<%= d.student_id %>/remind" class="store-remind-form">
+                      <input type="hidden" name="back" value="list">
+                      <input type="hidden" name="class" value="<%= classId || '' %>">
+                      <button class="btn btn-outline btn-sm" type="submit" title="Send this family a due message that includes the items">📲 Send due message</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <%# ================= THE PRICE LIST ================= %>
+  <div class="panel" id="price-list">
+    <div class="panel-head">
+      <h3>🏷️ Price list</h3>
+      <span class="text-muted">What the store offers · editing a price never changes an old bill</span>
+    </div>
+    <div class="panel-body">
+      <form method="POST" action="/admin/store/items" class="store-item-form store-item-new">
+        <input type="hidden" name="filter_class" value="<%= classId || '' %>">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>New item</label>
+            <input type="text" name="name" maxlength="80" required placeholder="e.g. Class 10 book set">
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <select name="category">
+              <% categories.forEach(c => { %><option value="<%= c %>"><%= c %></option><% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Price (₹)</label>
+            <input type="number" name="price" min="0" step="1" required placeholder="e.g. 1650">
+          </div>
+          <div class="form-group">
+            <label>Unit (optional)</label>
+            <input type="text" name="unit" maxlength="20" placeholder="set · piece · pair">
+          </div>
+        </div>
+        <div class="store-amount-line">
+          <button class="btn btn-primary" type="submit">➕ Add to the price list</button>
+        </div>
+      </form>
+
+      <% if (!catalogue.length) { %>
+        <p class="text-muted" style="margin:14px 0 0;">Nothing on the list yet — add the first item above (a book set, for example).</p>
+      <% } else { %>
+        <div class="store-items">
+          <% catalogue.forEach(it => { %>
+            <div class="store-item<%= it.active ? '' : ' is-off' %>">
+              <form method="POST" action="/admin/store/items" class="store-item-form">
+                <input type="hidden" name="id" value="<%= it.id %>">
+                <input type="hidden" name="active" value="<%= it.active %>">
+                <input type="hidden" name="filter_class" value="<%= classId || '' %>">
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Item</label>
+                    <input type="text" name="name" maxlength="80" value="<%= it.name %>" required>
+                  </div>
+                  <div class="form-group">
+                    <label>Category</label>
+                    <select name="category">
+                      <% categories.forEach(c => { %><option value="<%= c %>" <%= it.category === c ? 'selected' : '' %>><%= c %></option><% }) %>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Price (₹)</label>
+                    <input type="number" name="price" min="0" step="1" value="<%= Math.round(it.price) %>">
+                  </div>
+                  <div class="form-group">
+                    <label>Unit</label>
+                    <input type="text" name="unit" maxlength="20" value="<%= it.unit || '' %>" placeholder="set · piece">
+                  </div>
+                </div>
+                <div class="store-item-foot">
+                  <% if (!it.active) { %><span class="badge due">Not offered</span><% } else { %><span class="badge paid">Offered</span><% } %>
+                  <button class="btn btn-outline btn-sm" type="submit">💾 Save</button>
+                </div>
+              </form>
+              <div class="store-item-actions">
+                <form method="POST" action="/admin/store/items/<%= it.id %>/toggle">
+                  <input type="hidden" name="active" value="<%= it.active ? '0' : '1' %>">
+                  <input type="hidden" name="filter_class" value="<%= classId || '' %>">
+                  <button class="btn btn-outline btn-sm" type="submit"><%= it.active ? '🚫 Stop offering' : '↩ Offer again' %></button>
+                </form>
+                <form method="POST" action="/admin/store/items/<%= it.id %>/delete">
+                  <input type="hidden" name="filter_class" value="<%= classId || '' %>">
+                  <button class="btn btn-outline btn-sm" type="submit" title="Only possible while no child has taken it">🗑️ Delete</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <%# ================= WHAT WAS GIVEN OUT ================= %>
+  <div class="panel" id="issues">
+    <div class="panel-head">
+      <h3>🧾 Given out</h3>
+      <form method="GET" action="/admin/store" class="filters">
+        <div class="form-group">
+          <label>Class</label>
+          <select name="class">
+            <option value="">All classes</option>
+            <% classes.forEach(c => { %>
+              <option value="<%= c.id %>" <%= Number(classId) === c.id ? 'selected' : '' %>><%= c.name %><%= c.section ? ' ' + c.section : '' %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Money</label>
+          <select name="status">
+            <option value="" <%= status === '' ? 'selected' : '' %>>Everything</option>
+            <option value="due" <%= status === 'due' ? 'selected' : '' %>>Nothing paid yet</option>
+            <option value="partial" <%= status === 'partial' ? 'selected' : '' %>>Partly paid</option>
+            <option value="paid" <%= status === 'paid' ? 'selected' : '' %>>Settled</option>
+          </select>
+        </div>
+        <button class="btn btn-outline btn-sm" type="submit">🔍 Show</button>
+        <% if (classId || status) { %><a class="btn btn-outline btn-sm" href="/admin/store">Clear</a><% } %>
+      </form>
+    </div>
+    <div class="panel-body<%= issues.length ? ' no-pad' : '' %>">
+      <% if (!issues.length) { %>
+        <p class="text-muted" style="margin:0;">Nothing given out yet<%= classId || status ? ' with this filter' : '' %>.</p>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="card-table">
+            <thead>
+              <tr><th>Student</th><th>Item</th><th>Given on</th><th class="text-right">Amount</th><th>Money</th><th class="text-right">Actions</th></tr>
+            </thead>
+            <tbody>
+              <% issues.forEach(r => { %>
+                <tr>
+                  <td class="td-name" data-label="Student">
+                    <b><%= r.full_name %></b>
+                    <% if (r.roll_no) { %><span class="text-muted" style="font-size:12.5px;"> · Roll No. <%= r.roll_no %></span><% } %>
+                    <div class="text-muted" style="font-size:12.5px; margin-top:3px;"><%= r.class_label %></div>
+                  </td>
+                  <td data-label="Item">
+                    <%= r.name %><% if (r.qty > 1) { %> <b>× <%= r.qty %></b><% } %>
+                    <div class="text-muted" style="font-size:12.5px;">
+                      <%= r.category %><% if (r.qty > 1) { %> · ₹<%= Math.round(r.unit_price).toLocaleString('en-IN') %> each<% } %>
+                      <% if (r.note) { %> · <%= r.note %><% } %>
+                    </div>
+                  </td>
+                  <td data-label="Given on"><%= fmtDMY(r.issued_on) %></td>
+                  <td data-label="Amount" class="text-right"><b>₹<%= Math.round(r.amount).toLocaleString('en-IN') %></b></td>
+                  <td data-label="Money">
+                    <% if (r.status === 'paid') { %>
+                      <span class="badge paid">Paid</span>
+                      <div class="text-muted" style="font-size:12.5px; margin-top:3px;"><%= r.mode ? r.mode + ' · ' : '' %><%= r.paid_on ? fmtDMY(r.paid_on) : '' %></div>
+                    <% } else { %>
+                      <span class="badge <%= r.status === 'partial' ? 'partial' : 'overdue' %>"><%= r.status === 'partial' ? 'Partly paid' : 'Not paid' %></span>
+                      <div class="text-muted" style="font-size:12.5px; margin-top:3px;">₹<%= Math.round(r.balance).toLocaleString('en-IN') %> left</div>
+                    <% } %>
+                  </td>
+                  <td class="td-actions text-right" data-label="Actions">
+                    <% if (r.balance > 0) { %>
+                      <form method="POST" action="/admin/store/issues/<%= r.id %>/settle" class="store-settle-form">
+                        <input type="hidden" name="filter_class" value="<%= classId || '' %>">
+                        <div class="form-group">
+                          <label>Received (₹)</label>
+                          <input type="number" name="amount" min="1" step="1" value="<%= Math.round(r.balance) %>" required>
+                        </div>
+                        <div class="form-group">
+                          <label>Mode</label>
+                          <select name="mode"><% modes.forEach(m => { %><option value="<%= m %>"><%= m %></option><% }) %></select>
+                        </div>
+                        <div class="form-group">
+                          <label>On</label>
+                          <input type="date" name="paid_on" value="<%= istToday() %>" max="<%= istToday() %>">
+                        </div>
+                        <button class="btn btn-primary btn-sm" type="submit">₹ Receive</button>
+                      </form>
+                    <% } %>
+                    <div class="store-row-actions">
+                      <% if (r.paid > 0) { %>
+                        <form method="POST" action="/admin/store/issues/<%= r.id %>/unsettle">
+                          <input type="hidden" name="filter_class" value="<%= classId || '' %>">
+                          <button class="btn btn-outline btn-sm" type="submit" title="Clear the money recorded on this row">↩ Mark unpaid</button>
+                        </form>
+                      <% } %>
+                      <form method="POST" action="/admin/store/issues/<%= r.id %>/delete" class="del-form">
+                        <input type="hidden" name="filter_class" value="<%= classId || '' %>">
+                        <button class="btn btn-outline btn-sm" type="submit" title="Remove this row (a mistake)">🗑️</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <%# the amount is worked out from the price list as the office picks — no mental maths %>
+  <script>
+    (function () {
+      var item = document.getElementById('storeItem');
+      var qty = document.getElementById('storeQty');
+      var out = document.getElementById('storeAmount');
+      if (!item || !qty || !out) return;
+      function show() {
+        var opt = item.options[item.selectedIndex];
+        var price = parseFloat((opt && opt.dataset.price) || '0') || 0;
+        var n = parseInt(qty.value, 10) || 1;
+        out.textContent = '₹' + (price * n).toLocaleString('en-IN');
+      }
+      item.addEventListener('change', show);
+      qty.addEventListener('input', show);
+      show();
+    })();
+  </script>
+<%# The store page was the one office page that never pulled in the shared footer, so it had
+    no closing </body>, no office bell, no “Saved!” tick and — with this change — no question
+    before a save. The footer brings all of it, exactly like every other office page. %>
+<%- include('../partials/footer') %>

@@ -1,0 +1,497 @@
+<%- include('../partials/header', { title }) %>
+  <%# `acc` is what the SCHOOL OFFICE lets this parent see (Admin → Parent Access):
+      every block below asks it first. Fees can never be switched off, and a child whose
+      fee is due keeps this home page + Fees and loses the rest (`acc.locked`).
+      src/services/parent_access.js is the one place that decides. %>
+  <% const acc = parentAccess || { result: true, timetable: true, notices: true, inbox: true, details: true, fees: true, locked: false }; %>
+  <%# no welcome heading — the child's card is the first thing a parent sees %>
+  <%- include('../partials/child_picker', { children, childId }) %>
+
+  <%# ---- the child's profile first: the photo is what a parent recognises ---- %>
+  <div class="kid-card">
+    <% if (child.photo) { %>
+      <img src="<%= child.photo %>" alt="<%= child.full_name %>" class="kid-photo">
+    <% } else { %>
+      <span class="kid-photo kid-photo-ph"><%= child.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+    <% } %>
+    <div class="kid-info">
+      <span class="kid-name-row">
+        <b><%= child.full_name %></b>
+        <%# full student details — opened from this small icon, not a big bar
+            (the office can switch the child's record off too; the icon then goes away).
+            The 📈 graph moved to the RESULT page's card (2026-09-18) — the office asked
+            for it there, next to the number it opens. The “Xd late” chip belongs to the
+            FEES page, not here (the school's correction, 2026-09-18). %>
+        <% if (acc.details) { %>
+        <button type="button" class="kid-details-btn" id="kidDetailsBtn"
+                title="Student details" aria-label="Student details">ℹ️</button>
+        <% } %>
+      </span>
+      <span class="kid-meta">
+        <span class="badge blue"><%= child.class_name %><%= child.section ? ' ' + child.section : '' %></span>
+        <% if (child.roll_no) { %><span class="kid-roll">Roll No. <%= child.roll_no %></span><% } %>
+        <% if (child.blood_group) { %><span class="badge red">🩸 <%= child.blood_group %></span><% } %>
+      </span>
+      <% if (!child.photo) { %><small class="kid-hint">📷 The school office will add the photo</small><% } %>
+    </div>
+    <%# ---- the right side of the card: the bell, and beside it the round DUE-FROM-DAYS
+        seal when a fee is past its due date (2026-09-18). The seal is the same one the
+        Fees / Pay pages show — tap it and Pay now opens; the bell next to it still opens
+        the inbox, so neither answer pushes the other out. %>
+    <% if (acc.inbox || overdueInfo) { %>
+    <span class="kid-actions">
+      <% if (overdueInfo) { %>
+        <a href="/parent/pay?child=<%= child.id %>" class="kid-bell fee-due-badge is-late fee-due-badge-sm"
+           title="<%= overdueInfo.term %> was due on the due date — ₹<%= overdueInfo.amount %> unpaid. Tap to pay now.">
+          <span class="fdb-days"><%= overdueInfo.days %></span>
+          <span class="fdb-word">due from<br><%= overdueInfo.days === 1 ? 'day' : 'days' %></span>
+        </a>
+      <% } %>
+      <% if (acc.inbox) { %>
+      <a href="/parent/messages" class="kid-bell<%= unreadUpdates ? ' is-ringing' : '' %>"
+         title="Messages from the school" aria-label="Messages from the school">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-5.6V11a7 7 0 0 0-5.25-6.78V3.5a1.75 1.75 0 1 0-3.5 0v.72A7 7 0 0 0 5 11v5.4l-1.28 1.28a.75.75 0 0 0 .53 1.28h15.5a.75.75 0 0 0 .53-1.28L19 16.4Z"/>
+        </svg>
+        <%# the number is what is still UNREAD — it comes down as soon as the parent has seen it
+            (the pop-up card's ✓ Seen, or opening the inbox) and the bell stops ringing at 0.
+            Past 99 the DISPLAY is “99+” so the badge can never become a three-digit blob. %>
+        <span class="kid-bell-badge" data-badge="parent-inbox" <%= unreadUpdates ? '' : 'hidden' %>
+              title="<%= unreadUpdates ? unreadUpdates + ' unread message' + (unreadUpdates === 1 ? '' : 's') + ' from school' : '' %>"><%= unreadUpdates > 99 ? '99+' : (unreadUpdates || 0) %></span>
+      </a>
+      <% } %>
+    </span>
+    <% } %>
+  </div>
+
+  <%# ---- the office closed the other sections (fee pending) ----
+      Shown only while the lock is on, in plain words a parent can act on: what is
+      closed, why, and that the amount to pay is right below on the fee card. ---- %>
+  <% if (acc.locked) { %>
+    <div class="alert error lock-banner" style="margin-bottom:16px;">
+      <b>🔒 Only the Fees section is open for <%= String(child.full_name).split(' ')[0] %> right now.</b>
+      <p style="margin:6px 0 0;"><%= acc.note %></p>
+      <% if (acc.money && acc.money.overdue > 0) { %>
+        <p style="margin:6px 0 0;">
+          Pending: <b>₹<%= Math.round(acc.money.overdue).toLocaleString('en-IN') %></b>
+          <% if (acc.money.overdueMonths) { %>past the due date (<%= acc.money.overdueMonths %> month<%= acc.money.overdueMonths === 1 ? '' : 's' %>)<% } %>.
+        </p>
+      <% } %>
+    </div>
+  <% } %>
+
+  <%# ---- A HOLIDAY TODAY (school's request, 2026-09-17) -----------------------------------
+      “Suppose today is Vishwakarma Puja — the timetable should show a holiday.” The very
+      first thing a parent needs on a festival morning is “no school today”, so it comes
+      straight after the child's card, above the numbers — in the office's own words
+      (Admin → Holidays). It is CALM — no blink: the blinking belongs to the new-result
+      banner alone. Sunday says it too, so the home page never reads like a school day on a
+      Sunday. It links to the timetable, where the whole card and the coming holidays are. -- %>
+  <%# …and if the office has switched the Timetable section OFF for this login, the banner
+      still says the school is shut (that news is not the timetable's), it just stops being
+      a link — a home page may never print a section the parent is not allowed to open. -- %>
+  <% if (holidayToday && holidayToday.isClosed) { %>
+    <<%= acc.timetable ? 'a' : 'div' %> class="alert holiday-alert<%= acc.timetable ? '' : ' is-plain' %>"
+       <% if (acc.timetable) { %>href="/parent/timetable?child=<%= child.id %>"<% } %>>
+      <span class="ha-ico" aria-hidden="true">🎉</span>
+      <span class="ha-txt">
+        <b><%= holidayToday.greeting || (holidayToday.isSunday ? "It's Sunday — school is closed today" : `School is closed today — ${holidayToday.name}`) %></b>
+        <small>
+          <%# the name is already in the wish above, so it is not printed twice — it only
+              has to appear when there is no wish to carry it %>
+          <% if (!holidayToday.isSunday && !holidayToday.greeting) { %><%= holidayToday.name %> · <% } %><%= holidayToday.long %>
+          <% if (openAgain) { %> · opens again on <%= openAgain.long %><% } %>
+        </small>
+      </span>
+      <span class="ha-tag">Holiday</span>
+    </<%= acc.timetable ? 'a' : 'div' %>>
+  <% } %>
+
+  <%# the numbers a parent opens the app for — the overall average and the fee position.
+      They sit in their OWN cards, lifted up here so a parent sees them without scrolling;
+      the average comes from the ONE analysis service and the money from the fee service,
+      so these cards, the Result page and the office ledger can never disagree. %>
+  <div class="cards home-glance-cards">
+    <% if (acc.result) { %>
+    <%# the WHOLE card is tappable (school's request, 2026-09-15): the cover anchor is the
+        first child, stretched over the card by `.stat-cover`, so a tap anywhere — the ring,
+        the grade, the term strip, the empty space — opens the child's result. The links
+        inside sit above it and keep their own target. %>
+    <div class="card stat-card accent-blue is-tappable">
+      <a class="stat-cover" href="/parent/performance?child=<%= child.id %>"><span class="sr-only">Overall Average — open Result &amp; Performance</span></a>
+      <div class="stat-label">Overall Average</div>
+      <% if (result.overall) { %>
+        <div class="stat-ring-row">
+          <svg class="ring ring-sm tone-<%= result.overall.tone %>" viewBox="0 0 120 120" role="img"
+               aria-label="Overall average <%= result.overall.value %> percent">
+            <circle class="ring-track" cx="60" cy="60" r="52"></circle>
+            <circle class="ring-fill" cx="60" cy="60" r="52"
+                    stroke-dasharray="326.73" stroke-dashoffset="<%= result.overall.dash %>"
+                    transform="rotate(-90 60 60)"></circle>
+            <text class="ring-num" x="60" y="60" dy="0.35em" text-anchor="middle"><%= result.overall.text || result.overall.value + '%' %></text>
+          </svg>
+          <div>
+            <div class="stat-value"><%= result.overall.text || result.overall.value + '%' %></div>
+            <div class="stat-sub">Grade <b><%= result.overall.grade %></b> · <%= result.overall.word %></div>
+          </div>
+        </div>
+
+        <%# what the percentage is made of — the same totals the Result page prints,
+            straight from analysis.forStudent(), so the two can never disagree %>
+        <p class="stat-note">
+          <b><%= result.totals.obtained %></b> of <b><%= result.totals.max %></b> marks ·
+          <%= result.totals.subjects %> subject<%= result.totals.subjects === 1 ? '' : 's' %>
+        </p>
+
+        <%# the two subjects worth naming out loud: the strongest and the one to work on %>
+        <% if (result.best || result.weakest) { %>
+          <div class="stat-chips">
+            <% if (result.best) { %>
+              <span class="stat-chip is-best">🏆 Best <b><%= result.best.label %></b> <%= result.best.text || result.best.value + '%' %></span>
+            <% } %>
+            <% if (result.weakest) { %>
+              <span class="stat-chip is-weak">📌 Work on <b><%= result.weakest.label %></b> <%= result.weakest.text || result.weakest.value + '%' %></span>
+            <% } %>
+          </div>
+        <% } %>
+
+        <%# term by term: a parent sees a rise or a fall at one look, without opening a page %>
+        <% if (result.terms.some(t => t.value !== null)) { %>
+          <div class="stat-terms">
+            <% result.terms.forEach(t => { %>
+              <span class="stat-term<%= t.value === null ? ' is-empty' : ' tone-' + t.tone %>">
+                <b><%= t.value === null ? '—' : (t.text || t.value + '%') %></b>
+                <small><%= t.label %></small>
+              </span>
+            <% }) %>
+          </div>
+        <% } %>
+
+        <a class="stat-link" href="/parent/performance?child=<%= child.id %>">Subject by subject →</a>
+      <% } else { %>
+        <div class="stat-value">—</div>
+        <div class="stat-sub">no marks entered yet</div>
+        <%# an empty card explains itself — never a bare dash a parent cannot read %>
+        <p class="stat-note">Marks appear here as soon as the class teacher saves them after an exam. The result is then worked out from those marks — nothing is filled in by hand.</p>
+        <a class="stat-link" href="/parent/performance?child=<%= child.id %>">Open Result &amp; Performance →</a>
+      <% } %>
+    </div>
+    <% } %>
+    <%# A fee reminder the parent has not read yet makes this the loudest thing on the page
+        (school's request, 2026-09-15): the whole card turns red and a banner sits on top of
+        it. Tapping the banner opens the inbox — reading the reminder puts the card back. %>
+    <%# same on the money side: a tap anywhere opens the month-by-month ledger, while
+        “💳 Pay now”, the reminder banner and “Month by month →” keep their own targets. %>
+    <div class="card stat-card accent-orange<%= feeAlert ? ' is-fee-alert' : '' %> is-tappable">
+      <a class="stat-cover" href="/parent/fees?child=<%= child.id %>"><span class="sr-only">Fees Paid — open the month-by-month fee page</span></a>
+      <% if (feeAlert) { %>
+        <%# a reminder can only be READ in the inbox; while the office has the inbox closed
+            (or the fee lock is on) the banner leads to the fee page instead, which can
+            always be opened — never to a page that answers 403. %>
+        <a class="stat-alert-bar" href="<%= acc.inbox ? '/parent/messages' : '/parent/fees?child=' + child.id %>" title="<%= feeAlert.subject %>">
+          <span class="sab-ico" aria-hidden="true">🔔</span>
+          <span class="sab-txt">
+            <b>Fee reminder from the school</b>
+            <small><%= feeAlert.subject %> — tap to read</small>
+          </span>
+        </a>
+      <% } %>
+      <div class="stat-label">Fees Paid</div>
+      <%# ---- the lateness strip (2026-09-18): how many DAYS past the due date -----------
+          Self-calculated on every page load (parent.js) — no stored counter to go stale.
+          Red band above the money so the lateness is the FIRST thing the eye lands on,
+          before the numbers; it disappears the moment the oldest month is settled. %>
+      <% if (overdueInfo) { %>
+      <a class="fee-late-strip" href="/parent/fees?child=<%= child.id %>">
+        <span class="fls-ico">⏰</span>
+        <span class="fls-txt">
+          <b><%= overdueInfo.days %> day<%= overdueInfo.days === 1 ? '' : 's' %> past the due date</b>
+          <small><%= overdueInfo.term %> · ₹<%= overdueInfo.amount %> unpaid — pay now to stop it growing</small>
+        </span>
+      </a>
+      <% } %>
+      <div class="stat-value" style="font-size:20px; padding-top:8px">₹<%= Math.round(feeTotals.paid).toLocaleString('en-IN') %> / ₹<%= Math.round(feeTotals.total).toLocaleString('en-IN') %></div>
+      <div class="stat-sub">
+        <%= feeTotals.balance > 0 ? '₹' + Math.round(feeTotals.balance).toLocaleString('en-IN') + ' still to pay' : 'All months settled' %><%= feeTotals.fine > 0 ? ' · fine ₹' + Math.round(feeTotals.fine).toLocaleString('en-IN') : '' %>
+      </div>
+      <%# ---- THE TWO BILLS, side by side on the home card (2026-09-16) ----
+          A boarding family pays the school fee and the hostel fee (mess & lodging) at different
+          times, so the card says which of the two is clear and which is not — the question the
+          school office is asked most often. Both numbers come from the fee ledger's own split. %>
+      <% if (feeTotals.isBoarder && feeTotals.hostelCharged > 0) { %>
+        <div class="home-split">
+          <span class="hs-row hs-<%= feeTotals.schoolStatus %>">
+            <span class="hs-name">🏫 School fee</span>
+            <b><% if (feeTotals.schoolBalance > 0) { %>₹<%= Math.round(feeTotals.schoolBalance).toLocaleString('en-IN') %> to pay<% } else { %>Paid ✔<% } %></b>
+          </span>
+          <span class="hs-row hs-<%= feeTotals.hostelStatus %>">
+            <span class="hs-name">🏠 Hostel fee <small>mess &amp; lodging</small></span>
+            <b><% if (feeTotals.hostelBalance > 0) { %>₹<%= Math.round(feeTotals.hostelBalance).toLocaleString('en-IN') %> to pay<% } else { %>Paid ✔<% } %></b>
+          </span>
+        </div>
+      <% } %>
+      <% if (feeTotals.balance > 0) { %>
+        <a class="btn btn-primary btn-sm pay-now-btn" href="/parent/pay?child=<%= child.id %>" style="margin-top:10px;">💳 Pay now</a>
+      <% } %>
+
+      <%# how many months are done, and the last four months the school had to be
+          paid for — paid ✔ / not paid ✘ at one look, so nobody has to open the
+          ledger or ask the office (school's request, 2026-09-15) %>
+      <% if (monthsTotal) { %>
+        <p class="stat-note"><b><%= monthsSettled %></b> of <b><%= monthsTotal %></b> months settled
+          <%# books & uniform taken from the school store: a balance there is money the school
+              is owed too, so it is named on the same card instead of hiding on the Fees page %>
+          <% if (items && items.balance > 0) { %>· <span class="is-hostel-due">₹<%= Math.round(items.balance).toLocaleString('en-IN') %> for books &amp; uniform</span><% } %>
+        </p>
+      <% } %>
+      <% if (recentMonths && recentMonths.length) { %>
+        <div class="stat-months">
+          <% recentMonths.forEach(m => { %>
+            <% const state = m.status === 'paid' ? 'is-paid' : m.status === 'partial' ? 'is-partly' : m.status === 'overdue' ? 'is-unpaid' : 'is-notyet'; %>
+            <span class="stat-month <%= state %>">
+              <b><%= m.term %></b>
+              <%# short words on purpose: the box is ~65px wide on a phone, and “Not paid”
+                  wrapped to two lines while “Jun 2026” was clipped to “Jun 20…” %>
+              <small title="<%= m.term %> — <%= m.status === 'paid' ? 'paid' : m.status === 'partial' ? 'partly paid' : 'not paid' %>"><%= m.status === 'paid' ? '✔ Paid' : m.status === 'partial' ? '◐ Partly' : m.status === 'overdue' ? '✘ Unpaid' : '• Not yet' %></small>
+            </span>
+          <% }) %>
+          <%# the month still to be paid, on its own highlighted line under the history —
+              paying it before the due date is exactly what the school wants a parent to do %>
+          <% if (upcomingMonth) { %>
+            <span class="stat-month is-upcoming" title="<%= upcomingMonth.term %> — ₹<%= Math.round(upcomingMonth.balance).toLocaleString('en-IN') %> due on <%= upcomingMonth.due_date %>">
+              <span class="su-tag">Upcoming</span>
+              <b><%= upcomingMonth.term %></b>
+              <small>₹<%= Math.round(upcomingMonth.balance).toLocaleString('en-IN') %> · due <%= fmtShortDate(upcomingMonth.due_date) %></small>
+            </span>
+          <% } %>
+        </div>
+      <% } %>
+      <a class="stat-link" href="/parent/fees?child=<%= child.id %>">Month by month →</a>
+    </div>
+  </div>
+
+    <%# ---- TODAY AT THE HOSTEL (a child who lives in the hostel only) ----
+        The hostel's own page (/parent/hostel) holds the whole week, the daily routine and the
+        hostel charges; this card answers the one question a boarder's parent asks every day —
+        “what is he eating today?” — without opening anything. It sits on its OWN full-width row
+        (not in the two-card glance row above) because four named meals need the width; sharing
+        that row squashed it into a 232px column on a tablet. `hostelToday` is null for a day
+        scholar (and for a child whose hostel section the office has closed), so neither the card
+        nor the tile below exists for a family that goes home. ---- %>
+    <% if (hostelToday) { %>
+    <div class="card stat-card accent-green is-tappable hostel-today-card">
+      <a class="stat-cover" href="/parent/hostel?child=<%= child.id %>"><span class="sr-only">Hostel — open today's meals and the hostel week</span></a>
+      <div class="stat-label">🏠 Hostel · <%= hostelToday.name %></div>
+      <%# the SAME meal block the hostel page uses (`.hostel-meals` / `.hostel-meal`), so the
+          two screens cannot drift apart — only the container is narrower here %>
+      <div class="hostel-meals stat-hostel-meals">
+        <% hostelToday.meals.forEach(m => { %>
+          <div class="hostel-meal<%= m.set ? '' : ' is-off' %>">
+            <span class="hostel-meal-ico"><%= m.icon %></span>
+            <div class="hostel-meal-text">
+              <b><%= m.key %></b>
+              <small><%= m.time %></small>
+              <span><%= m.set ? m.items : 'Not set yet' %></span>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <div class="stat-sub">
+        <%# only the BED NUMBER is stored (the hostel has beds, not rooms), so the word is
+            added here: “Bed 4” %>
+        <% if (hostelBed) { %>Bed <%= hostelBed %><% } else { %>Hostel student<% } %><% if (hostelInfo && hostelInfo.wardenPhone) { %> · warden <%= hostelInfo.wardenPhone %><% } %>
+      </div>
+      <% if (hostelFee) { %>
+        <p class="stat-note">
+          <%# the hostel FEE only (mess & lodging), never the whole month — the school fee part of
+              the same months is on the Fees card above and on the fee page %>
+          Hostel fee (mess &amp; lodging) this session: <b>₹<%= Math.round(hostelFee.charged).toLocaleString('en-IN') %></b>
+          for <b><%= hostelFee.months %></b> month<%= hostelFee.months === 1 ? '' : 's' %><%= hostelFee.rate ? ', at ₹' + Math.round(hostelFee.rate).toLocaleString('en-IN') + '/month of it' : '' %>.
+          <% if (hostelFee.balance > 0) { %><span class="is-hostel-due">₹<%= Math.round(hostelFee.balance).toLocaleString('en-IN') %> of it is still to pay.</span><% } else { %>Paid up. ✔<% } %>
+        </p>
+      <% } %>
+      <a class="stat-link" href="/parent/hostel?child=<%= child.id %>">Hostel week, routine &amp; charges →</a>
+    </div>
+    <% } %>
+
+  <%# ---- Call / WhatsApp the school: only here on the home page, on purpose.
+      The two buttons are FIXED on the screen (see the CSS), not part of the flow,
+      so a parent can reach the school from anywhere on the page. ---- %>
+  <%- include('../partials/child_help') %>
+
+  <%# full student details — small modal, opened by the ℹ️ icon on the card above %>
+  <% if (acc.details) { %>
+  <div class="kid-modal" id="kidModal" hidden>
+    <div class="kid-modal-box" role="dialog" aria-modal="true" aria-label="Student details">
+      <div class="kid-modal-head">
+        <b>Student details</b>
+        <button type="button" class="kid-modal-close" id="kidModalClose" aria-label="Close">✕</button>
+      </div>
+      <div class="kid-modal-body">
+        <div class="kid-row"><span>Name</span><b><%= child.full_name %></b></div>
+        <div class="kid-row"><span>Class</span><b><%= child.class_name %><%= child.section ? ' ' + child.section : '' %><% if (child.roll_no) { %> · Roll No. <%= child.roll_no %><% } %></b></div>
+        <div class="kid-row"><span>Admission No.</span><b><%= profile.admission_no || '—' %></b></div>
+        <div class="kid-row"><span>Date of birth</span><b><%= profile.dob || '—' %></b></div>
+        <div class="kid-row"><span>Blood group</span><b><%= profile.blood_group || '—' %></b></div>
+        <div class="kid-row"><span>Category / Caste</span><b><%= [profile.category, profile.caste].filter(Boolean).join(' · ') || '—' %></b></div>
+        <%# Aadhaar numbers — the parent's own documents, shown in full to them %>
+        <div class="kid-row"><span>Aadhaar No.</span><b class="mono"><%= fmtAadhaar(profile.aadhaar) %></b></div>
+        <div class="kid-row"><span>Father</span><b><%= profile.father_name || profile.parent_name || '—' %><% if (profile.father_occupation) { %> <small>(<%= profile.father_occupation %>)</small><% } %></b></div>
+        <div class="kid-row"><span>Father's Aadhaar</span><b class="mono"><%= fmtAadhaar(profile.father_aadhaar) %></b></div>
+        <div class="kid-row"><span>Mother</span><b><%= profile.mother_name || '—' %><% if (profile.mother_occupation) { %> <small>(<%= profile.mother_occupation %>)</small><% } %></b></div>
+        <div class="kid-row"><span>Mother's Aadhaar</span><b class="mono"><%= fmtAadhaar(profile.mother_aadhaar) %></b></div>
+        <div class="kid-row"><span>Mobile</span><b><%= profile.parent_phone || '—' %><% if (profile.alt_phone) { %> · <%= profile.alt_phone %><% } %></b></div>
+        <% if (profile.annual_income) { %><div class="kid-row"><span>Annual income</span><b>₹ <%= profile.annual_income %></b></div><% } %>
+        <% if (profile.guardian_name) { %>
+        <div class="kid-row"><span>Local guardian</span><b><%= profile.guardian_name %><% if (profile.guardian_relation) { %> (<%= profile.guardian_relation %>)<% } %><% if (profile.guardian_phone) { %> · <%= profile.guardian_phone %><% } %></b></div>
+        <% } %>
+        <%# a full-width block on purpose: an address is long and must not be squeezed
+            into the right half of the row (it wraps badly on a phone otherwise) %>
+        <div class="kid-row kid-row-block"><span>Address</span><b><%= profile.address || '—' %></b></div>
+        <p class="kid-more-note">If anything is wrong here, please call the school office — they keep the records.</p>
+      </div>
+    </div>
+  </div>
+
+  <% } %>
+
+  <%# app home: everything one tap away — one tile per OPEN section (Fees is always one) %>
+  <div class="app-tiles">
+    <% if (acc.result) { %>
+    <a href="/parent/performance" class="app-tile">
+      <span class="app-tile-ico">📈</span>
+      <span>Result &amp; Performance<small>Full analysis, marks &amp; progress</small></span>
+    </a>
+    <% } %>
+    <a href="/parent/fees" class="app-tile">
+      <span class="app-tile-ico is-rupee">₹</span>
+      <span>Fees<small><% if (feeTotals.overdue > 0) { %>₹<%= Math.round(feeTotals.overdue).toLocaleString('en-IN') %> past the due date<% } else if (feeTotals.balance > 0) { %>₹<%= Math.round(feeTotals.balance).toLocaleString('en-IN') %> still to pay<% } else { %>All months paid<% } %></small></span>
+    </a>
+    <% if (acc.timetable) { %>
+    <a href="/parent/timetable" class="app-tile">
+      <span class="app-tile-ico">🕒</span>
+      <span>Timetable<small>Full class period chart</small></span>
+    </a>
+    <% } %>
+    <%# the hostel tile exists only for a boarder — `acc.hostel` is false for a day scholar
+        (parent_access.js), so no family is offered a menu its child never eats %>
+    <% if (acc.hostel) { %>
+    <a href="/parent/hostel" class="app-tile">
+      <span class="app-tile-ico">🏠</span>
+      <span>Hostel<small>Today's meals, the week &amp; the routine</small></span>
+    </a>
+    <% } %>
+    <% if (acc.notices) { %>
+    <a href="/parent/notices" class="app-tile">
+      <span class="app-tile-ico">📢</span>
+      <span>Notices<small><%= noticesCount %> school notice<%= noticesCount == 1 ? '' : 's' %></small></span>
+    </a>
+    <% } %>
+    <% if (acc.inbox) { %>
+    <a href="/parent/messages" class="app-tile">
+      <span class="app-tile-ico">📬</span>
+      <span>Message School<small>Fees, PTM or any question</small></span>
+      <span class="app-tile-badge" data-badge="parent-inbox" <%= unreadUpdates ? '' : 'hidden' %>><%= unreadUpdates > 99 ? '99+' : (unreadUpdates || 0) %></span>
+    </a>
+    <% } %>
+  </div>
+
+  <%# ---- NEWS ORDER (school's request, 2026-09-17) ----------------------------------------
+      *“Fix the updates block and move it to the very bottom; bring the newly published result,
+      the published results and the notices up.”* So the three that come from the school's own
+      pages sit here — the newest result first, then the term list, then the notices — and the
+      Messages (Updates from school) list is the LAST block on the page. Do not lift it back up:
+      a parent opens the app to see a NEW RESULT and the notices, and the message list is what
+      they read afterwards. ------------------------------------------------------------------ %>
+  <%# ---- A FRESHLY PUBLISHED RESULT --------------------------------------------------------
+      Big news: the school has released a term's result. It BLINKS (school's request, 2026-09-17:
+      “make it blink a little, so it feels like something really was published”) — a soft
+      breathing glow and a blinking dot, never a strobe (see `.result-alert` in style.css).
+      The whole banner IS the link, so a parent taps the news itself instead of hunting for a
+      word inside the sentence. It disappears on its own after the alert window
+      (`getNewResultAlert`, 21 days), so the blinking is never wallpaper. -----------------> %>
+  <% if (acc.result && newResult) { %>
+    <a class="alert success result-alert" href="/parent/performance?child=<%= child.id %>">
+      <span class="ra-ico" aria-hidden="true">📣</span>
+      <span class="ra-txt">
+        <b>New result published: <%= newResult.term %> <%= newResult.year %></b>
+        <small>Released <%= fmtShortDate(newResult.published_at) %> · tap to see the full result</small>
+      </span>
+      <span class="ra-badge"><span class="ra-dot" aria-hidden="true"></span>New</span>
+    </a>
+  <% } %>
+
+  <%# Only the latest two are listed here; the whole set lives on the Result page — the home
+      page must not grow with every exam the school publishes. The route decides the slice
+      (`published`), this template only draws it. %>
+  <% if (acc.result && published.length) { %>
+  <div class="panel">
+    <div class="panel-head">
+      <h3>📣 Published Results</h3>
+      <% if (publishedTotal > published.length) { %>
+        <a href="/parent/performance" class="panel-more">See all <%= publishedTotal %> →</a>
+      <% } %>
+    </div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Exam</th><th>Released On</th><th>Released By</th></tr></thead>
+          <tbody>
+            <% published.forEach(p => { %>
+            <tr>
+              <td><b><%= p.term %> <%= p.year %></b></td>
+              <td><%= fmtDate(p.published_at) %></td>
+              <td><%= p.published_by %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <% if (acc.notices) { %>
+  <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap:20px;">
+    <div>
+      <%- include('../partials/notices', { notices, seeAll: acc.notices && noticesCount > notices.length ? { href: '/parent/messages?tab=notices', count: noticesCount } : null }) %>
+    </div>
+  </div>
+  <% } %>
+
+  <%# ---- MESSAGES LAST (school's request, 2026-09-17) ----
+      The same card the inbox uses (partials/school_message_card.ejs), the newest four, and the
+      whole list one tap away. `updates` carries `card` from messages.cardOf(), attached by the
+      route, so the amount and the preview are read in ONE place and this page cannot disagree
+      with the inbox about what a message says. ---- %>
+  <% if (acc.inbox && updates && updates.length) { %>
+    <div class="panel">
+      <div class="panel-head">
+        <h3>🔔 Updates from school<% if (unreadUpdates) { %> <span class="nav-badge"><%= unreadUpdates %> new</span><% } %></h3>
+        <%# the count is the real one, so a parent knows how much is behind the link %>
+        <a href="/parent/messages" class="panel-more"><%= updatesTotal > updates.length ? `All ${updatesTotal} messages →` : 'Open inbox →' %></a>
+      </div>
+      <div class="panel-body">
+        <% updates.forEach(u => { %>
+          <%- include('../partials/school_message_card', { m: u, isNew: u.status !== 'read' }) %>
+        <% }) %>
+      </div>
+    </div>
+  <% } %>
+
+  <script>
+    // Student details pop-up (opened from the ℹ️ icon on the child's card)
+    (function () {
+      var btn = document.getElementById('kidDetailsBtn');
+      var modal = document.getElementById('kidModal');
+      var close = document.getElementById('kidModalClose');
+      if (!btn || !modal) return;
+      function open() { modal.hidden = false; document.body.style.overflow = 'hidden'; }
+      function shut() { modal.hidden = true; document.body.style.overflow = ''; }
+      btn.addEventListener('click', open);
+      if (close) close.addEventListener('click', shut);
+      modal.addEventListener('click', function (e) { if (e.target === modal) shut(); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) shut(); });
+    })();
+  </script>
+<%- include('../partials/footer') %>

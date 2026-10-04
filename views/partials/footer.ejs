@@ -1,0 +1,79 @@
+</main>
+</div>
+<% if (user && user.role === 'parent') { %>
+<script>
+  // ---- parent app: always run the newest version ----
+  (function () {
+    var secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    // service worker — app shell caching + offline page
+    if (!secure || !('serviceWorker' in navigator)) return;
+    var hadController = !!navigator.serviceWorker.controller;
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .then(function (reg) { try { reg.update(); } catch (e) {} })
+        .catch(function () {});
+    });
+    var reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!hadController || reloaded) return;   // first load: no reload needed
+      reloaded = true;
+      location.reload();                        // a new version landed — show it at once
+    });
+  })();
+</script>
+<!-- parent app: sound + pop-up card the moment the school sends something new -->
+<script src="/js/parent-alerts.js"></script>
+<% } %>
+<% if (user) { %>
+<!-- signed-in pages: come back to where you were after a save, put the caret back after a search,
+     and warm the page you point at so a click is instant -->
+<script src="/js/keep-place.js"></script>
+<script src="/js/prefetch.js"></script>
+<!-- result rings: fill from empty and count to their number when they come into view -->
+<script src="/js/ring-fill.js" defer></script>
+<% } %>
+<%# ---- THE UPDATE TAP AND THE APP'S FRONT IMAGE (school's request, 2026-09-18) -------------
+    One script on every page: it lifts the launch screen (partials/launch_screen.ejs, shown only
+    when the app is opened as an app) and offers one tap when the server is on a newer build than
+    this page — see public/js/app-update.js. `?launch=1` shows the front image in a browser too. %>
+<script src="/js/app-update.js" defer></script>
+<%# ---- THE QUESTION BEFORE A CHANGE (school's request, 2026-09-16) -------------------
+    One dialog and one script ask “do you really want to change this?” for every form that
+    saves or deletes, on the office's screen, a teacher's and a parent's phone alike. A form
+    that shows its own question says `data-confirm="own"`; one that must never ask (a
+    lookup, a download) says `data-confirm="off"`. The rules live in public/js/save-confirm.js. ---- %>
+<%- include('./save_confirm') %>
+<script src="/js/save-confirm.js"></script>
+<% if (user && user.role === 'admin') { %>
+<!-- admin: save chime + the "Saved" message moves into the card that was updated -->
+<script src="/js/admin-flash.js"></script>
+<%# THE OFFICE BELL — one dock on every office page. It rings when something arrives for the
+    school and stays there saying “this many are waiting”, instead of a pop-up per notification
+    (school's request, 2026-09-16). It is rendered with the true count and kept live by
+    public/js/admin-alerts.js.
+
+    The DASHBOARD is the one exception: it carries the same dock INLINE, as a big bell at the
+    top-right of its page head (views/admin/dashboard.ejs), so it is not included a second time
+    here — two bells on one screen would be one too many. %>
+<% if (currentPath !== '/admin') { %><%- include('./office_dock') %><% } %>
+<script src="/js/admin-alerts.js"></script>
+<% } %>
+<%# ---- phone: one round ↑ back-to-top button, on every signed-in office/teacher section
+      (see the partial). The office's lists and a teacher's marks sheet are hundreds of rows tall;
+      the parent app has its own floating pair (call + WhatsApp), so it does not get one here. ---- %>
+<% if (user && (user.role === 'admin' || user.role === 'teacher')) { %>
+<%- include('./scroll_jump') %>
+<% } %>
+<% if (user && user.role === 'teacher') { %>
+<%# THE TEACHER'S 🔔 (school's request, 2026-09-19): the bell on his hero card asks
+    /teacher/alerts.json every 20 s, rings the moment a new school message arrives and
+    blinks while anything is waiting — the office's own dock, one role over. %>
+<script src="/js/teacher-bell.js" defer></script>
+<% } %>
+<footer class="app-footer">© <%= istYear() %> <%= school.schoolName %> · All rights reserved · <a href="/logout">Sign out</a></footer>
+<%# WHO BUILT THIS — a band of its own, separate from `.app-footer`, because that line is
+    hidden on a phone (≤900px) while this one must be readable on every screen. Nothing
+    prints from it (see `.dev-credit.no-print`). %>
+<footer class="dev-footer no-print"><%- include('./dev_credit') %></footer>
+</body>
+</html>

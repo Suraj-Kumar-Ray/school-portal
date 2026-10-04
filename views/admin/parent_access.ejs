@@ -1,0 +1,191 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1>👨‍👩‍👦 Parent Access</h1>
+    <p>
+      You decide <b>what a parent may open</b> in the phone app. Every section can be switched
+      off, and you can close the rest automatically for a child whose <b>fee is due</b> —
+      that child keeps the fee pages and their amount, and nothing else. The change is live
+      on the parent's next tap; nothing has to be reinstalled.
+    </p>
+  </div>
+
+  <% if (saved) { %>
+    <div class="alert success">
+      <% if (mode === 'all') { %>✅ All sections are open for parents again.
+      <% } else if (mode === 'none') { %>✅ Every section except <b>Fees</b> is now closed for parents.
+      <% } else { %>✅ Saved — <b><%= settings.open %></b> of <b><%= settings.total %></b> sections are open for parents, and the fee rule is <b><%= settings.lockUnpaid ? 'ON' : 'OFF' %></b>.
+      <% } %>
+    </div>
+  <% } %>
+  <% if (err) { %><div class="alert error">⚠️ <%= err %></div><% } %>
+
+  <div class="alert" style="background:#e0f2fe; border:1px solid #7dd3fc;">
+    ℹ️ <b>Two controls, both yours:</b>
+    <b>1.</b> Tick the sections parents may open. An unticked section disappears from the
+    parent's menu and its page says the office has not kept it open.
+    <b>2.</b> Switch on the fee rule and a child whose fee is due keeps only
+    <b>Fees</b> and the home page — where the amount and the <b>💳 Pay now</b> button are —
+    so the parent can always see what to pay and pay it.
+    <b>Fees can never be switched off</b>, because a parent who cannot open the fee page
+    cannot pay the school.
+  </div>
+
+  <form method="POST" action="/admin/parent-access">
+    <%# the form says it printed the section boxes, so a page that never showed them can
+        never switch everything off by accident (see parent_access.save) %>
+    <input type="hidden" name="parentSwitchesSet" value="1">
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Sections parents may open</h3>
+        <span class="text-muted"><%= settings.open %> of <%= settings.total %> open now</span>
+      </div>
+      <div class="panel-body">
+        <% groups.forEach(g => { %>
+          <div class="perm-group">
+            <div class="perm-group-name"><%= g.group %></div>
+            <% g.sections.forEach(s => { %>
+              <label class="perm-row">
+                <input type="checkbox" name="show_<%= s.key %>" value="1" <%= settings.sections[s.key] ? 'checked' : '' %>>
+                <span class="perm-icon"><%= s.icon %></span>
+                <span class="perm-text">
+                  <b><%= s.label %></b>
+                  <small><%= s.hint %></small>
+                </span>
+                <span class="perm-key"><code><%= s.key %></code></span>
+              </label>
+            <% }) %>
+          </div>
+        <% }) %>
+
+        <%# Fees — printed like the others, but it can never be switched off %>
+        <div class="perm-group">
+          <div class="perm-group-name"><%= fees.group %></div>
+          <label class="perm-row is-locked" title="Always open — a parent who cannot open the fee page cannot pay">
+            <input type="checkbox" checked disabled>
+            <span class="perm-icon"><%= fees.icon %></span>
+            <span class="perm-text">
+              <b><%= fees.label %> <span class="badge green">always open</span></b>
+              <small><%= fees.hint %></small>
+            </span>
+            <span class="perm-key"><code>fees</code></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Close the other sections when the fee is not paid</h3>
+        <span class="text-muted"><%= settings.lockUnpaid ? 'ON — a child with dues sees Fees only' : 'OFF — every open section above is visible to everybody' %></span>
+      </div>
+      <div class="panel-body">
+        <label class="perm-row">
+          <input type="checkbox" name="parentLockUnpaid" value="1" <%= settings.lockUnpaid ? 'checked' : '' %>>
+          <span class="perm-icon">🔒</span>
+          <span class="perm-text">
+            <b>Switch the fee rule on</b>
+            <small>
+              A child whose fee is due loses every section above and keeps <b>Fees</b> and the
+              home page. The moment the office records the payment, the sections come back on
+              their own — nobody has to switch anything again.
+            </small>
+          </span>
+          <span class="perm-key"><code>lock</code></span>
+        </label>
+
+        <div class="perm-group" style="margin-top:16px;">
+          <div class="perm-group-name">Close it as soon as…</div>
+          <% bases.forEach(b => { %>
+            <label class="perm-row">
+              <input type="radio" name="parentLockBasis" value="<%= b.key %>" <%= settings.basis === b.key ? 'checked' : '' %>>
+              <span class="perm-icon"><%= b.key === 'overdue' ? '⏰' : '🧾' %></span>
+              <span class="perm-text">
+                <b><%= b.key === 'overdue' ? 'A month is late' : 'Any month is unpaid' %></b>
+                <small><%= b.label %></small>
+              </span>
+              <span class="perm-key"><code><%= b.key %></code></span>
+            </label>
+          <% }) %>
+        </div>
+
+        <div class="form-group" style="margin-top:16px;">
+          <label for="parentLockNote">What the parent is told <span class="text-muted">(shown in a red box on their home page)</span></label>
+          <textarea id="parentLockNote" name="parentLockNote" rows="2" maxlength="300"
+                    placeholder="<%= defaultNote %>"><%= settings.custom ? settings.note : '' %></textarea>
+          <small class="text-muted">
+            Keep it short and in simple words. Leave it empty to use the school's usual
+            sentence: <i><%= defaultNote %></i>
+          </small>
+        </div>
+      </div>
+
+      <div class="panel-body">
+        <button type="submit" name="action" value="save" class="btn btn-primary">💾 Save</button>
+        <button type="submit" name="action" value="all" class="btn btn-outline"
+                onclick="return confirm('Open every section for all parents?');">Open everything</button>
+        <button type="submit" name="action" value="none" class="btn btn-danger"
+                onclick="return confirm('Close every section except Fees for all parents? They will still see the fee amount and can pay it.');">Close all but Fees</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>👀 What a parent sees</h3>
+      <span class="text-muted" id="paCount"></span>
+    </div>
+    <div class="panel-body">
+      <div class="pa-preview" id="paPreview" aria-label="Parent app menu"></div>
+      <p class="text-muted" style="font-size:12.5px; margin:12px 0 0;">
+        The menu and the phone's bottom bar hold exactly these — nothing else is printed.
+        The home page keeps <b>Home</b> and <b>Fees</b> always.
+      </p>
+    </div>
+    <div class="panel-head"><h3>Each section covers</h3></div>
+    <div class="panel-body">
+      <ul class="perm-preview">
+        <% groups.forEach(g => { g.sections.forEach(s => { %>
+          <li><%= s.icon %> <b><%= s.label %></b> <span class="text-muted">— also <%= s.home %></span></li>
+        <% }) }) %>
+      </ul>
+      <p class="text-muted" style="font-size:12.5px; margin:12px 0 0;">
+        With the fee rule ON, a child with dues sees <b>Home</b> and <b>Fees</b> only, plus a red
+        box explaining why. Messages the school sent still reach the parent's phone as a
+        notification (with sound), so a reminder is never lost.
+      </p>
+    </div>
+  </div>
+
+<script>
+  // Live preview: the office sees the parent's menu as the boxes are ticked, so nobody
+  // has to save first and look from a phone.
+  (function () {
+    var SECTIONS = <%- JSON.stringify(groups.flatMap(g => g.sections).map(s => ({ key: s.key, icon: s.icon, label: s.label }))) %>;
+    var ORDER = ['result', 'timetable', 'fees', 'notices', 'inbox'];
+    var box = function (k) { return document.querySelector('input[name="show_' + k + '"]'); };
+    var lock = function () { return document.querySelector('input[name="parentLockUnpaid"]'); };
+    var out = document.getElementById('paPreview');
+    var count = document.getElementById('paCount');
+    function draw() {
+      var on = SECTIONS.filter(function (s) { return box(s.key) && box(s.key).checked; });
+      var locked = lock() && lock().checked;
+      var tabs = [{ key: 'home', icon: '🏠', label: 'Home' }];
+      ORDER.forEach(function (k) {
+        if (k === 'fees') { tabs.push({ key: 'fees', icon: '₹', label: 'Fees' }); return; }
+        var s = SECTIONS.find(function (x) { return x.key === k; });
+        if (s && on.indexOf(s) !== -1) tabs.push(s);
+      });
+      out.innerHTML = tabs.map(function (t) {
+        var short = t.key === 'inbox' ? 'Inbox' : t.label.split(' ')[0];
+        return '<span class="pa-tab' + (t.key === 'fees' ? ' pa-tab-money' : '') + '">' +
+          '<span class="pa-ico">' + t.icon + '</span>' + short + '</span>';
+      }).join('') + (locked ? '<span class="pa-tab pa-tab-lock">🔒 fee rule ON</span>' : '');
+      count.textContent = on.length + ' of ' + SECTIONS.length + ' sections open';
+    }
+    document.querySelectorAll('.perm-row input[type="checkbox"], input[name="parentLockUnpaid"]')
+      .forEach(function (b) { b.addEventListener('change', draw); });
+    draw();
+  })();
+</script>
+<%- include('../partials/footer') %>

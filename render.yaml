@@ -1,0 +1,25 @@
+# ============================================================================
+# Render blueprint — the school portal as one free demo service.
+# ----------------------------------------------------------------------------
+# This is the DEMO build: a fictional school on a free plan, seeded automatically
+# on boot. The free tier has no persistent disk, so every deploy starts from a
+# fresh demo database — exactly what a showcase wants.
+#
+#   dashboard.render.com → New → Blueprint → pick this repo → Apply
+# ============================================================================
+services:
+  - type: web
+    name: school-portal-demo
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: npm ci --omit=dev || npm install --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true   # Render invents a strong secret and keeps it
+      - key: NODE_VERSION
+        value: "18"

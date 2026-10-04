@@ -1,0 +1,125 @@
+<%- include('../partials/header', { title }) %>    <div class="page-head flex-between">
+    <div>
+      <h1>👩‍🏫 Teachers</h1>
+      <p>Teacher profile card details — photo, qualification, experience, rating, bio. These show on the public "Our Teachers" page.</p>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="/admin/teacher-access" class="btn btn-outline">🔑 Teacher Access</a>
+      <a href="/admin/teachers/new" class="btn btn-primary">➕ Add Teacher</a>
+    </div>
+  </div>
+
+  <% if (created) { %><div class="alert success">✅ Teacher added. Now edit the photo and profile card details to show on the website.</div><% } %>
+  <% if (updated) { %><div class="alert success">✅ Teacher updated.</div><% } %>
+  <% if (deleted) { %><div class="alert success">🗑️ Teacher removed.</div><% } %>
+  <% if (photo === 'saved') { %><div class="alert success">📷 Photo saved — it now shows on the public profile card.</div><% } %>
+  <% if (photo === 'removed') { %><div class="alert success">📷 Photo removed.</div><% } %>
+
+  <div class="panel">
+    <div class="panel-head"><h3>All teachers</h3><span class="text-muted"><%= teachers.length %> teachers</span></div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <%# The table is for the office's desk; `data-label` on every cell is what turns the
+            same row into a readable CARD on a phone (see .card-table in style.css). %>
+        <table class="card-table">
+          <thead><tr><th>Photo</th><th>Name &amp; class</th><th>Qualification</th><th>Experience</th><th>Rating</th><th>Phone</th><th></th></tr></thead>
+          <tbody>
+            <% teachers.forEach(t => { %>
+            <tr>
+              <td class="td-photo" data-label="Photo">
+                <% if (t.photo) { %>
+                  <img src="<%= t.photo %>" alt="<%= t.full_name %>" class="stu-photo">
+                <% } else { %>
+                  <span class="stu-photo stu-photo-ph"><%= t.full_name.split(' ').filter(w => !/^(mrs|mr|ms|dr|smt|shri)\.?$/i.test(w)).map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+                <% } %>
+                <form method="POST" action="/admin/teachers/<%= t.id %>/photo" class="photo-form">
+                  <input type="hidden" name="photo">
+                  <label class="btn btn-outline btn-sm" style="margin:0; cursor:pointer;" title="Upload photo">📷
+                    <input type="file" accept="image/*" class="photo-file" style="display:none;">
+                  </label>
+                  <% if (t.photo) { %>
+                  <%# the ✕ ASKS FIRST — one stray tap on a phone used to wipe the photo with no
+                      warning. (The upload path is untouched: the file input calls form.submit(),
+                      which never fires a click on this button.) %>
+                  <button type="submit" name="remove" value="1" class="btn btn-danger btn-sm" title="Remove photo"
+                          onclick="return confirm('Remove this photo? The card shows the teacher\'s initials until you upload a new one.');">✕</button>
+                  <% } %>
+                </form>
+              </td>
+              <td class="td-name" data-label="Name &amp; class">
+                <b><%= t.full_name %></b>
+                <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">
+                  <span class="badge blue"><%= t.class_name %><%= t.section ? ' ' + t.section : '' %></span>
+                  <% if (t.subject) { %><span class="badge gray"><%= t.subject %></span><% } else { %><span class="badge gray">Class teacher</span><% } %>
+                  <code style="background:#eef2ff; padding:2px 7px; border-radius:5px;"><%= t.username %></code>
+                </div>
+                <div style="font-size:12px; margin-top:5px;">
+                  <% if (t.perms && t.perms.length) { %>
+                    <a href="/admin/teachers/<%= t.id %>/permissions" class="badge green" style="text-decoration:none;">🔑 <%= t.perms.length %> section<%= t.perms.length === 1 ? '' : 's' %> open</a>
+                  <% } else { %>
+                    <a href="/admin/teachers/<%= t.id %>/permissions" class="badge red" style="text-decoration:none;">🔑 no access yet</a>
+                  <% } %>
+                  <% if (t.can_login === 0) { %><span class="badge red">login off</span><% } %>
+                </div>
+              </td>
+              <td data-label="Qualification"><%= t.qualification || '—' %></td>
+              <td data-label="Experience"><%= t.experience_years ? t.experience_years + ' yrs' : '—' %></td>
+              <td data-label="Rating">
+                <% if (t.rating) { %>
+                  <b style="color:var(--accent);">★ <%= Number(t.rating).toFixed(1) %></b>
+                <% } else { %>—<% } %>
+              </td>
+              <td data-label="Phone"><%= t.phone || '—' %></td>
+              <td class="td-actions text-right" style="white-space:nowrap;">
+                <%# On a phone these two are the card's own buttons (half a row each) and the
+                    Delete form is lifted into the card's TOP-RIGHT corner — see .card-table
+                    in style.css. On a desk all three stay on their one row, unchanged. %>
+                <a href="/admin/teachers/<%= t.id %>/permissions" class="btn btn-outline btn-sm btn-access">🔑 Access</a>
+                <a href="/admin/teachers/<%= t.id %>/edit" class="btn btn-outline btn-sm btn-edit">✏️ Edit</a>
+                <%# Kept inline so the desk's three buttons stay on one row. Absolutely positioning
+                    it on a phone (see .teacher-table in style.css) blockifies it, so the same
+                    inline form shrink-wraps into the card's top-right chip. %>
+                <form method="POST" action="/admin/teachers/<%= t.id %>/delete" class="del-form" style="display:inline;" onsubmit="return confirm('Remove <%= t.full_name %>? This cannot be undone.');">
+                  <button type="submit" class="btn btn-danger btn-sm" title="Delete this teacher">🗑 Delete</button>
+                </form>
+              </td>
+            </tr>
+            <% }) %>
+            <% if (!teachers.length) { %><tr class="is-empty"><td colspan="7" class="empty" data-label="">No teachers yet.</td></tr><% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p><a href="/teachers" target="_blank" class="btn btn-outline btn-sm">👀 View public teachers page →</a></p>
+
+  <script>
+    // Photo upload: pick a file → resize to ≤400px → submit as small JPEG (same as students)
+    document.querySelectorAll('.photo-form').forEach(function (form) {
+      var file = form.querySelector('.photo-file');
+      var hidden = form.querySelector('input[name="photo"]');
+      if (!file) return;
+      file.addEventListener('change', function () {
+        var f = file.files && file.files[0];
+        if (!f) return;
+        if (!/^image\//.test(f.type)) { alert('Please choose an image file (JPG/PNG).'); return; }
+        var img = new Image();
+        img.onload = function () {
+          var MAX = 400, w = img.width, h = img.height;
+          if (w > MAX || h > MAX) {
+            var r = MAX / Math.max(w, h);
+            w = Math.round(w * r); h = Math.round(h * r);
+          }
+          var cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          hidden.value = cv.toDataURL('image/jpeg', 0.82);
+          form.submit();
+        };
+        img.onerror = function () { alert('Could not read the image — please try again.'); };
+        img.src = URL.createObjectURL(f);
+      });
+    });
+  </script>
+<%- include('../partials/footer') %>

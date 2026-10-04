@@ -1,0 +1,83 @@
+<%- include('../partials/header') %>
+  <div class="page-head">
+    <h1>📲 Parent Alerts <span class="badge blue" style="vertical-align:middle;">SMS / WhatsApp</span></h1>
+    <p>Every SMS/WhatsApp sent to parents — automatically when a <b>result is published</b>, a <b>notice is posted</b>, or when you <b>send fee reminders</b>.</p>
+  </div>
+
+  <% if (smsOn || waOn) { %><div class="alert success">📡 Gateways active — SMS <%= smsOn ? '✅' : '❌' %> · WhatsApp <%= waOn ? '✅' : '❌' %>. New alerts are delivered for real.</div><% } %>
+
+  <div class="cards">
+    <div class="card stat-card accent-blue"><div class="stat-label">Alerts today</div><div class="stat-value"><%= counts.today %></div><div class="stat-sub">messages sent to parents</div></div>
+    <div class="card stat-card accent-green"><div class="stat-label">Delivered</div><div class="stat-value"><%= counts.sent %></div><div class="stat-sub">via configured gateway</div></div>
+    <div class="card stat-card accent-orange"><div class="stat-label">Logged (demo)</div><div class="stat-value"><%= counts.demo %></div><div class="stat-sub">no gateway — just logged</div></div>
+    <div class="card stat-card accent-red"><div class="stat-label">Channels</div><div class="stat-value" style="font-size:20px; padding-top:6px;">SMS <%= counts.sms %> · WA <%= counts.whatsapp %></div><div class="stat-sub">by channel</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Alert history</h3>
+      <form method="GET" action="/admin/alerts" class="filters">
+        <div class="form-group">
+          <select name="event" onchange="this.form.submit()">
+            <option value="">All events</option>
+            <% ['result_published', 'fee_due', 'notice', 'system'].forEach(e => { %>
+              <option value="<%= e %>" <%= e === event ? 'selected' : '' %>><%= e.replace(/_/g, ' ') %></option>
+            <% }) %>
+          </select>
+        </div>
+        <% if (event) { %><a href="/admin/alerts" class="btn btn-outline btn-sm">✕ Clear</a><% } %>
+      </form>
+    </div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <%# seven columns of a message log — the table is for the desk, and `data-label` turns the
+            SAME row into one card per message on a phone (see .card-table in style.css) %>
+        <table class="card-table">
+          <thead>
+            <tr>
+              <th>Parent (phone)</th><th>Child / Class</th><th>Event</th><th>Channel</th><th>Message</th><th>Status</th><th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% list.forEach(a => { %>
+            <tr>
+              <td class="td-name" data-label="Parent">
+                <b><%= a.parent_name || '—' %></b><br>
+                <span class="roll"><%= a.phone || 'no phone' %></span>
+              </td>
+              <td data-label="Child / class">
+                <% if (a.child_name) { %><%= a.child_name %><br><span class="roll"><%= a.child_class || '' %></span><% } else { %><span class="text-muted">—</span><% } %>
+              </td>
+              <td data-label="Event">
+                <% const e = a.event; const map = { result_published: ['Result published', 'blue'], fee_due: ['Fee reminder', 'orange'], fee_paid: ['Fee received', 'green'], notice: ['Notice', 'green'], system: ['System', 'gray'] }; %>
+                <span class="badge <%= (map[e] || ['System','gray'])[1] %>"><%= (map[e] || ['System','gray'])[0] %></span>
+              </td>
+              <td data-label="Channel"><span class="badge <%= a.channel === 'whatsapp' ? 'green' : 'gray' %>"><%= a.channel %></span></td>
+              <td class="cell-stack" data-label="Message" style="max-width:340px;"><span class="roll" style="white-space:normal;"><%= a.message %></span></td>
+              <td data-label="Status"><span class="badge <%= a.status === 'sent' ? 'green' : a.status === 'failed' ? 'red' : 'gray' %>"><%= a.status %></span></td>
+              <td class="roll" data-label="Time"><%= fmtDateTime(a.created_at) %> <span class="tz-tag">IST</span></td>
+            </tr>
+            <% }) %>
+            <% if (!list.length) { %><tr class="is-empty"><td colspan="7" class="empty">No alerts yet — publish a result, post a notice or send fee reminders to generate them.</td></tr><% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>Enable real SMS / WhatsApp delivery</h3></div>
+    <div class="panel-body">
+      <p class="text-muted" style="margin-bottom:8px;">Currently alerts are <b>logged</b> (demo). To deliver real messages set these environment variables and restart:</p>
+      <div class="table-wrap">
+        <table style="max-width:760px;">
+          <thead><tr><th>Channel</th><th>Environment variables</th><th>Provider</th></tr></thead>
+          <tbody>
+            <tr><td><b>SMS</b></td><td><code>SMS_API_KEY</code></td><td>Fast2SMS (India) — 160-char messages to parent phones</td></tr>
+            <tr><td><b>WhatsApp</b></td><td><code>WHATSAPP_API_URL</code>, <code>WHATSAPP_API_KEY</code></td><td>Any WhatsApp Business provider webhook (Interakt / WATI / Meta Cloud API)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+<%- include('../partials/footer') %>

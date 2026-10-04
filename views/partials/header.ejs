@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<%# `appShell` is 1 only when the request came from the school's own APK — it proves that with an
+    `X-School-App` header and a `school_app=1` cookie, see src/app.js → isAppCookie(). That app is a
+    WebView, which has no Notification API, so public/js/parent-alerts.js uses this marker to skip
+    the “turn on notifications” prompt that could never work there, and public/js/app-update.js
+    uses `data-app-shell` (below) as the “this IS the app” signal, because a WebView matches
+    neither `display-mode: standalone` nor iOS's flag. A browser never carries it. %>
+<html lang="en" data-app-shell="<%= typeof appShell === 'undefined' ? '' : (appShell ? '1' : '') %>">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title><%= title ? title + ' · ' : '' %><%= school.schoolName %></title>
+  <link rel="stylesheet" href="/css/style.css?v=20260921-bell-seen">
+  <%# ---- installable parent app (PWA) ---- %>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="application-name" content="GVPS Parent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="GVPS Parent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <%# the build this page came from — public/js/app-update.js compares it with /app-release.json
+      and offers one tap to update when the server has moved on (src/services/release.js) %>
+  <meta name="app-release" content="<%= typeof appRelease === 'undefined' ? '' : appRelease %>">
+  <%# FIRST VISIT, NO STYLES: the tunnel's warning page answered even for this page's stylesheet
+      (mobile UA → text/html for /css/style.css) and the browser threw it away. This script wins
+      the tunnel's visit cookie quietly on the very first page load, so every request after it —
+      CSS, images, scripts, the worker's fetches — goes through without a wall and without ONE
+      tap from the parent. No-op once the cookie is in the jar; harmless without the tunnel. %>
+  <script src="/js/visit.js" defer></script>
+</head>
+<body class="<%= user ? 'role-' + user.role : 'role-public' %><%= user && user.role === 'parent' ? ' app-parent' : '' %><%= user && user.role === 'teacher' ? ' app-teacher' : '' %>">
+<%# the app's front image — the newest crest and name, drawn by the page itself %>
+<%- include('./launch_screen') %>
+<div class="layout">
+  <aside class="sidebar" id="appSidebar">
+    <div class="brand">
+      <img src="<%= school.logo %>" alt="<%= school.schoolName %> logo" class="school-logo sidebar-logo">
+      <div class="brand-text">
+        <b><%= school.schoolName %></b>
+        <span><%= school.schoolTypeLine %></span>
+      </div>
+    </div>
+    <% if (user) { %>
+    <nav>
+      <% if (user.role === 'admin') { %>
+        <div class="nav-group">Overview</div>
+        <a href="/admin" class="<%= currentPath === '/admin' ? 'active' : '' %>"><span class="nav-icon">📊</span><span>Dashboard</span></a>
+        <div class="nav-group">Website</div>
+        <a href="/admin/homepage" class="<%= currentPath.startsWith('/admin/homepage') ? 'active' : '' %>"><span class="nav-icon">🏠</span><span>Homepage Content</span></a>
+        <a href="/admin/contact-page" class="<%= currentPath.startsWith('/admin/contact-page') ? 'active' : '' %>"><span class="nav-icon">📞</span><span>Contact Page</span></a>
+        <a href="/admin/notices" class="<%= currentPath.startsWith('/admin/notices') ? 'active' : '' %>"><span class="nav-icon">📢</span><span>Notices</span></a>
+        <a href="/admin/about" class="<%= currentPath.startsWith('/admin/about') ? 'active' : '' %>"><span class="nav-icon">🏫</span><span>About School</span></a>
+        <%# every word the app shows is editable here (services/words.js) — the badge counts
+            the changes the office has made, so a page that reads oddly is one tap away %>
+        <a href="/admin/wording" class="<%= currentPath.startsWith('/admin/wording') ? 'active' : '' %>"><span class="nav-icon">🖊️</span><span>Words<span class="nav-badge" <%= (typeof wordsCount !== 'undefined' && wordsCount) ? '' : 'hidden' %>><%= (typeof wordsCount !== 'undefined' && wordsCount) || 0 %></span></span></a>
+        <div class="nav-group">Admissions</div>
+        <a href="/admin/admissions" class="<%= currentPath.startsWith('/admin/admissions') ? 'active' : '' %>"><span class="nav-icon">📋</span><span>Admissions</span></a>
+        <a href="/admin/inbox" class="<%= currentPath.startsWith('/admin/inbox') ? 'active' : '' %>"><span class="nav-icon">📥</span><span>Inbox</span></a>
+        <a href="/admin/alerts" class="<%= currentPath.startsWith('/admin/alerts') ? 'active' : '' %>"><span class="nav-icon">📲</span><span>Parent Alerts</span></a>
+        <a href="/admin/messages" class="<%= currentPath.startsWith('/admin/messages') ? 'active' : '' %>"><span class="nav-icon">📬</span><span>Parent Messages<span class="nav-badge" data-badge="office-messages" <%= unreadAdmin ? '' : 'hidden' %>><%= unreadAdmin || 0 %></span></span></a>
+        <div class="nav-group">Parents</div>
+        <a href="/admin/parent-access" class="<%= currentPath.startsWith('/admin/parent-access') ? 'active' : '' %>"><span class="nav-icon">👨‍👩‍👦</span><span>Parent Access</span></a>
+        <div class="nav-group">Academics</div>
+        <a href="/admin/students" class="<%= currentPath.startsWith('/admin/students') ? 'active' : '' %>"><span class="nav-icon">🎓</span><span>Students</span></a>
+        <a href="/admin/toppers" class="<%= currentPath.startsWith('/admin/toppers') ? 'active' : '' %>"><span class="nav-icon">🏆</span><span>Class Toppers</span></a>
+        <a href="/admin/marks" class="<%= currentPath.startsWith('/admin/marks') ? 'active' : '' %>"><span class="nav-icon">📝</span><span>Marks / Results</span></a>
+        <a href="/admin/timetable" class="<%= currentPath.startsWith('/admin/timetable') ? 'active' : '' %>"><span class="nav-icon">🕒</span><span>Timetable</span></a>
+        <a href="/admin/exam-timetable" class="<%= currentPath.startsWith('/admin/exam-timetable') ? 'active' : '' %>"><span class="nav-icon">🗓</span><span>Exam Time Table</span></a>
+        <a href="/admin/holidays" class="<%= currentPath.startsWith('/admin/holidays') ? 'active' : '' %>"><span class="nav-icon">🎉</span><span>Holidays</span></a>
+        <div class="nav-group">Staff</div>
+        <a href="/admin/teachers" class="<%= currentPath.startsWith('/admin/teachers') ? 'active' : '' %>"><span class="nav-icon">👩‍🏫</span><span>Teachers</span></a>
+        <a href="/admin/teacher-access" class="<%= currentPath.startsWith('/admin/teacher-access') ? 'active' : '' %>"><span class="nav-icon">🔑</span><span>Teacher Access</span></a>
+        <div class="nav-group">Accounts</div>
+        <a href="/admin/fees" class="<%= currentPath.startsWith('/admin/fees') ? 'active' : '' %>"><span class="nav-icon rupee-glyph">₹</span><span>Fees</span></a>
+        <a href="/admin/fee-structure" class="<%= currentPath.startsWith('/admin/fee-structure') ? 'active' : '' %>"><span class="nav-icon rupee-glyph">₹</span><span>Fee Structure</span></a>
+        <div class="nav-group">Facilities</div>
+        <a href="/admin/hostel" class="<%= currentPath.startsWith('/admin/hostel') ? 'active' : '' %>"><span class="nav-icon">🏠</span><span>Hostel</span></a>
+        <a href="/admin/store" class="<%= currentPath.startsWith('/admin/store') ? 'active' : '' %>"><span class="nav-icon">📚</span><span>Store</span></a>
+      <% } else if (user.role === 'teacher') { %>
+        <%# A teacher's sidebar is built from the sections the office granted
+            (src/services/permissions.js) — nothing else is printed at all. %>
+        <%# When the office gave him more than one class, the menu carries the class he is
+            looking at, so moving between pages never drops him back into another class. %>
+        <% const cl = (typeof multiClass !== 'undefined' && multiClass && viewClass) ? '?class=' + viewClass.id : ''; %>
+        <div class="nav-group"><%= teacher ? teacher.class_name + (teacher.section ? ' ' + teacher.section : '') : 'My class' %></div>
+        <a href="/teacher<%= cl %>" class="<%= currentPath === '/teacher' ? 'active' : '' %>"><span class="nav-icon">🏠</span><span>My Dashboard</span></a>
+        <% let navGroup = ''; (teacherNav || []).forEach(s => { %>
+          <% if (s.group !== navGroup) { navGroup = s.group; %>
+            <div class="nav-group"><%= s.group %></div>
+          <% } %>
+          <a href="/teacher/<%= s.key %><%= cl %>" class="<%= currentPath.startsWith('/teacher/' + s.key) ? 'active' : '' %>"><span class="nav-icon"><%= s.icon %></span><span><%= s.label %></span></a>
+        <% }) %>
+        <%# Timetable and Messages are ALWAYS in the menu (2026-09-19): without the grant they
+            open read-only (his week / the office's notes), so the app never looks half-built %>
+        <% [['students', '🎓', 'Student list'], ['timetable', '🕒', 'Timetable'], ['messages', '📨', 'Messages']].forEach(item => { const k = item[0]; if (!(teacherNav || []).some(s => s.key === k)) { %>
+          <a href="/teacher/<%= k %><%= cl %>" class="<%= currentPath.startsWith('/teacher/' + k) ? 'active' : '' %>"><span class="nav-icon"><%= item[1] %></span><span><%= item[2] %><% if (k === 'messages' && typeof staffUnread !== 'undefined' && staffUnread) { %> <span class="nav-badge"><%= staffUnread %></span><% } %></span></a>
+        <% } }) %>
+        <% if (!(teacherNav || []).length) { %>
+          <div class="nav-group">Access</div>
+          <span class="nav-note">No section is open for your login yet — please ask the school office.</span>
+        <% } %>
+        <div class="nav-group">School</div>
+        <%# his own record, shown back read-only — no page of it can be edited (src/routes/teacher.js) %>
+        <a href="/teacher/profile" class="<%= currentPath === '/teacher/profile' ? 'active' : '' %>"><span class="nav-icon">🪪</span><span>My Profile</span></a>
+        <a href="/" class=""><span class="nav-icon">🏫</span><span>School Website</span></a>
+      <% } else if (user.role === 'parent') { %>
+        <%# A parent's menu is built from the sections the OFFICE left open
+            (src/services/parent_access.js) — a section switched off is not printed at all,
+            and its page answers 403. Fees is always there: the office must be able to ask
+            for money, and a parent with a pending fee keeps the fee pages even when every
+            other section is closed. %>
+        <div class="nav-group">My Children</div>
+        <a href="/parent" class="<%= currentPath === '/parent' ? 'active' : '' %>"><span class="nav-icon">🏠</span><span>Dashboard</span></a>
+        <% (parentNav || []).forEach(s => { %>
+          <a href="<%= s.href %>" class="<%= (s.match || [s.href]).some(p => currentPath.startsWith(p)) ? 'active' : '' %>">
+            <span class="nav-icon"><%= s.icon %></span>
+            <span><%= s.key === 'inbox' ? 'Message School' : s.label %><% if (s.key === 'inbox') { %><span class="nav-badge" data-badge="parent-inbox" <%= unreadParent ? '' : 'hidden' %>><%= unreadParent > 99 ? '99+' : (unreadParent || 0) %></span><% } %></span>
+          </a>
+        <% }) %>
+        <% if (parentAccess && parentAccess.locked) { %>
+          <span class="nav-note">🔒 The other sections are closed for this child until the school fee is paid.</span>
+        <% } %>
+      <% } %>
+    </nav>
+    <div class="sidebar-user">
+      <div class="role-badge"><%= user.role %></div>
+      <div class="user-name"><%= user.full_name %></div>
+      <a href="/logout">Log out →</a>
+    </div>
+    <% } %>
+  </aside>
+  <div class="mobile-topbar">
+    <%# ---- phone: the menu is a DRAWER the hamburger opens, not a wordless icon rail.
+        Every entry keeps its label, so 20 emoji are not something a thumb has to guess. ---- %>
+    <% if (user) { %>
+    <button type="button" class="nav-burger no-print" id="appNavToggle" aria-label="Open menu"
+            aria-expanded="false" aria-controls="appSidebar">
+      <span></span><span></span><span></span>
+    </button>
+    <% } %>
+    <span class="mobile-brand">
+      <img src="<%= school.logo %>" alt="<%= school.schoolName %> logo" class="school-logo mobile-logo">
+      <span class="mb-text">
+        <b><%= school.schoolName %></b>
+        <small><%= school.schoolTypeLine %></small>
+      </span>
+      <span class="badge blue"><%= user.role %></span>
+    </span>
+    <a href="/logout" class="btn btn-sm btn-logout">Log out</a>
+  </div>
+  <% if (user) { %><button type="button" class="nav-scrim no-print" id="appNavScrim" tabindex="-1" aria-hidden="true"></button><% } %>
+
+  <%# ---- phone: the few things the office opens all day, one tap away at the bottom ---- %>
+  <% if (user && user.role === 'admin') { %>
+  <nav class="app-tabbar admin-tabbar no-print" aria-label="Office sections">
+    <a href="/admin" class="<%= currentPath === '/admin' ? 'active' : '' %>"><span class="tab-ico">📊</span><span class="tab-label">Dashboard</span></a>
+    <a href="/admin/students" class="<%= currentPath.startsWith('/admin/students') ? 'active' : '' %>"><span class="tab-ico">🎓</span><span class="tab-label">Students</span></a>
+    <a href="/admin/teachers" class="<%= (currentPath.startsWith('/admin/teachers') || currentPath.startsWith('/admin/teacher-access')) ? 'active' : '' %>"><span class="tab-ico">👩‍🏫</span><span class="tab-label">Teachers</span></a>
+    <a href="/admin/fees" class="<%= currentPath.startsWith('/admin/fees') ? 'active' : '' %>"><span class="tab-ico rupee-glyph">₹</span><span class="tab-label">Fees</span></a>
+    <a href="/admin/inbox" class="<%= currentPath.startsWith('/admin/inbox') ? 'active' : '' %>"><span class="tab-ico">📥</span><span class="tab-label">Inbox</span></a>
+  </nav>
+  <% } %>
+  <% if (user && user.role === 'teacher') { %>
+  <% const tcl = (typeof multiClass !== 'undefined' && multiClass && viewClass) ? '?class=' + viewClass.id : ''; %>
+  <%# The bottom bar's first three tabs are PERMANENT (school's request, 2026-09-19):
+      Dashboard → Timetable → Messages, always in this order, always working. Timetable and
+      Messages open read-only until the office grants them; granted sections then join after.
+      Exactly 5 tabs max, like a phone app. %>
+  <nav class="app-tabbar teacher-tabbar no-print" aria-label="Teacher sections">
+    <a href="/teacher<%= tcl %>" class="<%= currentPath === '/teacher' ? 'active' : '' %>"><span class="tab-ico">🏠</span><span class="tab-label">Dashboard</span></a>
+    <a href="/teacher/timetable<%= tcl %>" class="<%= currentPath.startsWith('/teacher/timetable') ? 'active' : '' %>"><span class="tab-ico">🕒</span><span class="tab-label">Timetable</span></a>
+    <a href="/teacher/messages" class="<%= currentPath.startsWith('/teacher/messages') ? 'active' : '' %>"><span class="tab-ico">📨</span><span class="tab-label">Messages</span><% if (typeof staffUnread !== 'undefined' && staffUnread) { %><span class="tab-badge"><%= staffUnread %></span><% } %></a>
+    <% (teacherNav || []).filter(s => s.key !== 'timetable' && s.key !== 'messages').slice(0, 2).forEach(s => { %>
+    <a href="/teacher/<%= s.key %><%= tcl %>" class="<%= currentPath.startsWith('/teacher/' + s.key) ? 'active' : '' %>"><span class="tab-ico"><%= s.icon %></span><span class="tab-label"><%= s.label %></span></a>
+    <% }) %>
+  </nav>
+  <% } %>
+
+  <%# ---- phone app: bottom tab bar (parents only, phones only) ----
+      The same list as the sidebar, cut down to what a bar can hold — a section the
+      office switched off simply is not a tab. Fees is always one. ---- %>
+  <% if (user && user.role === 'parent') { %>
+  <% const tabs = parentTabs || []; %>
+  <nav class="parent-tabbar" aria-label="Parent app" data-tabs="<%= tabs.length + 1 %>">
+    <a href="/parent" class="<%= currentPath === '/parent' ? 'active' : '' %>">
+      <span class="tab-ico">🏠</span><span class="tab-label">Home</span>
+    </a>
+    <% tabs.forEach(t => { %>
+    <a href="<%= t.href %>" class="<%= (t.match || [t.href]).some(p => currentPath.startsWith(p)) ? 'active' : '' %>">
+      <span class="tab-ico"><%= t.icon %></span><span class="tab-label"><%= t.short %></span>
+      <% if (t.key === 'inbox') { %><span class="tab-badge" data-badge="parent-inbox" <%= unreadParent ? '' : 'hidden' %>><%= unreadParent > 99 ? '99+' : (unreadParent || 0) %></span><% } %>
+    </a>
+    <% }) %>
+  </nav>
+  <% } %>
+
+  <%# ---- phone drawer: the hamburger opens the full, LABELLED menu over the page.
+      Nothing here changes the desktop sidebar — it only decides, on a small screen, whether
+      the menu is slid in or out. ---- %>
+  <% if (user) { %>
+  <script>
+    (function () {
+      var burger = document.getElementById('appNavToggle');
+      var scrim = document.getElementById('appNavScrim');
+      if (!burger) return;
+      function setOpen(open) {
+        document.body.classList.toggle('nav-open', open);
+        burger.classList.toggle('open', open);
+        burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+      }
+      burger.addEventListener('click', function () {
+        setOpen(!document.body.classList.contains('nav-open'));
+      });
+      if (scrim) scrim.addEventListener('click', function () { setOpen(false); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setOpen(false); });
+      // tapping a section closes the drawer so the new page is not hidden behind it
+      var sidebar = document.getElementById('appSidebar');
+      if (sidebar) sidebar.addEventListener('click', function (e) { if (e.target.closest('a')) setOpen(false); });
+      // the drawer belongs to small screens only — a resize back to desktop must not leave it open
+      window.addEventListener('resize', function () { if (window.innerWidth > 900) setOpen(false); });
+    })();
+  </script>
+  <% } %>
+
+  <main class="main">
+  <%# ---- teacher app: WHICH class this page is about. No picker on a page that is not about ONE
+      class: the dashboard, the timetable (his own week, built from the office's grids by teacher
+      NAME), and BOTH halves of the message section — the 📨 inbox is his own and the 📢 notices
+      are the school's, so switching a class over them changed nothing but the chip that was lit
+      (school's request, 2026-09-21: “delete it, it has no use here”). Other class-specific pages
+      — Students, Marks, Toppers, Fees — keep their picker. ---- %>
+  <% const noClassPicker = ['/teacher', '/teacher/timetable', '/teacher/messages', '/teacher/notices'].includes(currentPath); %>
+  <% if (user && user.role === 'teacher' && typeof viewClasses !== 'undefined' && multiClass && !noClassPicker) { %>
+  <div class="class-picker" aria-label="Choose class">
+    <span class="cp-label">🏫 Class:</span>
+    <div class="cp-chips">
+      <% viewClasses.forEach(c => { %>
+        <a href="<%= c.href %>" class="cp-chip<%= c.id === viewClass.id ? ' active' : '' %>"
+           <%= c.id === viewClass.id ? 'aria-current="true"' : '' %>>
+          <%= c.label %><% if (c.own) { %> <span class="cp-own">my class</span><% } %>
+        </a>
+      <% }) %>
+    </div>
+  </div>
+  <% } %>
+  <%# A teacher is told ONCE, on the page after the office changed their access %>
+  <% if (user && user.role === 'teacher' && typeof permChanged !== 'undefined' && permChanged) { %>
+    <div class="alert" style="background:#fef3c7; border:1px solid #fcd34d; margin-bottom:16px;">
+      🔑 The school office has updated what your login can open — please look at the menu on the left.
+    </div>
+  <% } %>

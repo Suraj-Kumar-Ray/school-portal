@@ -1,0 +1,214 @@
+<%- include('../partials/header', { title }) %>
+<%# ============================================================================
+  THE ONE-TAP HOMEWORK BOARD (2026-09-19)
+  ----------------------------------------------------------------------------
+  The school does not let teachers use phones, and marking one child at a time was
+  too slow. So the WHOLE CLASS sits on ONE screen: every child is a row, every
+  subject period of the day is a column, and ONE TAP on a cell marks it —
+
+      first tap   ✕ Not done     second tap  ✓ Done
+      third tap   clear (plain) … and round again.
+
+  The tap POSTs once to /teacher/homework/tap (JSON) and the CELL FLIPS IN PLACE —
+  no page reload, no dialog, nothing else to press. The teacher scans the room and
+  taps down each column; the whole class takes seconds on a desktop.
+
+  The “who did not do it” list at the bottom is the follow-up note — and it is what
+  the parents' Time Table shows as a red ✕ on that period's homework band.
+============================================================================ %>
+  <div class="page-head flex-between">
+    <div>
+      <h1>✅ Homework board — <%= cls.label %></h1>
+      <p class="text-muted" style="margin:2px 0 0;">One tap per cell — the whole class in seconds.</p>
+    </div>
+    <div class="head-actions">
+      <a href="/teacher/students?class=<%= viewClass.id %>" class="btn btn-outline">← Class list</a>
+    </div>
+  </div>
+
+  <%# ---- the day strip: the running day opens by itself; yesterday is one tap left ---- %>
+  <div class="panel">
+    <div class="panel-body hw-day-picker">
+      <% const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']; %>
+      <% days.forEach(d => { %>
+        <a class="hw-day-chip<%= d === boardDay ? ' active' : '' %><%= d === boardToday ? ' is-today' : '' %>"
+           href="/teacher/homework-board?class=<%= viewClass.id %>&day=<%= d %>"><%= d.slice(0, 3) %></a>
+      <% }) %>
+      <span class="text-muted" style="align-self:center; margin-left:8px; font-size:12.5px;">
+        <%= boardDay === boardToday ? "today's list" : 'looking at ' + boardDay %>
+      </span>
+    </div>
+  </div>
+
+  <%# ---- the legend: the three states one tap cycles through ---- %>
+  <div class="hw-board-legend">
+    <span><i class="hw-cell demo hw-s-plain"></i> no mark — nothing shows to parents</span>
+    <span><i class="hw-cell demo hw-s-not"></i> ✕ not done — red cross on their timetable</span>
+    <span><i class="hw-cell demo hw-s-done"></i> ✓ done — green tick</span>
+  </div>
+
+  <% if (!boardStudents.length) { %>
+    <div class="empty">No students in <%= cls.label %> yet.</div>
+  <% } else if (!boardPeriods.length) { %>
+    <div class="empty">No subject periods on <%= boardDay %> — the office has not filled this day.</div>
+  <% } else { %>
+  <div class="panel hw-board-panel">
+    <div class="panel-head">
+      <h3>📋 <%= boardDay %> — tap a cell to change it</h3>
+      <span class="panel-head-note"><%= boardStudents.length %> student<%= boardStudents.length === 1 ? '' : 's' %> × <%= boardPeriods.length %> period<%= boardPeriods.length === 1 ? '' : 's' %></span>
+    </div>
+    <div class="panel-body hw-board-wrap">
+      <table class="hw-board" data-day="<%= boardDay %>" data-by="<%= boardMarkedBy %>">
+        <thead>
+          <tr>
+            <th class="hw-b-name">Student</th>
+            <% boardPeriods.forEach(p => { %>
+              <th class="hw-b-col" title="<%= p.subject %> — Period <%= p.period %>">
+                <span class="hw-b-emoji"><%= p.emoji || '📘' %></span>
+                <b><%= p.subject.length > 12 ? p.subject.slice(0, 11) + '…' : p.subject %></b>
+                <small>P<%= p.period %></small>
+              </th>
+            <% }) %>
+          </tr>
+        </thead>
+        <tbody>
+          <% boardStudents.forEach(s => { const mine = boardMarks[s.id] || {}; %>
+            <tr data-student="<%= s.id %>">
+              <td class="hw-b-name">
+                <b><%= s.full_name %></b>
+                <% if (s.roll_no) { %><small>R<%= s.roll_no %></small><% } %>
+              </td>
+              <% boardPeriods.forEach(p => { const st = mine[p.period] || null; %>
+                <td>
+                  <button type="button"
+                          class="hw-cell hw-s-<%= st ? st.status : 'plain' %>"
+                          data-period="<%= p.period %>"
+                          data-status="<%= st ? st.status : '' %>"
+                          aria-label="<%= s.full_name %> — <%= p.subject %> Period <%= p.period %>: <%= st ? (st.status === 'done' ? 'done' : 'not done') : 'no mark' %>"
+                          title="<%= st ? (st.status === 'done' ? '✓ Done' : '✕ Not done') + (st.markedBy ? ' · ' + st.markedBy : '') : 'No mark yet' %> — tap to change">
+                    <%= st ? (st.status === 'done' ? '✓' : '✕') : '·' %>
+                  </button>
+                </td>
+              <% }) %>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <%# ---- the follow-up list: exactly what the parents will see as red crosses ---- %>
+  <div class="panel hw-notdone-panel">
+    <div class="panel-head">
+      <h3>🚩 Who did not do it — <%= boardDay %></h3>
+      <span class="panel-head-note">what the parents' Time Table shows</span>
+    </div>
+    <div class="panel-body">
+      <% const entries = Object.values(boardNotDone); %>
+      <% if (!entries.length) { %>
+        <p class="text-muted" style="margin:0;">Nothing marked yet — or every child did it. 🎉</p>
+      <% } else { %>
+        <div class="hw-notdone-list">
+          <% entries.forEach(e => { %>
+            <span class="hw-notdone-chip">
+              <b><%= e.name %></b>
+              <small>P<%= e.periods.join(', P') %></small>
+            </span>
+          <% }) %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+  <% } %>
+
+  <%# ---- the tap engine: one fetch per tap, the cell flips itself, nothing reloads ---- %>
+  <script>
+  (function () {
+    var table = document.querySelector('table.hw-board');
+    if (!table) return;
+    var DAY = table.dataset.day;
+    var BY = table.dataset.by || '';
+
+    // the tap cycle: plain → not_done → done → plain (✕ first: that is the daily truth)
+    var NEXT = { '': 'not_done', 'not_done': 'done', 'done': '' };
+
+    table.addEventListener('click', function (e) {
+      var cell = e.target && e.target.closest && e.target.closest('button.hw-cell');
+      if (!cell || cell.disabled) return;
+      var tr = cell.closest('tr[data-student]');
+      if (!tr) return;
+      var studentId = tr.getAttribute('data-student');
+      var period = cell.getAttribute('data-period');
+      var current = cell.getAttribute('data-status') || '';
+      var next = NEXT[current] !== undefined ? NEXT[current] : 'not_done';
+
+      // flip optimistically — the tap must feel instant; a failed PUT puts the old face back
+      paint(cell, next);
+      cell.disabled = true;
+
+      var body = new URLSearchParams();
+      body.set('student', studentId);
+      body.set('day', DAY);
+      body.set('period', period);
+      body.set('status', next);
+
+      fetch('/teacher/homework/tap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+        credentials: 'same-origin',
+      })
+        .then(function (r) { return r.json().catch(function () { return { ok: false }; }); })
+        .then(function (data) {
+          cell.disabled = false;
+          if (!data.ok) paint(cell, current);        // put the old face back
+          else if (data.status !== next) paint(cell, data.status || '');
+          if (typeof window.hwBoardRefreshFlags === 'function') window.hwBoardRefreshFlags();
+        })
+        .catch(function () { cell.disabled = false; paint(cell, current); });
+    });
+
+    function paint(cell, status) {
+      cell.classList.remove('hw-s-plain', 'hw-s-not_done', 'hw-s-done');
+      cell.classList.add('hw-s-' + (status || 'plain'));
+      cell.setAttribute('data-status', status || '');
+      cell.textContent = status === 'done' ? '✓' : status === 'not_done' ? '✕' : '·';
+      var tr = cell.closest('tr[data-student]');
+      var row = tr ? tr.querySelector('.hw-b-name b') : null;
+      var th = cell.closest('td');
+      var idx = th ? Array.prototype.indexOf.call(tr.children, th) : -1;
+      var head = idx > -1 ? table.querySelectorAll('thead th')[idx] : null;
+      var subject = head ? (head.getAttribute('title') || '').split('—')[0].trim() : 'this period';
+      cell.setAttribute('aria-label', (row ? row.textContent : 'Student') + ' — ' + subject + ': ' +
+        (status === 'done' ? 'done' : status === 'not_done' ? 'not done' : 'no mark'));
+      cell.title = (status === 'done' ? '✓ Done' : status === 'not_done' ? '✕ Not done' : 'No mark yet') +
+        (BY ? ' · ' + BY : '') + ' — tap to change';
+    }
+
+    /* the 🚩 list is server-rendered truth; after taps, rebuild it from the board itself
+       so the teacher sees the follow-up list move as they go — no reload needed */
+    window.hwBoardRefreshFlags = function () {
+      var panel = document.querySelector('.hw-notdone-panel .panel-body');
+      if (!panel) return;
+      var marks = {};
+      table.querySelectorAll('tbody tr[data-student]').forEach(function (tr) {
+        var id = tr.getAttribute('data-student');
+        var name = (tr.querySelector('.hw-b-name b') || {}).textContent || '';
+        tr.querySelectorAll('button.hw-cell').forEach(function (cell) {
+          var st = cell.getAttribute('data-status');
+          if (st !== 'not_done') return;
+          if (!marks[id]) marks[id] = { name: name, periods: [] };
+          marks[id].periods.push(cell.getAttribute('data-period'));
+        });
+      });
+      var chips = Object.keys(marks).map(function (id) {
+        return '<span class="hw-notdone-chip"><b>' + marks[id].name + '</b><small>P' +
+          marks[id].periods.join(', P') + '</small></span>';
+      }).join('');
+      panel.innerHTML = chips
+        ? '<div class="hw-notdone-list">' + chips + '</div>'
+        : '<p class="text-muted" style="margin:0;">Nothing marked yet — or every child did it. 🎉</p>';
+    };
+  })();
+  </script>
+<%- include('../partials/footer') %>

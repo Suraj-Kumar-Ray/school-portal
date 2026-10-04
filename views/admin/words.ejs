@@ -1,0 +1,141 @@
+<%- include('../partials/header', { title }) %>
+<%
+  // ============================================================================
+  // WORDS — every word on the parents' screens is the office's to change
+  //
+  // School's request (2026-09-17): “Give the office the option to update every single thing,
+  // down to a single word, and make it easy from a phone.”
+  //
+  // One saved change = one rule (src/services/words.js) applied to the finished HTML of
+  // every page. There is no per-screen list on purpose: change “Overall Average” once and it
+  // changes wherever it is printed — the page shows those screens under each phrase so the
+  // office can see where a word lives before touching it.
+  //
+  // PHONE FIRST, because that is where the office will do this: one column, 44px inputs, the
+  // Save button full-width under its own box, and the phrase list searchable — never a wall of
+  // 2000 phrases to scroll.
+  // ============================================================================
+  const e = editing || { id: '', from: '', to: '' };
+%>
+  <div class="page-head">
+    <h1>🖊️ Words</h1>
+    <p>
+      Change <b>any word the app shows</b> into the school's own words — one word or a whole
+      sentence. Type on the <b>left</b> what you see on the screen, on the <b>right</b> what it
+      should say, and save. It changes <b>everywhere</b> that phrase is printed, on the parents'
+      app and the school's own pages, with no update to install.
+    </p>
+  </div>
+
+  <% if (err) { %><div class="alert error">⚠️ <%= err %></div><% } %>
+  <% if (saved) { %><div class="alert success">✅ Saved — the new words are on the screens now. <a href="/parent?words=on">Open the parents' app</a> to see them.</div><% } %>
+  <% if (removed) { %><div class="alert success">✅ Change removed — the app's own words are back.</div><% } %>
+  <% if (cleared) { %><div class="alert success">✅ <%= cleared %> change<%= Number(cleared) === 1 ? '' : 's' %> removed — the whole app is back to its own words.</div><% } %>
+  <% if (same) { %><div class="alert">ℹ️ Both boxes say the same words, so there is nothing to change. Type the new words on the right.</div><% } %>
+
+  <%# ---- 1. the box that does the work ------------------------------------------------ %>
+  <div class="panel wd-editor">
+    <div class="panel-head">
+      <h3><%= e.id ? '✏️ Change these words' : '🖊️ Change a word' %></h3>
+      <% if (e.id) { %><a class="panel-more" href="/admin/wording">＋ Add another instead</a><% } %>
+    </div>
+    <div class="panel-body">
+      <form method="POST" action="/admin/wording" class="wd-form">
+        <input type="hidden" name="id" value="<%= e.id %>">
+        <div class="wd-field">
+          <label for="wd-from">What the app says now</label>
+          <input type="text" id="wd-from" name="from" maxlength="120" required
+                 value="<%= e.from %>" placeholder="Overall Average"
+                 autocomplete="off" autocapitalize="none" spellcheck="false">
+          <small>Copy it exactly as it looks on the screen — capital letters included.</small>
+        </div>
+        <div class="wd-field">
+          <label for="wd-to">What it should say</label>
+          <input type="text" id="wd-to" name="to" maxlength="200" required
+                 value="<%= e.to %>" placeholder="Your Result" autocomplete="off">
+          <small>While editing a change, the same words in both boxes give the app's own words
+            back. To undo any change, use ↩ Undo in the list below.</small>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">💾 Save these words</button>
+      </form>
+      <p class="wd-note">
+        ℹ️ The left box must match the screen <b>exactly</b>. Tap a phrase from the list below to
+        fill it in for you — that is the safest way, and it also shows which screens use it.
+      </p>
+    </div>
+  </div>
+
+  <%# ---- 2. what is changed right now --------------------------------------------------- %>
+  <div class="panel">
+    <div class="panel-head">
+      <h3>✅ Changed words (<%= rules.length %>)</h3>
+      <% if (rules.length) { %>
+        <form method="POST" action="/admin/wording/clear"
+              data-confirm-title="Go back to the app's own words?"
+              data-confirm-msg="All <%= rules.length %> change(s) are removed and every screen shows its original words again."
+              data-confirm-ok="Yes, reset them">
+          <button type="submit" class="btn btn-sm btn-danger">🗑 Reset everything</button>
+        </form>
+      <% } %>
+    </div>
+    <div class="panel-body">
+      <% if (!rules.length) { %>
+        <p class="empty">Nothing is changed yet — the app is showing its own words everywhere.
+          Tap a word from the list below to start.</p>
+      <% } else { %>
+        <ul class="wd-rules">
+          <% rules.forEach(r => { %>
+            <li>
+              <div class="wd-rule-words">
+                <span class="wd-from"><%= r.from %></span>
+                <span class="wd-arrow" aria-hidden="true">→</span>
+                <span class="wd-to"><%= r.to %></span>
+              </div>
+              <div class="wd-rule-actions">
+                <a class="btn btn-sm btn-outline" href="/admin/wording?edit=<%= r.id %>">✏️ Edit</a>
+                <form method="POST" action="/admin/wording/delete">
+                  <input type="hidden" name="id" value="<%= r.id %>">
+                  <button type="submit" class="btn btn-sm btn-danger">↩ Undo</button>
+                </form>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </div>
+  </div>
+
+  <%# ---- 3. the phrases the screens are built from --------------------------------------- %>
+  <div class="panel">
+    <div class="panel-head">
+      <h3>🔍 Words used in the app</h3>
+      <span class="panel-head-note"><%= matched %> of <%= catalogueTotal %></span>
+    </div>
+    <div class="panel-body">
+      <form method="GET" action="/admin/wording" class="wd-search">
+        <input type="search" name="q" value="<%= q %>" placeholder="Search a word — result, fee, holiday…"
+               autocomplete="off" aria-label="Search the app's words">
+        <button type="submit" class="btn btn-primary">Search</button>
+        <% if (q) { %><a class="btn btn-outline" href="/admin/wording">Clear</a><% } %>
+      </form>
+      <% if (!catalogue.length) { %>
+        <p class="empty">No word matches “<%= q %>”. Try a shorter piece of it, or type the phrase
+          yourself in the box above.</p>
+      <% } else { %>
+        <ul class="wd-list">
+          <% catalogue.forEach(p => { %>
+            <li>
+              <a class="wd-pick" href="/admin/wording?from=<%= encodeURIComponent(p.t) %>"
+                 title="Use this phrase"><%= p.t %></a>
+              <small class="wd-where"><%= p.in.map(f => f.replace('views/', '').replace('.ejs', '')).join(' · ') %></small>
+            </li>
+          <% }) %>
+        </ul>
+        <% if (matched > catalogue.length) { %>
+          <p class="wd-note">…and <%= matched - catalogue.length %> more. Search to narrow it down.</p>
+        <% } %>
+      <% } %>
+    </div>
+  </div>
+
+<%- include('../partials/footer') %>

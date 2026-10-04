@@ -1,0 +1,73 @@
+<%#
+  OFFICE NOTIFICATION DOCK — the bell the office watches.
+
+  School's request (2026-09-16): "if any notification comes to the admin it should make a sound,
+  and instead of pop-up after pop-up I should see on the side that something has arrived." Then, the
+  same day: "on the dashboard put a BIG bell at the top right, and let it blink while a notification
+  is there."
+
+  So one partial renders TWO SHAPES of the same thing — the number, the list and the sound are
+  identical, only where it lives changes:
+
+    `inline` (the dashboard)  →  a big bell at the top-right of the page head, part of the page,
+                                 with the plain words beside it ("3 waiting for the office"). It
+                                 stays on the screen even when nothing is waiting (dimmed, “Nothing
+                                 waiting”) — an office looks for the bell in the same place every
+                                 morning. While anything IS waiting it blinks in its own corner.
+                                 Its panel opens under the bell, over the page, and never pushes
+                                 the dashboard's cards around.
+    (nothing, every other page) → the floating bell in the screen's corner (top-right on a desk,
+                                 bottom-right above the back-to-top button on a phone). It hides
+                                 itself completely at zero, because a floating thing left on the
+                                 screen for nothing is just clutter.
+
+  The server renders the true starting number (`officeOpen`, read from `services/office_feed.js`);
+  `public/js/admin-alerts.js` keeps it live, rings the bell when something NEW arrives, and fills the
+  list when it is opened. Styling and its reasons live in `public/css/style.css` under
+  `.office-dock`; `smoke-office-feed.js` guards all of it.
+%>
+<% const dockInline = (typeof inline !== 'undefined') && inline; %>
+<div class="office-dock no-print<%= dockInline ? ' office-dock-inline' + (officeOpen.total ? '' : ' is-quiet') : '' %>" id="officeDock"
+     data-total="<%= officeOpen.total %>" data-messages="<%= officeOpen.message %>"
+     data-shape="<%= dockInline ? 'inline' : 'corner' %>"
+     <%= (!dockInline && !officeOpen.total) ? 'hidden' : '' %>>
+  <%# the bell — the button itself carries no words, the caption beside it does %>
+  <button type="button" class="office-dock-btn" id="officeDockBtn"
+          aria-expanded="false" aria-controls="officeDockPanel"
+          aria-label="Notifications for the office" title="What has arrived for the office">
+    <span class="office-dock-ico" aria-hidden="true">🔔</span>
+    <span class="office-dock-badge" id="officeDockBadge"
+          <%= officeOpen.total ? '' : 'hidden' %>><%= officeOpen.total %></span>
+  </button>
+
+  <% if (dockInline) { %>
+    <span class="office-dock-note" id="officeDockNote"><%= officeOpen.total
+      ? officeOpen.total + (officeOpen.total === 1 ? ' thing is waiting for the office' : ' things are waiting for the office')
+      : 'Nothing is waiting' %></span>
+  <% } %>
+
+  <div class="office-dock-panel" id="officeDockPanel" role="region"
+       aria-label="Waiting for the office" hidden>
+    <%# the header count is what is WAITING (the office's to-do, from the server). The “N new” pill
+        beside it is what has not been ticked off yet — that one is the office's own marking and
+        lives on this desk (`vvsOfficeSeen`), so it starts hidden. %>
+    <div class="od-head">
+      <b>Waiting for the office</b>
+      <span class="od-count" id="officeDockCount"><%= officeOpen.total %></span>
+      <span class="od-new" id="officeDockNew" hidden></span>
+      <button type="button" class="od-icon-btn od-mute" id="officeDockMute"
+              aria-pressed="false" aria-label="Mute the bell" title="Mute the bell">🔔</button>
+      <button type="button" class="od-icon-btn od-close" id="officeDockClose"
+              aria-label="Close">✕</button>
+    </div>
+    <div class="od-list" id="officeDockList">
+      <p class="od-empty">Nothing is waiting right now.</p>
+    </div>
+    <div class="od-foot">
+      <%# ONE ROW AT A TIME is the normal way (the ✓ on each row); this is the shortcut for a long
+          list. Neither of them touches the school's data — a tick only says “I have read this one”. %>
+      <button type="button" class="btn btn-sm btn-outline" id="officeDockSeen">✓ Mark all seen</button>
+      <a class="od-all" href="/admin/messages">Open parent messages</a>
+    </div>
+  </div>
+</div>

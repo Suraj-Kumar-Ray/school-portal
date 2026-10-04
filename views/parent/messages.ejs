@@ -1,0 +1,334 @@
+<%- include('../partials/header', { title }) %>
+  <%# ---- the child card, same format as every page (photo · name · class · roll · bell).
+      `child` arrives from the parent middleware itself — the full row with photo/roll. ---- %>
+  <div class="kid-card">
+    <% if (child.photo) { %>
+      <img src="<%= child.photo %>" alt="<%= child.full_name %>" class="kid-photo">
+    <% } else { %>
+      <span class="kid-photo kid-photo-ph"><%= child.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+    <% } %>
+    <div class="kid-info">
+      <span class="kid-name-row">
+        <b><%= child.full_name %></b>
+      </span>
+      <span class="kid-meta">
+        <span class="badge blue"><%= child.class_name %><%= child.section ? ' ' + child.section : '' %></span>
+        <% if (child.roll_no) { %><span class="kid-roll">Roll No. <%= child.roll_no %></span><% } %>
+      </span>
+      <% if (!child.photo) { %><small class="kid-hint">📷 The school office will add the photo</small><% } %>
+    </div>
+    <%# right side: the round due-date seal when a fee is late — same seal as the fees
+        page, so the money question follows the parent onto the inbox too ---- %>
+    <% if (overdueInfo) { %>
+      <a href="/parent/pay?child=<%= child.id %>" class="kid-bell fee-due-badge is-late"
+         title="<%= overdueInfo.term %> was due on <%= overdueInfo.due %> — ₹<%= overdueInfo.amount %> unpaid">
+        <span class="fdb-days"><%= overdueInfo.days %></span>
+        <span class="fdb-word">due from<br><%= overdueInfo.days === 1 ? 'day' : 'days' %></span>
+      </a>
+    <% } else { %>
+      <a href="/parent/messages" class="kid-bell" title="Messages from the school">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+        <% if (typeof unreadParent !== 'undefined' && unreadParent) { %><span class="kid-bell-badge badge danger"><%= unreadParent %></span><% } %>
+      </a>
+    <% } %>
+  </div>
+
+  <%# no page-head — the child card and the two toggle cards say everything already %>
+
+  <% if (query.sent) { %><div class="alert success">✅ Your message has been sent to the school office. You'll get a reply here.</div><% } %>
+
+  <%
+    // School messages come FIRST — the latest three, then a "See all" button.
+    // Anything the parent has not seen yet is never hidden behind that button.
+    const freshIds = (typeof newIds !== 'undefined' && newIds) ? newIds : [];
+    const SHOW = 3;
+    const firstMsgs = schoolMessages.slice(0, SHOW);
+    const restMsgs = schoolMessages.slice(SHOW);
+    const restHasNew = restMsgs.some(m => freshIds.indexOf(m.id) !== -1);
+  %>
+
+  <%# ---- TWO SMALL CARDS: Notices / Messages — tap to toggle which list shows below.
+      A red number rides on the card that has something new. ---- %>
+  <%
+    const freshNotices = classNotices.filter(n => n.isNew).length;
+    const freshMsgs = freshIds.length;
+  %>
+  <div class="inbox-tabs" role="tablist">
+    <button type="button" class="it-card is-active" id="tabMessages" data-pane="paneMessages" role="tab" aria-selected="true">
+      <span class="it-ico">✉️</span>
+      <span class="it-txt"><b>Messages</b><small>From the office & your chats</small></span>
+      <span class="it-counts">
+        <% if (freshMsgs) { %><span class="badge danger it-new"><%= freshMsgs %></span><% } %>
+        <span class="badge gray"><%= schoolMessages.length %></span>
+      </span>
+    </button>
+    <button type="button" class="it-card" id="tabNotices" data-pane="paneNotices" role="tab" aria-selected="false">
+      <span class="it-ico">📢</span>
+      <span class="it-txt"><b>Notices</b><small>Announcements from the school</small></span>
+      <span class="it-counts">
+        <% if (freshNotices) { %><span class="badge danger"><%= freshNotices %></span><% } %>
+        <span class="badge gray"><%= classNotices.length %></span>
+      </span>
+    </button>
+  </div>
+
+  <div id="paneMessages" class="inbox-pane" role="tabpanel">
+  <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap:20px;">
+    <!-- MESSAGES FROM THE SCHOOL (first thing the parent sees) -->
+    <div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>📣 Messages from the school <% if (freshIds.length) { %><span class="nav-badge"><%= freshIds.length %></span><% } %></h3>
+          <span class="badge gray"><%= schoolMessages.length %></span>
+        </div>
+        <div class="panel-body">
+          <% if (freshIds.length) { %>
+            <div class="new-banner">
+              <span class="nb-ico">🔔</span>
+              <span><%= freshIds.length %> new message<%= freshIds.length === 1 ? '' : 's' %> from the school — read <%= freshIds.length === 1 ? 'it' : 'them' %> below.</span>
+            </div>
+          <% } %>
+
+          <%# the card itself is shared with the home page's “Updates from school” —
+              see partials/school_message_card.ejs, so both screens show the same shape %>
+          <% const oneMsg = (m) => { %>
+            <%- include('../partials/school_message_card', { m, isNew: freshIds.indexOf(m.id) !== -1 }) %>
+          <% }; %>
+
+          <% firstMsgs.forEach(oneMsg); %>
+
+          <% if (restMsgs.length) { %>
+            <div id="moreSchoolMsgs" class="msg-more" <%= restHasNew ? '' : 'hidden' %>>
+              <% restMsgs.forEach(oneMsg); %>
+            </div>
+            <% if (!restHasNew) { %>
+              <button type="button" class="btn btn-outline btn-block see-more-btn" id="seeAllSchool"
+                      data-total="<%= schoolMessages.length %>" data-rest="<%= restMsgs.length %>">
+                See all <%= schoolMessages.length %> messages ↓
+              </button>
+              <div class="see-more-hint">Showing the latest <%= SHOW %> of <%= schoolMessages.length %></div>
+            <% } %>
+          <% } %>
+
+          <% if (!schoolMessages.length) { %><div class="empty">No messages from the school yet.</div><% } %>
+        </div>
+      </div>
+    </div>
+
+    <!-- MY CONVERSATIONS — one card per query, tap to open -->
+    <div>
+      <div class="panel">
+        <div class="panel-head"><h3>💬 My conversations</h3><span class="badge gray"><%= threads.length %></span></div>
+        <div class="panel-body">
+          <% if (!threads.length) { %>
+            <div class="empty">No conversations yet. Send your first message below.</div>
+          <% } %>
+          <%# the same peek rule as the school's messages: the latest 3 open, the rest
+              hide behind a See all button — but any thread with an UNSEEN reply is
+              never hidden, it stays in the open three %>
+          <% const T_SHOW = 3;
+             const hotThreads = threads.filter(t => t.unread_replies > 0);
+             const calmThreads = threads.filter(t => !(t.unread_replies > 0));
+             const firstThreads = [...hotThreads, ...calmThreads.slice(0, Math.max(0, T_SHOW - hotThreads.length))];
+             const restThreads = calmThreads.slice(Math.max(0, T_SHOW - hotThreads.length)); %>
+          <% firstThreads.forEach(t => { %>
+            <% const replies = (t.thread && t.thread.replies) ? t.thread.replies : []; %>
+            <% const last = replies.length ? replies[replies.length - 1] : null; %>
+            <% const schoolReplied = last && last.direction === 'to_parent'; %>
+            <details class="notice-item msg-item msg-card mc-thread"<%= t.unread_replies > 0 ? ' open' : '' %>>
+              <summary class="mc-thread-head">
+                <div class="mc-from">
+                  <span class="mc-from-who"><span class="mc-from-ico">✍️</span> You asked the school</span>
+                  <% if (t.unread_replies > 0) { %><span class="badge red"><%= t.unread_replies %> new</span><% } %>
+                  <span class="mc-when"><%= fmtShortDate(t.created_at) %></span>
+                </div>
+                <div class="mc-subject"><span class="badge blue"><%= t.category %></span><%= t.subject %></div>
+                <div class="mc-thread-meta">
+                  <% if (t.child_name) { %><span class="mc-child">👦 <%= t.child_name %></span><span class="mc-dot">·</span><span class="mc-child"><%= t.class_name %><%= t.section ? ' ' + t.section : '' %></span><% } else { %><span class="mc-child">General (not about a child)</span><% } %>
+                  <% if (schoolReplied) { %><span class="mc-replied">🏫 School office replied</span><% } %>
+                </div>
+                <% if (last) { %>
+                  <p class="mc-preview"><b><%= schoolReplied ? '🏫 School Office' : '✍️ You' %></b> · <%= last.body %></p>
+                <% } %>
+                <span class="mc-open"><%= replies.length %> message<%= replies.length === 1 ? '' : 's' %> · <span class="mc-open-word">Open</span> ▾</span>
+              </summary>
+
+              <div class="mc-thread-body">
+                <% replies.forEach(r => { %>
+                <div class="mc-bubble<%= r.direction === 'to_school' ? ' from-you' : ' from-school' %>">
+                  <div class="mc-bubble-who"><%= r.direction === 'to_school' ? '✍️ You' : '🏫 School Office' %> · <span class="mc-when"><%= fmtDateTime(r.created_at) %></span></div>
+                  <div class="mc-bubble-body"><%= r.body %></div>
+                </div>
+                <% }) %>
+
+                <form method="POST" action="/parent/messages/<%= t.id %>/reply" class="reply-row"
+                      data-confirm-title="Send this reply?"
+                      data-confirm-msg="Do you really want to send this reply to the school?"
+                      data-confirm-ok="Yes, send">
+                  <input type="text" name="body" placeholder="Write a reply…" required>
+                  <button type="submit" class="btn btn-outline btn-sm">Send</button>
+                </form>
+              </div>
+            </details>
+          <% }) %>
+          <% if (restThreads.length) { %>
+            <div id="moreThreads" class="msg-more" hidden>
+              <% restThreads.forEach(t => { %>
+            <% const replies = (t.thread && t.thread.replies) ? t.thread.replies : []; %>
+            <% const last = replies.length ? replies[replies.length - 1] : null; %>
+            <% const schoolReplied = last && last.direction === 'to_parent'; %>
+            <details class="notice-item msg-item msg-card mc-thread"<%= t.unread_replies > 0 ? ' open' : '' %>>
+              <summary class="mc-thread-head">
+                <div class="mc-from">
+                  <span class="mc-from-who"><span class="mc-from-ico">✍️</span> You asked the school</span>
+                  <% if (t.unread_replies > 0) { %><span class="badge red"><%= t.unread_replies %> new</span><% } %>
+                  <span class="mc-when"><%= fmtShortDate(t.created_at) %></span>
+                </div>
+                <div class="mc-subject"><span class="badge blue"><%= t.category %></span><%= t.subject %></div>
+                <div class="mc-thread-meta">
+                  <% if (t.child_name) { %><span class="mc-child">👦 <%= t.child_name %></span><span class="mc-dot">·</span><span class="mc-child"><%= t.class_name %><%= t.section ? ' ' + t.section : '' %></span><% } else { %><span class="mc-child">General (not about a child)</span><% } %>
+                  <% if (schoolReplied) { %><span class="mc-replied">🏫 School office replied</span><% } %>
+                </div>
+                <% if (last) { %>
+                  <p class="mc-preview"><b><%= schoolReplied ? '🏫 School Office' : '✍️ You' %></b> · <%= last.body %></p>
+                <% } %>
+                <span class="mc-open"><%= replies.length %> message<%= replies.length === 1 ? '' : 's' %> · <span class="mc-open-word">Open</span> ▾</span>
+              </summary>
+
+              <div class="mc-thread-body">
+                <% replies.forEach(r => { %>
+                <div class="mc-bubble<%= r.direction === 'to_school' ? ' from-you' : ' from-school' %>">
+                  <div class="mc-bubble-who"><%= r.direction === 'to_school' ? '✍️ You' : '🏫 School Office' %> · <span class="mc-when"><%= fmtDateTime(r.created_at) %></span></div>
+                  <div class="mc-bubble-body"><%= r.body %></div>
+                </div>
+                <% }) %>
+
+                <form method="POST" action="/parent/messages/<%= t.id %>/reply" class="reply-row"
+                      data-confirm-title="Send this reply?"
+                      data-confirm-msg="Do you really want to send this reply to the school?"
+                      data-confirm-ok="Yes, send">
+                  <input type="text" name="body" placeholder="Write a reply…" required>
+                  <button type="submit" class="btn btn-outline btn-sm">Send</button>
+                </form>
+              </div>
+            </details>
+              <% }) %>
+            </div>
+            <button type="button" class="btn btn-outline btn-block see-more-btn" id="seeAllThreads"
+                    data-total="<%= threads.length %>">
+              See all <%= threads.length %> conversations ↓
+            </button>
+            <div class="see-more-hint">Showing the latest <%= firstThreads.length %> of <%= threads.length %></div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WRITE TO THE SCHOOL (deliberately last: reading comes before writing) -->
+  <div class="panel" style="max-width: 720px; margin-top: 20px;">
+    <div class="panel-head"><h3>✍️ Send a message</h3></div>
+    <div class="panel-body">
+      <form method="POST" action="/parent/messages"
+            data-confirm-title="Send this message?"
+            data-confirm-msg="Do you really want to send this message to the school? The office will reply here."
+            data-confirm-ok="Yes, send">
+        <div class="form-group mb-2">
+          <label>About which child?</label>
+          <% if (children.length > 1) { %>
+            <select name="student_id">
+              <% children.forEach(ch => { %>
+                <option value="<%= ch.id %>"><%= ch.full_name %> · <%= ch.class_name %><%= ch.section ? ' ' + ch.section : '' %></option>
+              <% }) %>
+              <option value="">General (not about a specific child)</option>
+            </select>
+            <span class="text-muted" style="font-size:12px;">You have <%= children.length %> children in school — select the one this is about.</span>
+          <% } else if (children.length === 1) { %>
+            <input type="text" value="<%= children[0].full_name %> · <%= children[0].class_name %>" disabled>
+            <input type="hidden" name="student_id" value="<%= children[0].id %>">
+          <% } else { %>
+            <input type="text" value="Admission not approved yet — general message" disabled>
+          <% } %>
+        </div>
+        <div class="form-group mb-2">
+          <label>Category *</label>
+          <select name="category" required>
+            <% categories.forEach(c => { %><option value="<%= c %>"><%= c %></option><% }) %>
+          </select>
+        </div>
+        <div class="form-group mb-2">
+          <label>Subject *</label>
+          <input type="text" name="subject" required placeholder="e.g. Fee receipt missing for July">
+        </div>
+        <div class="form-group mb-2">
+          <label>Message *</label>
+          <textarea name="body" rows="4" required placeholder="Write your query here…"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Send to School Office</button>
+      </form>
+    </div>
+  </div>
+  </div><%# /paneMessages %>
+
+  <%# ---- NOTICES PANE — the same card language as the Notices page ---- %>
+  <div id="paneNotices" class="inbox-pane" role="tabpanel" hidden>
+    <%- include('../partials/notices', { notices: classNotices.slice(0, 4), seeAll: { href: '/parent/notices', count: classNotices.length } }) %>
+  </div>
+
+  <script>
+    // Notices / Messages toggle — one list on screen at a time.
+    // /parent/messages?tab=notices opens the NOTICES pane directly (the home page's
+    // "See all <N>" link lands here), and the tab click updates the URL so the
+    // choice survives a refresh.
+    (function () {
+      var tabs = document.querySelectorAll('.it-card');
+      if (!tabs.length) return;
+      function activate(id, push) {
+        tabs.forEach(function (o) {
+          var on = o.id === id;
+          o.classList.toggle('is-active', on);
+          o.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        document.querySelectorAll('.inbox-pane').forEach(function (p) { p.hidden = p.id !== (id === 'tabNotices' ? 'paneNotices' : 'paneMessages'); });
+        if (push && history.replaceState) history.replaceState(null, '', id === 'tabNotices' ? '?tab=notices' : location.pathname);
+      }
+      var params = new URLSearchParams(location.search);
+      var wanted = params.get('tab') === 'notices' ? 'tabNotices' : null;
+      if (wanted) activate(wanted, false);
+      tabs.forEach(function (t) {
+        t.addEventListener('click', function () {
+          activate(t.id, true);
+          try { t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+        });
+      });
+    })();
+    // "See all" opens the rest of the school's messages, then the button goes away
+    (function () {
+      var btn = document.getElementById('seeAllSchool');
+      var more = document.getElementById('moreSchoolMsgs');
+      if (!btn || !more) return;
+      btn.addEventListener('click', function () {
+        more.hidden = false;
+        more.classList.add('msg-open');
+        var hint = btn.parentElement.querySelector('.see-more-hint');
+        if (hint) hint.remove();
+        btn.remove();
+        try { more.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+      });
+    })();
+    // the same peek for MY CONVERSATIONS: the button opens the older threads
+    (function () {
+      var btn = document.getElementById('seeAllThreads');
+      var more = document.getElementById('moreThreads');
+      if (!btn || !more) return;
+      btn.addEventListener('click', function () {
+        more.hidden = false;
+        more.classList.add('msg-open');
+        var hint = btn.parentElement.querySelector('.see-more-hint');
+        if (hint) hint.remove();
+        btn.remove();
+        try { more.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+      });
+    })();
+  </script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,530 @@
+<%- include('../partials/header', { title }) %>
+<%
+  // The details come in as two kinds of rows: what a parent scans / pastes into a UPI
+  // app (`ways`), and the bank accounts they type into net banking (`accounts` — one
+  // group per account, so a second account simply adds another block). Same source
+  // (services/payments.js) — only the layout is decided here. The step numbers are
+  // counted, so an extra account renumbers the panels by itself.
+  const inr = (n) => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
+  let step = 0;
+%>
+<div class="pay-page">
+  <div class="page-head">
+    <h1>💳 Pay Fees</h1>
+    <p>Three easy steps — by UPI, from the bank, or in cash at the school office.</p>
+  </div>
+
+  <%- include('../partials/child_picker', { children, childId }) %>
+
+  <%# ---- THE ONE BIG QUESTION: “how much, for whom?” — the child's name rides in the
+      hero itself, so the answer is complete without reading anything else. ---- %>
+  <div class="pay-hero<%= late.length ? ' pay-hero-late' : (amount ? '' : ' pay-hero-clear') %>" id="payAmountCard">
+    <div class="pay-hero-grid">
+      <div class="pay-hero-main">
+        <div class="pay-hero-ask">You are paying for <b class="pay-hero-kid"><%= child.full_name %></b></div>
+        <% if (amount > 0) { %>
+          <div class="pay-hero-amt"><%= inr(amount) %></div>
+          <div class="pay-hero-why">
+            <% if (late.length) { %>
+              <%= late.length %> late month<%= late.length === 1 ? '' : 's' %> — <b><%= late.map(m => m.term).join(' · ') %></b>
+            <% } else if (upcoming) { %>
+              <b><%= upcoming.term %></b><% if (upcoming.due_date) { %> — due by <%= fmtDMY(upcoming.due_date) %><% } %>
+            <% } %>
+          </div>
+        <% } else { %>
+          <div class="pay-hero-amt pay-hero-amt-ok">✅ All clear</div>
+          <div class="pay-hero-why">Every month of this session is settled.</div>
+        <% } %>
+      </div>
+      <%# the round “DUE FROM N DAYS” seal — the same one the fees page wears, so the
+          lateness is the first thing seen on BOTH pages (self-calculated, 2026-09-18) %>
+      <% if (overdueInfo) { %>
+        <span class="kid-bell fee-due-badge is-late pay-hero-badge" aria-hidden="true">
+          <span class="fdb-days"><%= overdueInfo.days %></span>
+          <span class="fdb-word">due from<br><%= overdueInfo.days === 1 ? 'day' : 'days' %></span>
+        </span>
+      <% } %>
+    </div>
+  </div>
+
+  <%# everything below is about SENDING money — so it is shown only when something is
+      actually owed. A paid-up parent gets a plain all-clear instead of payment details. %>
+  <% if (amount > 0) { %>
+    <% if (!pay.custom) { %>
+      <div class="alert orange">
+        ⚠️ <b>Demo details.</b> The school office has not saved its own UPI ID / bank account yet — the details on
+        this page are samples for a demo. Do not send money to them.
+      </div>
+    <% } %>
+
+    <%# ---- STEP 1: how much + the UPI / QR way. This is THE card a parent follows:
+        amount on top, big UPI button under it, and the QR + ids inside a “see details”
+        fold that keeps the card short. ---- %>
+    <div class="step-card">
+      <div class="step-head">
+        <span class="step-no">1</span>
+        <div class="step-title">
+          <b>Pay by UPI <small>PhonePe · Google Pay · Paytm</small></b>
+        </div>
+      </div>
+      <div class="step-body">
+        <%# ONE QUESTION, ONE BOX: “how much are you sending?” — the number is prefilled, most
+            parents never touch it. The part-payment line sits small under it. %>
+        <div class="pay-amt-row">
+          <span class="pay-amt-rupee">₹</span>
+          <input id="payAmt" class="pay-amt-input" type="number" inputmode="numeric"
+                 min="1" step="1" value="<%= amount %>" aria-label="Amount you are paying">
+        </div>
+        <p class="pay-for"><span class="pf-kid"><%= child.full_name %></span> — you are paying for: <b id="payForLine"><%= dueLabel || 'this session\u2019s fee' %></b></p>
+        <p class="pay-hint">Paying less is fine — the office adds the rest to your balance.</p>
+
+        <% if (pay.payUpi && upi) { %>
+          <a id="upiOpen" class="btn btn-primary btn-lg btn-block pay-btn-upi" href="<%= upi %>"
+             data-upi="<%= upiBase %>" data-note="<%= ref %>">
+            Pay <b class="pay-btn-amt" id="upiAmtTxt"><%= amount > 0 ? inr(amount) : '' %></b> in your UPI app
+          </a>
+          <p class="pay-hint" style="text-align:center;">Tap and your UPI app opens with the amount already filled in</p>
+        <% } %>
+
+        <%# the QR + the UPI id stay one tap away, not in the parent's face %>
+        <% if (pay.payUpi || pay.payQr) { %>
+          <details class="pay-fold">
+            <summary>Need the QR code or UPI ID? <span class="pay-fold-chev">▾</span></summary>
+            <div class="pay-upi pay-fold-body">
+              <div class="pay-qr-box">
+                <img class="pay-qr" src="<%= pay.payQr %>" alt="School payment QR code" width="240" height="240">
+                <a class="pay-save-qr" href="<%= pay.payQr %>" download="school-payment-qr.png">⬇️ Save this QR</a>
+              </div>
+              <div class="pay-upi-side">
+                <% ways.forEach(w => { %>
+                  <div class="pay-field">
+                    <span class="pay-field-label"><%= w.icon %> <%= w.label %></span>
+                    <b class="pay-field-value"><%= w.value %></b>
+                    <% if (w.copy) { %><button type="button" class="pay-copy" data-copy="<%= w.value %>">📋 <span>Copy</span></button><% } %>
+                  </div>
+                <% }) %>
+              </div>
+            </div>
+          </details>
+        <% } %>
+
+        <%# ---- PAY EARLY (below the pay button, OPEN — 2026-09-18): the feature stays
+            visible so whoever wants to clear a coming month early finds it right there;
+            it just no longer sits between the amount and the pay button. ---- %>
+        <% if (advance.length) { %>
+          <div class="pay-early">
+            <div class="pay-early-head">
+              <span class="pay-early-ico">🗓</span>
+              <span>Want to pay a coming month <b>early</b>? <span class="text-muted">tap the month to add it</span></span>
+            </div>
+            <div class="pay-early-chips">
+              <% advance.forEach(a => { %>
+                <button type="button" class="pay-chip pay-early-chip" data-add="<%= Math.round(a.balance) %>"
+                        data-id="<%= a.id %>" data-term="<%= a.term %>" aria-pressed="false">
+                  + <b><%= a.term %></b> · <%= inr(a.balance) %>
+                </button>
+              <% }) %>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <%# ---- STEP 2, FOLDED (2026-09-18): almost every parent pays by UPI, so the bank
+        card waits inside a one-line fold. UPI users now see steps 1 → 3 with nothing in
+        between; whoever needs net banking taps once and gets the full account rows. ---- %>
+    <% if (accounts.length) { %>
+    <div class="step-card step-folded">
+      <details class="bank-fold">
+        <summary>
+          <span class="step-no">2</span>
+          <span class="step-title">
+            <b>Or pay from the bank
+              <small>NEFT · IMPS · net banking<%= accounts.length > 1 ? ' · ' + accounts.length + ' accounts' : '' %></small>
+            </b>
+            <span class="pay-fold-chev">▾</span>
+          </span>
+        </summary>
+        <div class="bank-fold-body">
+          <% accounts.forEach(ac => { %>
+            <% if (accounts.length > 1) { %><div class="bank-ac-label">Account <%= accounts.indexOf(ac) + 1 %><%= ac.label ? ' · ' + ac.label : '' %></div><% } %>
+            <div class="pay-rows">
+              <% ac.rows.forEach(w => { %>
+                <div class="pay-row">
+                  <span class="pay-row-label"><%= w.icon %> <%= w.label %></span>
+                  <b class="pay-row-value"><%= w.value %></b>
+                  <% if (w.copy) { %><button type="button" class="pay-copy" data-copy="<%= w.value %>">📋 <span>Copy</span></button><% } %>
+                </div>
+              <% }) %>
+            </div>
+          <% }) %>
+        </div>
+      </details>
+    </div>
+    <% } %>
+
+    <div class="step-card">
+      <div class="step-head">
+        <span class="step-no">3</span>
+        <div class="step-title">
+          <b>After paying — tell the school <small>send the screenshot, the office confirms</small></b>
+        </div>
+      </div>
+      <div class="step-body">
+        <% if (waLink) { %>
+          <a id="waSend" class="btn btn-lg btn-block pay-btn-wa" href="<%= waLink %>"
+             data-wa="<%= waBase %>" data-wa-text="<%= waText %>" target="_blank" rel="noopener">
+            💬 Send payment proof on WhatsApp
+          </a>
+          <p class="pay-hint" style="text-align:center;">Attach the screenshot — the office checks it for you</p>
+        <% } %>
+
+        <div class="pay-after">
+          ℹ️ The office checks it and marks your month <b>Paid</b> — the message arrives right here.
+          The receipt appears on your <a href="/parent/fees?child=<%= child.id %>">Fees page</a>.
+        </div>
+
+        <%# ---- PAYMENTS YOU ALREADY TOLD THE SCHOOL ABOUT — open cards, newest first ----
+            A parent who paid yesterday and does not see it recorded yet looks HERE first.
+            Every slip says which month it is for and what the office did with it, the same
+            round status seal the fees page uses. ---- %>
+        <% if (claims && claims.length) { %>
+          <%# newest three open, the rest behind "See all" — the same fold the fees page
+              uses, so the pay page never grows just because a parent paid often ---- %>
+          <% const CLAIMS_SHOWN = 3; const claimsExtra = Math.max(0, claims.length - CLAIMS_SHOWN); %>
+          <div class="claim-open-list" id="claims-panel">
+            <div class="col-head">📨 Payments you already told the school · <%= claims.length %> in all</div>
+            <% claims.forEach((cl, i) => { %>
+              <div class="claim-open-row claim-<%= cl.status %><%= i >= CLAIMS_SHOWN ? ' is-extra' : '' %>">
+                <span class="cor-seal">
+                  <% if (cl.status === 'pending') { %>⏳
+                  <% } else if (cl.status === 'recorded') { %>✅
+                  <% } else { %>✕<% } %>
+                </span>
+                <span class="cor-body">
+                  <b>₹<%= Math.round(cl.amount).toLocaleString('en-IN') %> · <%= cl.mode %><% if (cl.reference) { %> · <%= cl.reference %><% } %></b>
+                  <small>
+                    Paid on <%= fmtDMY(cl.paid_on) %><% if (cl.monthList && cl.monthList.length) { %> — for <%= cl.monthList.map(m => m.term).join(' · ') %><% } %>
+                  </small>
+                  <% if (cl.status === 'pending') { %>
+                    <span class="cor-state is-waiting">Waiting for the office to check</span>
+                  <% } else if (cl.status === 'recorded') { %>
+                    <span class="cor-state is-done">Received<% if (cl.recordedList && cl.recordedList.length) { %> — added to <%= cl.recordedList.map(r => r.term).join(' · ') %><% } %></span>
+                  <% } else { %>
+                    <span class="cor-state is-bad">Not found<%= cl.decision_note ? ' — ' + cl.decision_note : '' %></span>
+                  <% } %>
+                </span>
+              </div>
+            <% }) %>
+            <% if (claimsExtra > 0) { %>
+              <button type="button" class="claim-more">
+                <span class="cm-label">See all <%= claims.length %> payments</span>
+                <span class="cm-chev" aria-hidden="true">▾</span>
+              </button>
+            <% } %>
+          </div>
+          <script>
+            (function () {
+              var btn = document.querySelector('#claims-panel .claim-more');
+              if (!btn) return;
+              btn.addEventListener('click', function () {
+                var open = btn.closest('.claim-open-list').classList.toggle('is-open');
+                btn.querySelector('.cm-label').textContent = open ? 'Show fewer' : 'See all ' + btn.closest('.claim-open-list').querySelectorAll('.claim-open-row').length + ' payments';
+              });
+            })();
+          </script>
+        <% } %>
+
+        <%# ---- “I HAVE PAID” — the claim form, at the bottom where it belongs ----
+            Sending the WhatsApp proof is one tap; this form is for the parent who wants the
+            payment written into the app right away. It keeps every id the script needs.
+            ---- %>
+        <div class="claim-block" id="claim">
+          <div class="claim-block-head">✍️ Paid already? Tell the school here</div>
+          <% if (claimSaved) { %>
+            <div class="alert success">✅ Thank you — the school office has been told about your payment. You will get a
+              message here as soon as they check it, and the month will show <b>Paid</b> on this page.</div>
+          <% } %>
+          <% if (claimErr) { %><div class="alert error">⚠️ <%= claimErr %></div><% } %>
+
+          <form method="POST" action="/parent/pay/claim" id="claimForm"
+                data-confirm-title="Tell the school about this payment?"
+                data-confirm-msg="Please check the amount and the reference once — then the office will look for your money and add it to your child's fee."
+                data-confirm-ok="Yes, send">
+            <input type="hidden" name="months" id="claimMonths" value="<%= dueMonthIds.join(',') %>">
+            <input type="hidden" name="photo" id="claimPhoto">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Amount you paid</label>
+                <input type="number" name="amount" id="claimAmount" min="1" step="1" inputmode="numeric"
+                       value="<%= amount %>" required>
+              </div>
+              <div class="form-group">
+                <label>How did you pay?</label>
+                <select name="mode">
+                  <% ['UPI', 'Bank transfer', 'Cash', 'Cheque', 'Other'].forEach(m => { %>
+                    <option value="<%= m %>"><%= m %><%= m === 'Cash' ? ' (at school office)' : '' %></option>
+                  <% }) %>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Reference no. <span class="text-muted">(optional)</span></label>
+                <input type="text" name="reference" maxlength="60" placeholder="e.g. 4023 8891 2290">
+              </div>
+              <div class="form-group">
+                <label>Date you paid</label>
+                <input type="date" name="paid_on" value="<%= todayISO %>" max="<%= todayISO %>">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Anything to tell the office? <span class="text-muted">(optional)</span></label>
+              <textarea name="note" rows="2" maxlength="300" placeholder="optional"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Payment screenshot <span class="text-muted">(optional)</span></label>
+              <input type="file" id="claimShot" accept="image/png,image/jpeg">
+              <div class="pay-hint" id="claimShotNote">A photo of the payment screen is enough. It is sent to the school only.</div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg btn-block">✅ I have paid — tell the school</button>
+            <p class="pay-hint">You will get a message here the moment the office records it.</p>
+          </form>
+        </div>
+      </div>
+    </div>
+  <% } else { %>
+    <div class="step-card">
+      <div class="step-head">
+        <span class="step-no">✓</span>
+        <div class="step-title"><b>Nothing to pay right now</b></div>
+      </div>
+      <div class="step-body">
+        <p class="pay-hint" style="margin-top:0;">Every month of this session is settled. The
+          <a href="/parent/fees?child=<%= child.id %>">Fees page</a> has the month-by-month record and every receipt.</p>
+        <div class="pay-after">ℹ️ Want to pay the coming month early, or check a payment the office has not recorded yet?
+          <a href="/parent/messages?child=<%= child.id %>">Message the school office</a> — they can help.</div>
+      </div>
+    </div>
+  <% } %>
+</div>
+
+<script>
+(function () {
+  var page = document.querySelector('.pay-page');
+  if (!page) return;
+
+  // ---- ONE place keeps everything in step: the amount box, the “You are paying for”
+  //      line, the UPI link (amount + note), the WhatsApp message and the copy-all text.
+  //      Whatever the parent types or taps goes through refresh(). ----------------------
+  var amt = document.getElementById('payAmt');
+  var upiBtn = document.getElementById('upiOpen');
+  var upiTxt = document.getElementById('upiAmtTxt');
+  var waBtn = document.getElementById('waSend');
+  var copyBtn = document.getElementById('copyAll');
+  var forLine = document.getElementById('payForLine');
+  var upiBase = upiBtn ? (upiBtn.getAttribute('data-upi') || '') : '';
+  var note = upiBtn ? (upiBtn.getAttribute('data-note') || '') : '';
+  var inrText = function (n) { return '\u20B9' + Number(n).toLocaleString('en-IN'); };
+  var parts = null;
+  try { parts = copyBtn ? JSON.parse(copyBtn.getAttribute('data-parts')) : null; } catch (e) { parts = null; }
+  var selected = [];   // the early months the parent tapped, in the order they tapped them
+  // the months the page is asking for right now (fee ids) — the claim form names them
+  var dueIds = <%- JSON.stringify(dueMonthIds) %>;
+  // what the money is for. The default is the school's own sentence (every late month);
+  // “Only <month>” changes it, and typing an amount yourself brings the default back.
+  var chosenFor = null;
+  var defaultFor = <%- JSON.stringify(dueLabel || 'this session\u2019s fee') %>;
+
+  function amount() {
+    var v = amt ? Math.floor(Number(amt.value) || 0) : 0;
+    return v > 0 ? v : 0;
+  }
+  function amountAdd(delta) {
+    if (!amt) return;
+    amt.value = Math.max(0, Math.round((Math.floor(Number(amt.value) || 0) + delta)));
+  }
+  // The tapped early months only ever describe the amount on screen, so anything that
+  // OVERWRITES the amount — typing a figure, or “Only <month>” — lets go of them. A
+  // parent must never see “+ Nov 2026” on while the amount no longer holds it: the
+  // office posts the money by what that line says.
+  function clearEarly() {
+    selected = [];
+    page.querySelectorAll('.pay-early-chip').forEach(function (c) {
+      c.classList.remove('is-on');
+      c.setAttribute('aria-pressed', 'false');
+    });
+  }
+  // “6 late months (Apr 2026 · …) + Nov 2026 · Dec 2026 (early)”
+  function forText() {
+    var early = selected.map(function (s) { return s.term; }).join(' · ');
+    var due = chosenFor || ((parts && parts.payFor) || defaultFor);
+    if (due && early) return due + ' + ' + early + ' (early)';
+    if (early) return early + ' (paid early)';
+    return due;
+  }
+  function copyText(v) {
+    if (!parts) return '';
+    var lines = [parts.heading];
+    if (parts.who) lines.push(parts.who + (v > 0 ? ' — Rs.' + v : ''));
+    var pf = forText();
+    if (pf) lines.push('Paying for: ' + pf);
+    return lines.concat(parts.details || []).join('\n');
+  }
+
+  function refresh() {
+    var v = amount();
+    var names = selected.map(function (s) { return s.term; });
+    // the claim form at the bottom follows the same amount and the same months — one
+    // number and one list for the whole page, so nothing can disagree with anything else
+    var claimAmt = document.getElementById('claimAmount');
+    if (claimAmt && v > 0) claimAmt.value = v;
+    var claimMonths = document.getElementById('claimMonths');
+    if (claimMonths) {
+      claimMonths.value = dueIds.concat(selected.map(function (s) { return s.id; }))
+        .filter(function (x, i, a) { return x && a.indexOf(x) === i; }).join(',');
+    }
+    if (upiBtn && upiBase) {
+      var tn = (note + (names.length ? ' + ' + names.join(' ') : '')).slice(0, 60);
+      upiBtn.setAttribute('href', upiBase + '&tn=' + encodeURIComponent(tn) + (v > 0 ? '&am=' + v : ''));
+    }
+    if (upiTxt) upiTxt.textContent = v > 0 ? inrText(v) : '';
+    if (forLine) forLine.textContent = forText();
+    if (waBtn) {
+      var text = waBtn.getAttribute('data-wa-text')
+        + (names.length ? ' (paying early for ' + names.join(', ') + ')' : '');
+      waBtn.setAttribute('href', waBtn.getAttribute('data-wa') + '?text=' + encodeURIComponent(text));
+    }
+    if (copyBtn) copyBtn.setAttribute('data-copy', copyText(v));
+  }
+
+  if (amt) {
+    amt.addEventListener('input', function () { chosenFor = null; clearEarly(); refresh(); });
+    page.querySelectorAll('.pay-chip').forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        var add = chip.getAttribute('data-add');
+        if (add) {
+          // an early month ADDS its fee to the amount; tapping it again takes it back
+          var term = chip.getAttribute('data-term');
+          var val = parseInt(add, 10) || 0;
+          var at = selected.findIndex(function (s) { return s.term === term; });
+          if (at === -1) {
+            selected.push({ id: chip.getAttribute('data-id'), term: term, amount: val });
+            amountAdd(val);
+            chip.classList.add('is-on');
+            chip.setAttribute('aria-pressed', 'true');
+          } else {
+            selected.splice(at, 1);
+            amountAdd(-val);
+            chip.classList.remove('is-on');
+            chip.setAttribute('aria-pressed', 'false');
+          }
+        } else {
+          // “Full ₹x” / “Only <month>” — set the amount and drop any early month
+          amt.value = chip.getAttribute('data-set');
+          chosenFor = chip.getAttribute('data-for') || null;
+          clearEarly();
+        }
+        refresh();
+      });
+    });
+    refresh();
+  }
+
+  // ---- the payment screenshot is made small HERE, on the phone, before it is sent ----
+  // A phone screenshot is 1–3 MB; the school only has to read the amount and the reference,
+  // so the picture is drawn down to 1000px and re-encoded until it fits comfortably.
+  (function () {
+    var file = document.getElementById('claimShot');
+    var hidden = document.getElementById('claimPhoto');
+    var note = document.getElementById('claimShotNote');
+    var IDLE = 'A photo of the payment screen is enough. It is sent to the school only.';
+    if (!file || !hidden) return;
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      if (!f) return;
+      if (!/^image\/(png|jpeg)$/i.test(f.type)) {
+        alert('Please choose a PNG or JPG photo of the payment.');
+        file.value = '';
+        return;
+      }
+      if (note) note.textContent = 'Reading the photo…';
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var scale = Math.min(1, 1000 / Math.max(img.width, img.height));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          var quality = 0.7;
+          var data = canvas.toDataURL('image/jpeg', quality);
+          while (data.length > 450000 && quality > 0.3) {
+            quality -= 0.15;
+            data = canvas.toDataURL('image/jpeg', quality);
+          }
+          if (data.length > 490000) {
+            alert('That photo is too large — please choose a smaller one.');
+            hidden.value = '';
+            file.value = '';
+            if (note) note.textContent = IDLE;
+            return;
+          }
+          hidden.value = data;
+          if (note) note.textContent = '✅ Photo attached — it goes to the school office with your message.';
+        };
+        img.onerror = function () {
+          alert('That photo could not be read — please try another one.');
+          file.value = '';
+          if (note) note.textContent = IDLE;
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(f);
+    });
+  })();
+
+  // ---- one copy handler for every 📋 button (UPI id, account no, IFSC, all details) ----
+  // The old way: a hidden textarea + execCommand — still needed on older phones and
+  // whenever the browser refuses the clipboard API.
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    if (!ok) alert('Could not copy — please select the number and copy it by hand.');
+  }
+
+  function cursor(btn) {
+    var old = btn.innerHTML;
+    btn.innerHTML = '\u2705 <span>Copied</span>';
+    btn.classList.add('is-copied');
+    setTimeout(function () { btn.innerHTML = old; btn.classList.remove('is-copied'); }, 1700);
+  }
+
+  // The button reacts AT ONCE (a parent should never tap 📋 and wonder if it worked);
+  // the clipboard write happens right behind it, with the old way as the fallback.
+  function copy(text, btn) {
+    if (btn) cursor(btn);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () { legacyCopy(text); });
+    } else {
+      legacyCopy(text);
+    }
+  }
+
+  page.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-copy]') : null;
+    if (!btn) return;
+    e.preventDefault();
+    copy(btn.getAttribute('data-copy') || '', btn);
+  });
+})();
+</script>
+<%- include('../partials/footer') %>

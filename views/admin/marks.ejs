@@ -1,0 +1,205 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head flex-between no-print">
+    <div>
+      <h1>📝 Marks Entry</h1>
+      <p>
+        Pick a class and exam — every subject carries its own maximum
+        <span class="text-muted">(written + oral, activity subjects out of 50)</span>.
+      </p>
+    </div>
+    <% if (classId && examId && rows.length) { %>
+    <div class="head-actions">
+      <a href="/admin/marks/export.pdf?class=<%= classId %>&exam=<%= examId %>" class="btn btn-outline">⬇️ Download result sheet (PDF)</a>
+      <button type="button" class="btn btn-outline" onclick="window.print()">🖨️ Print</button>
+    </div>
+    <% } %>
+  </div>
+
+  <% if (query.saved) { %><div class="alert success no-print">✅ Marks saved successfully.</div><% } %>
+  <%# cells that were not a valid mark are named, never stored as a wrong value %>
+  <% if (query.bad) { %><div class="alert error no-print">⚠️ <%= query.bad %> mark(s) were skipped — a mark must be a number between 0 and the subject maximum.</div><% } %>
+  <% if (query.published) { %><div class="alert success no-print">📣 Result published! Parents can see it on their portal <% if (query.alerts) { %>and <%= query.alerts %> SMS/WhatsApp alert<%= query.alerts == 1 ? '' : 's' %> were sent — see <a href="/admin/alerts">Parent Alerts</a><% } %>.</div><% } %>
+
+  <%# ---- the class board: one card per class (school's request, 2026-09-15) ------------------
+      The office no longer has to hunt for a class in the dropdown: every class has its own card
+      showing how much of its marks sheet is filled in, and a tap opens that class's sheet for
+      the exam chosen above. Every count comes from analysisSvc.forClass() — the SAME service
+      the class rings below, the dashboard board and the parents' Result page read — so a card
+      can never disagree with the page it opens. Off the paper trail too (.no-print). ---- %>
+  <% if (board && board.length) { %>
+  <div class="panel no-print class-board-panel">
+    <div class="panel-head">
+      <h3>🏫 Classes — tap one to enter its marks</h3>
+      <span class="panel-head-note">
+        <%= exam ? exam.term + ' ' + exam.year : 'Every exam so far' %>
+        · <%= boardTotals.started %> of <%= boardTotals.classes %> classes started
+        (<%= boardTotals.entered %> of <%= boardTotals.students %> students)
+      </span>
+    </div>
+    <div class="panel-body">
+      <div class="class-board">
+        <% board.forEach(b => {
+             const chip = { done: '✔ Done', partly: '◐ Partly', empty: '• Not started', none: 'No students' }[b.state];
+             const note = b.state === 'none'
+               ? 'No students in this class yet'
+               : b.state === 'empty'
+                 ? 'Nothing entered yet · ' + b.children + ' student' + (b.children === 1 ? '' : 's')
+                 : b.withMarks + ' of ' + b.children + ' entered'
+                   + (b.average === null ? '' : ' · avg ' + b.average + '%');
+        %>
+        <a class="class-card is-<%= b.state %><%= b.id === classId ? ' is-current' : '' %>" href="<%= b.href %>"
+           title="<%= b.label %> — <%= chip.replace(/^[^A-Za-z]+/, '') %> · <%= note %>">
+          <span class="cc-head">
+            <b><%= b.label %></b>
+            <span class="cc-chip"><%= chip %></span>
+          </span>
+          <span class="cc-bar" aria-hidden="true"><i style="width:<%= b.percent %>%"></i></span>
+          <span class="cc-note"><%= note %><% if (b.id === classId) { %> · <b>open now</b><% } %></span>
+        </a>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <div class="panel no-print">
+    <div class="panel-head">
+      <h3>Filters</h3>
+      <form method="GET" action="/admin/marks" class="filters">
+        <div class="form-group">
+          <label>Class</label>
+          <select name="class" onchange="this.form.submit()">
+            <option value="0">Select class…</option>
+            <% classes.forEach(c => { %>
+              <option value="<%= c.id %>" <%= c.id === classId ? 'selected' : '' %>><%= c.name %><%= c.section ? ' ' + c.section : '' %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Exam</label>
+          <select name="exam" onchange="this.form.submit()">
+            <option value="0">Select exam…</option>
+            <% exams.forEach(e => { %>
+              <option value="<%= e.id %>" <%= e.id === examId ? 'selected' : '' %>><%= e.term %> <%= e.year %></option>
+            <% }) %>
+          </select>
+        </div>
+      </form>
+    </div>
+
+    <%# ---- the class's result as circles, right above the sheet being filled ----------------
+        One circle per subject plus the class average, so the office sees the effect of what
+        it is entering (and which subjects are still empty). The numbers come from
+        src/services/analysis.js — the very same service the parents' Result page reads, so a
+        class average here and a parent's subject ring can never disagree. ---- %>
+    <% if (classId && analysis) { %>
+    <div class="panel-body analysis-strip">
+      <div class="analysis-strip-head">
+        📊 Result analysis — <%= analysisClassLabel %>
+        <span><%= analysis.withMarks %> of <%= analysis.children %> student<%= analysis.children === 1 ? '' : 's' %> have marks<% if (analysis.pending) { %> · <b><%= analysis.pending %></b> still to enter<% } %></span>
+      </div>
+      <p class="result-line"><%= analysis.line %></p>
+      <%- include('../partials/result_rings', {
+        big: analysis.overall, rings: analysis.subjects, legend: true,
+        empty: examId
+          ? 'No marks entered for this class in this exam yet — the circles fill in as you type and save the marks below.'
+          : 'No marks entered for this class yet.',
+      }) %>
+      <% if (analysis.hasMarks) { %>
+        <div class="result-more">
+          A written paper and its <b>oral</b> are added together in a circle (Maths 77 + 4 of 100) —
+          the same reading a report card uses. The sheet below still holds every paper separately.
+        </div>
+      <% } %>
+    </div>
+    <% } %>
+
+    <% if (classId && examId && students.length) { %>
+    <div class="panel-body no-pad">
+      <form method="POST" action="/admin/marks">
+        <input type="hidden" name="class_id" value="<%= classId %>">
+        <input type="hidden" name="exam_id" value="<%= examId %>">
+        <div class="table-wrap">
+          <table class="marks-input">
+            <thead>
+              <tr>
+                <th class="sticky-col">Student</th>
+                <% subjects.forEach(s => { %>
+                  <th class="<%= /oral/i.test(s.name) ? 'subj-oral' : '' %>"
+                      data-subject="<%= s.name %>" data-max="<%= Number(s.max_marks) || 100 %>">
+                    <%= s.name %>
+                    <span class="subj-max">(<%= Number(s.max_marks) || 100 %>)</span>
+                  </th>
+                <% }) %>
+                <th>Total<br><span class="subj-max">(<%= fullMarks %>)</span></th>
+                <th>%</th>
+                <th>Rank</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% rows.forEach(row => { const stu = row.student; %>
+              <tr data-mark-row data-max="<%= row.maxTotal %>">
+                <td class="sticky-col" style="white-space:nowrap;"><b><%= stu.full_name %></b> <span class="roll">(Roll No. <%= stu.roll_no %>)</span></td>
+                <% subjects.forEach((subj, i) => { %>
+                  <td class="<%= /oral/i.test(subj.name) ? 'subj-oral' : '' %>">
+                    <input type="number" min="0" max="<%= Number(subj.max_marks) || 100 %>" step="0.5"
+                      data-max="<%= Number(subj.max_marks) || 100 %>"
+                      name="marks[<%= stu.id %>_<%= subj.id %>]"
+                      value="<%= row.cells[i] === '' ? '' : row.cells[i] %>"
+                      placeholder="—" class="mark-input">
+                  </td>
+                <% }) %>
+                <td class="row-total"><%= row.total === null ? '—' : row.total %></td>
+                <%# the % sign is written here, so a saved row and a row being typed read the same %>
+                <td class="row-percent"><%= row.percent === null ? '—' : row.percent + '%' %></td>
+                <td class="row-rank"><%= row.rank === null ? '—' : row.rank %></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+        <%# on a phone the same rows are rearranged into one card per student (script below) —
+            the inputs themselves are MOVED, never copied, so the form still posts exactly one
+            mark per student+subject and the sheet keeps a single source of truth. ---- %>
+        <div class="mark-cards" id="markCards" hidden></div>
+        <div class="panel-body no-print" style="border-top:1px solid var(--border); display:flex; gap:12px; flex-wrap:wrap;">
+          <button type="submit" class="btn btn-primary">💾 Save Marks</button>
+          <button type="button" class="btn btn-outline" onclick="window.print()">🖨️ Print this sheet</button>
+        </div>
+      </form>
+      <form method="POST" action="/admin/marks/publish" style="padding:0 20px 18px;" class="no-print">
+        <input type="hidden" name="class_id" value="<%= classId %>">
+        <input type="hidden" name="exam_id" value="<%= examId %>">
+        <button type="submit" class="btn" style="background:#059669; color:#fff;">📣 Publish Result to Parents</button>
+        <span class="text-muted" style="font-size:12.5px;">Parents get a portal notification + SMS/WhatsApp alert.</span>
+      </form>
+    </div>
+    <% } else if (classId && examId) { %>
+      <div class="panel-body"><div class="empty">No students in this class.</div></div>
+    <% } else { %>
+      <div class="panel-body"><div class="empty">
+        <%# the office tapped a class card but has not said WHICH exam: say what is missing,
+            and what the class already has, instead of a flat “Select a class and an exam”. %>
+        <% if (classId) { %>
+          Choose an <b>exam</b> above to enter marks for this class<% if (analysis) { %> —
+          <%= analysis.withMarks %> of <%= analysis.children %> student<%= analysis.children === 1 ? '' : 's' %> already have marks<% } %>.
+        <% } else { %>
+          Tap a <b>class card</b> above to open its marks sheet — pick an exam first if you want
+          to enter marks for one particular exam.
+        <% } %>
+      </div></div>
+    <% } %>
+  </div>
+
+  <% if (classId && examId && rows.length) { %>
+  <!-- printed copy: only this block shows on paper -->
+  <div class="print-only print-head">
+    <b><%= school.schoolName %></b>
+    <span><%= school.sessionLabel %></span>
+  </div>
+  <% } %>
+
+  <%# the card view + the live totals are shared with the class teacher's marks sheet —
+      one file, so the two sides can never drift apart %>
+  <script src="/js/mark-cards.js"></script>
+<%- include('../partials/footer') %>

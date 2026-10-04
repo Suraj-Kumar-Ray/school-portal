@@ -1,0 +1,30 @@
+<%- include('../partials/public_nav', { title }) %>
+  <div class="page-head">
+    <h1>✅ Application Submitted</h1>
+  </div>
+
+  <% if (app) { %>
+  <div class="panel" style="max-width: 560px; margin: 0 auto; text-align:center;">
+    <div class="panel-body">
+      <div style="font-size:48px; margin-bottom:8px;">🎉</div>
+      <h3>Thank you, <%= app.parent_name %>!</h3>
+      <p class="text-muted">Your application for <b><%= app.child_name %></b> (<%= app.class_name || '—' %><%= app.section ? ' ' + app.section : '' %>) has been received.</p>
+
+      <div class="demo-box" style="margin-top:18px;">
+        <b>Your Application Number</b><br>
+        <span style="font-size:22px; font-weight:800; color:var(--primary-dark); letter-spacing:1px;"><%= app.application_no %></span><br><br>
+        <span style="font-size:12.5px;">Status: <b><span class="badge <%= app.status === 'Pending' ? 'orange' : app.status === 'Approved' ? 'green' : 'red' %>"><%= app.status %></span></b></span><br>
+        <span style="font-size:12.5px;">Please note this number — the school may ask for it.</span>
+      </div>
+
+      <div class="mt-4">
+        <a href="/parent" class="btn btn-primary">Go to My Application Status</a>
+        <a href="/" class="btn btn-outline">Back to Home</a>
+      </div>
+      <p class="text-muted mt-3" style="font-size:12.5px;">📬 The school office has been notified. They will contact you on <b><%= app.parent_phone %></b>. You can check the status anytime by logging in.</p>
+    </div>
+  </div>
+  <% } else { %>
+  <div class="panel"><div class="panel-body"><div class="empty">Application not found.</div></div></div>
+  <% } %>
+<%- include('../partials/public_footer') %>

@@ -1,0 +1,399 @@
+<%- include('../partials/header', { title }) %>
+<%
+  // “When the exams come, pause the timetable and show the exam one instead.”
+  //
+  // Two things on this page, in this order:
+  //   1. THE SWITCH — one radio pair. While it is ON the parents' and the teachers'
+  //      Timetable page shows the date-sheet below instead of the week grid.
+  //   2. THE DATE-SHEET — papers grouped by date. A paper added with the class left
+  //      blank belongs to EVERY class (that is how a school-wide sheet is typed once).
+  //
+  // The weekly timetable is never modified here — switching off brings it back as it was.
+  const scopeLabelOf = (cid) => {
+    const c = classes.find(x => x.id === cid);
+    return c ? (c.name + (c.section ? ' ' + c.section : '')) : '';
+  };
+  const perOwn = counts[scope] || 0;
+  const sharedCount = counts[0] || 0;
+  const scopeTitle = scope ? (scopeLabelOf(scope) + '\u2019s own papers') : 'Every class (school-wide sheet)';
+  const editorPaper = editor ? editor.paper : null;
+  // every link and form carries the exam being worked on, so saving a paper never drops the
+  // office onto another exam's sheet (and a redirect lands back on the same page)
+  const baseQ = keepExam();
+  const addHref = keepExam({ add: 1 });
+  const editHref = (id) => keepExam({ paper: id });
+%>  <div class="page-head">
+    <h1>📝 Exam Time Table</h1>
+    <p>
+      <b>Exams coming up? Switch it on</b> — parents will see the exam date-sheet instead of the
+      weekly timetable. The regular timetable is only paused, never changed: switch it off and it
+      comes back exactly as it was.
+    </p>
+  </div>
+
+  <%# which exam's date-sheet is on the table — a GET filter, so it survives every reload %>
+  <div class="panel no-print">
+    <div class="panel-head">
+      <h3>Date-sheet for</h3>
+      <form method="GET" action="/admin/exam-timetable" class="filters">
+        <input type="hidden" name="class" value="<%= scope %>">
+        <div class="form-group">
+          <select name="exam" onchange="this.form.submit()">
+            <% exams.forEach(e => { %>              <option value="<%= e.id %>" <%= examId === e.id ? 'selected' : '' %>><%= e.term %> <%= e.year %></option>
+            <% }) %>
+          </select>
+        </div>
+      </form>
+    </div>
+    <div class="panel-body">
+      <p class="exam-scope-note" style="margin:0">
+        <% if (workExam) { %>
+          Type the papers for <b><%= workExam.term %> <%= workExam.year %></b> below. The exam picked
+          here is the one the switch shows to parents, and each term keeps its own date-sheet.
+        <% } else { %>
+          There is no exam in the school yet — create one in <b>Marks / Results</b> first.
+        <% } %>
+      </p>
+    </div>
+  </div>
+
+<% if (err) { %><div class="alert error">⚠️ <%= err %></div><% } %>
+<% if (modeSaved === 'on') { %><div class="alert success">✅ Exam mode is <b>ON</b><% if (mode.exam) { %> — parents now see the <b><%= mode.exam.term %> <%= mode.exam.year %></b> date-sheet.<% } %></div><% } %>
+<% if (modeSaved === 'off') { %><div class="alert success">✅ Exam mode is <b>OFF</b> — the regular weekly timetable is showing to parents again.</div><% } %>
+<% if (saved === 'new') { %><div class="alert success">✅ Paper added to the date-sheet.</div><% } %>
+<% if (saved === '1') { %><div class="alert success">✅ Paper updated.</div><% } %>
+<% if (deleted !== undefined) { %><div class="alert success"><% if (Number(deleted) > 0) { %>🗑 Paper removed.<% } else { %>That paper was already removed.<% } %></div><% } %>
+<% if (cleared !== undefined) { %><div class="alert success"><% if (Number(cleared) > 0) { %>🗑 <%= cleared %> paper(s) removed from <b><%= scopeTitle %></b>.<% } else { %>There was nothing to clear there.<% } %></div><% } %>
+<% if (copied) { %><div class="alert success">⧉ Date-sheet copied onto <b><%= copyClasses %></b> class(es) — <%= copied %> paper(s) written.</div><% } %>
+<% if (told) { %><div class="alert success" data-flash="sent">📲 Date-sheet sent to <b><%= told %></b> parent(s).<% if (Number(alerts) > 0) { %> SMS/WhatsApp alerts queued: <%= alerts %>.<% } %></div><% } %>
+<% if (nosend) { %><div class="alert error">⚠️ No parent to send to — that class has no parent login yet.</div><% } %>
+
+<%# ---------- 1. THE SWITCH ---------- %>
+<div class="panel exam-switch <%= mode.on ? 'is-on' : '' %>">
+  <div class="panel-head">
+    <h3><%= mode.on ? '🟢 Exam mode is ON' : '⚪ Exam mode is off' %></h3>
+    <span class="roll"><%= mode.on ? 'Parents are seeing the exam date-sheet' : 'Parents are seeing the weekly timetable' %></span>
+  </div>
+  <div class="panel-body">
+    <form method="POST" action="/admin/exam-timetable/mode" class="exam-mode-form">
+      <div class="exam-mode-radios">
+        <label class="exam-radio <%= mode.on ? 'picked' : '' %>">
+          <input type="radio" name="on" value="1" <%= mode.on ? 'checked' : '' %>>
+          <span>
+            <b>On — show the exam date-sheet</b>
+            <small>The weekly timetable is paused for every class that has papers.</small>
+          </span>
+        </label>
+        <label class="exam-radio <%= !mode.on ? 'picked' : '' %>">
+          <input type="radio" name="on" value="0" <%= !mode.on ? 'checked' : '' %>>
+          <span>
+            <b>Off — show the regular weekly timetable</b>
+            <small>Nothing is deleted; the date-sheet stays right here for next time.</small>
+          </span>
+        </label>
+      </div>
+
+      <%# the exam is chosen ONCE, on the “Date-sheet for” picker above — this form only flips
+          the switch for that same exam, so the two can never point at different terms %>
+      <input type="hidden" name="exam_id" value="<%= examId %>">
+      <div class="exam-mode-grid">
+        <div class="form-group">
+          <label>Which exam?</label>
+          <p class="exam-work-exam">
+            <% if (workExam) { %>📅 <b><%= workExam.term %> <%= workExam.year %></b>
+              <small class="fee-dialog-hint">Change it with the “Date-sheet for” picker at the top of the page.</small>
+            <% } else { %>No exam exists yet — create one in <b>Marks / Results</b> first.<% } %>
+          </p>
+        </div>
+        <div class="form-group">
+          <label for="ex-note">Line shown to parents <span class="req-note">(optional)</span></label>
+          <input type="text" name="note" id="ex-note" maxlength="300"
+                 value="<%= mode.note %>" placeholder="e.g. Please reach school 30 minutes before the paper.">
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary"<%= workExam ? '' : ' disabled' %>>💾 Save this setting</button>
+    </form>
+  </div>
+</div>
+
+<%# ---------- which class's sheet is being edited ---------- %>
+<div class="panel">
+  <div class="panel-head">
+    <h3>Whose date-sheet?</h3>
+    <form method="GET" action="/admin/exam-timetable" class="filters">
+      <div class="form-group">
+        <select name="class" onchange="this.form.submit()">
+          <option value="" <%= scope === 0 ? 'selected' : '' %>>📚 Every class (school-wide sheet)</option>
+          <% classes.forEach(c => { %>
+            <option value="<%= c.id %>" <%= scope === c.id ? 'selected' : '' %>>
+              <%= c.name %><%= c.section ? ' ' + c.section : '' %><% const n = counts[c.id] || 0; %><%= n ? ' (' + n + ' paper' + (n === 1 ? '' : 's') + ')' : '' %>
+            </option>
+          <% }) %>
+        </select>
+      </div>
+    </form>
+  </div>
+  <div class="panel-body">
+    <p class="exam-scope-note">
+      <% if (scope) { %>
+        <b><%= scopeLabelOf(scope) %></b> sees its <b><%= perOwn %></b> own paper(s)<% if (sharedCount) { %>
+        plus the <b><%= sharedCount %></b> paper(s) typed for <b>every class</b><% } %>.
+        <span class="text-muted">Adding a paper below with the class left blank puts it in all 13 classes at once.</span>
+      <% } else { %>
+        Papers here belong to <b>every class</b> — type today’s common paper once and all classes get it.
+        A single class can still be given its own paper by picking that class above.
+      <% } %>
+    </p>
+
+    <div class="exam-tools">
+      <a class="btn btn-primary btn-sm" href="<%= addHref %>" id="ex-add">➕ Add a paper</a>
+      <% if (rows.length) { %>
+        <form method="POST" action="/admin/exam-timetable/clear"
+              onsubmit="return confirm('Remove all <%= rows.length %> paper(s) from <%= scopeTitle %>? Other classes are not touched.');">
+          <input type="hidden" name="exam" value="<%= examId %>">
+          <input type="hidden" name="class_id" value="<%= scope %>">
+          <button type="submit" class="btn btn-danger-outline btn-sm">🗑 Clear these papers</button>
+        </form>
+      <% } %>
+      <% if (rows.length) { %>
+        <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">🖨 Print date-sheet</button>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<%# ---------- 2. THE DATE-SHEET ---------- %>
+<% if (!rows.length) { %>
+  <div class="panel">
+    <div class="panel-body">
+      <div class="empty-state">
+        <span class="empty-ico">📝</span>
+        <h3>No paper added for <%= scope ? scopeLabelOf(scope) : 'any class' %> yet</h3>
+        <p>Tap <b>➕ Add a paper</b> and type the first subject with its date and time.</p>
+      </div>
+    </div>
+  </div>
+<% } else { %>
+  <div class="panel exam-sheet-panel">
+    <%# print header — hidden on screen %>
+    <div class="print-only exam-print-head">
+      <h2><%= school.schoolName %></h2>
+      <p><%= school.schoolAddress %></p>
+      <p class="ep-sub"><b><%= mode.exam ? (mode.exam.term + ' ' + mode.exam.year) : 'Exam' %> Time Table</b>
+        <% if (scope) { %> — <%= scopeLabelOf(scope) %><% } else { %> — All classes<% } %></p>
+    </div>
+    <div class="panel-head no-print">
+      <h3>📅 <%= mode.exam ? (mode.exam.term + ' ' + mode.exam.year) : 'Exam' %> — <%= rows.length %> paper(s)</h3>
+      <span class="roll"><%= days.length %> exam day(s)</span>
+    </div>
+    <div class="panel-body no-pad">
+      <div class="exam-days">
+        <% days.forEach(d => { %>
+          <div class="exam-day">
+            <div class="exam-day-head">
+              <b><%= d.dateLong || fmtDayDate(d.date) %></b>
+              <% if (d.date === todayISO) { %><span class="chip chip-today">Today</span><% } %>
+              <% if (d.date < todayISO) { %><span class="chip chip-done">Done</span><% } %>
+            </div>
+            <table class="exam-papers">
+              <tbody>
+                <% d.papers.forEach(p => { %>
+                  <tr>
+                    <td class="ep-subject">
+                      <b><%= p.subject %></b>
+                      <% if (!p.own) { %><span class="chip chip-shared" title="Typed for every class">all classes</span><% } %>
+                      <% if (p.note) { %><small class="ep-note"><%= p.note %></small><% } %>
+                    </td>
+                    <td class="ep-time">
+                      <% if (p.timeLabel) { %><%= p.timeLabel %><% } else { %><span class="text-muted">time not set</span><% } %>
+                    </td>
+                    <td class="ep-actions no-print">
+                      <a class="btn btn-sm btn-outline" href="<%= editHref(p.id) %>">✏️ Edit</a>
+                      <form method="POST" action="/admin/exam-timetable/paper/delete"
+                            onsubmit="return confirm('Remove <%= p.subject %> on <%= p.dateShort %> from the date-sheet?');">
+                        <input type="hidden" name="exam" value="<%= examId %>">
+                        <input type="hidden" name="id" value="<%= p.id %>">
+                        <input type="hidden" name="scope_class" value="<%= scope %>">
+                        <button type="submit" class="btn btn-sm btn-danger-outline">🗑</button>
+                      </form>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        <% }) %>
+      </div>
+      <% if (mode.note) { %><p class="exam-sheet-note">ℹ️ <%= mode.note %></p><% } %>
+    </div>
+  </div>
+<% } %>
+
+<%# ---------- 3. COPY a date-sheet onto other classes ---------- %>
+<div class="panel no-print">
+  <div class="panel-head"><h3>⧉ Copy this date-sheet to other classes</h3></div>
+  <div class="panel-body">
+    <p class="text-muted" style="font-size:12.5px;margin-top:0;">
+      A class that gets the copy has <b>its own papers of this exam replaced</b> — this copies a
+      date-sheet, it does not merge two. Every class sharing one sheet is edited in one place.
+    </p>
+    <form method="POST" action="/admin/exam-timetable/copy" class="exam-copy-form">
+      <input type="hidden" name="from_class_id" value="<%= scope %>">
+      <input type="hidden" name="exam" value="<%= examId %>">
+      <div class="exam-copy-grid">
+        <% classes.forEach(c => { %>
+          <label class="exam-copy-box">
+            <input type="checkbox" name="to_class_id" value="<%= c.id %>" <%= c.id === scope ? 'disabled' : '' %>>
+            <span><%= c.name %><%= c.section ? ' ' + c.section : '' %></span>
+          </label>
+        <% }) %>
+      </div>
+      <button type="submit" class="btn btn-primary" <%= rows.length ? '' : 'disabled' %>>⧉ Copy to the ticked classes</button>
+      <% if (!rows.length) { %><span class="text-muted" style="font-size:12.5px;">Add at least one paper first.</span><% } %>
+    </form>
+  </div>
+</div>
+
+<%# ---------- 4. SEND the date-sheet to parents ---------- %>
+<div class="panel no-print">
+  <div class="panel-head"><h3>📲 Send the date-sheet to parents</h3></div>
+  <div class="panel-body">
+    <p class="text-muted" style="font-size:12.5px;margin-top:0;">
+      The parent gets the whole date-sheet in <b>Message School</b> and a short SMS/WhatsApp alert.
+    </p>
+    <form method="POST" action="/admin/exam-timetable/tell" class="exam-tell-form">
+      <input type="hidden" name="exam" value="<%= examId %>">
+      <div class="form-group">
+        <label for="ex-scope">Send to</label>
+        <select name="scope" id="ex-scope">
+          <% if (scope) { %><option value="class">Only <%= scopeLabelOf(scope) %></option><% } %>
+          <option value="class" <%= scope ? 'hidden' : '' %>>Only one class</option>
+          <option value="all">Every parent in the school</option>
+        </select>
+      </div>
+      <div class="form-group" id="ex-class-wrap"<%= scope ? ' hidden' : '' %>>
+        <label for="ex-class">Class</label>
+        <select name="class_id" id="ex-class">
+          <% classes.forEach(c => { %>
+            <option value="<%= c.id %>" <%= scope === c.id ? 'selected' : '' %>><%= c.name %><%= c.section ? ' ' + c.section : '' %></option>
+          <% }) %>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">📲 Send now</button>
+    </form>
+  </div>
+</div>
+
+<%# ---------- the paper editor (a centred dialog — comfortable on a phone) ---------- %>
+<div class="fee-dialog" id="ex-dialog"<%= editor ? '' : ' hidden' %>>
+  <div class="fee-dialog-card">
+    <h3><%= editorPaper ? '✏️ Edit paper' : '➕ Add a paper' %></h3>
+    <p class="fee-dialog-sub">
+      Leave <b>Class</b> as “Every class” when the whole school writes the same paper — it then shows
+      in all 13 classes from here.
+    </p>
+    <form method="POST" action="/admin/exam-timetable/paper" id="ex-form">
+      <input type="hidden" name="exam" value="<%= examId %>">
+      <input type="hidden" name="id" value="<%= editorPaper ? editorPaper.id : '' %>">
+      <input type="hidden" name="scope_class" value="<%= scope %>">
+
+      <div class="form-group">
+        <label for="ex-subject">Subject <span class="req-note">*</span></label>
+        <input type="text" name="subject" id="ex-subject" maxlength="60" required
+               value="<%= editorPaper ? editorPaper.subject : '' %>" placeholder="e.g. Mathematics">
+      </div>
+
+      <div class="fee-dialog-grid">
+        <div class="form-group">
+          <label for="ex-date">Date <span class="req-note">*</span></label>
+          <input type="date" name="paper_date" id="ex-date" required
+                 value="<%= editorPaper ? editorPaper.paper_date : (scope ? todayISO : todayISO) %>">
+        </div>
+        <div class="form-group">
+          <label for="ex-class-id">Class</label>
+          <select name="class_id" id="ex-class-id">
+            <option value="" <%= !editorPaper || !editorPaper.class_id ? 'selected' : '' %>>📚 Every class</option>
+            <% classes.forEach(c => { %>
+              <option value="<%= c.id %>" <%= editorPaper && editorPaper.class_id === c.id ? 'selected' : '' %>><%= c.name %><%= c.section ? ' ' + c.section : '' %></option>
+            <% }) %>
+          </select>
+        </div>
+      </div>
+
+      <div class="fee-dialog-grid">
+        <div class="form-group">
+          <label for="ex-from">Starts at <span class="req-note">(optional)</span></label>
+          <input type="time" name="from" id="ex-from" value="<%= editorPaper ? editorPaper.from_time : '' %>">
+        </div>
+        <div class="form-group">
+          <label for="ex-to">Ends at</label>
+          <input type="time" name="to" id="ex-to" value="<%= editorPaper ? editorPaper.to_time : '' %>">
+          <small class="fee-dialog-hint">Give both times or neither.</small>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="ex-pnote">Note <span class="req-note">(optional)</span></label>
+        <input type="text" name="note" id="ex-pnote" maxlength="120"
+               value="<%= editorPaper ? editorPaper.note : '' %>" placeholder="e.g. Bring your own geometry box">
+      </div>
+    </form>
+    <div class="fee-dialog-actions">
+      <a class="btn" href="<%= baseQ %>">Cancel</a>
+      <button type="submit" class="btn btn-primary" form="ex-form">💾 Save paper</button>
+    </div>
+  </div>
+</div>
+
+<%# ---------- a look at what the parent will actually see ---------- %>
+<% if (preview && preview.papers.length) { %>
+<div class="panel no-print">
+  <div class="panel-head">
+    <h3>👀 What <%= scope ? scopeLabelOf(scope) : 'a class' %> sees</h3>
+    <span class="roll"><%= preview.showing === 'exam' ? 'Date-sheet' : 'Weekly timetable (no papers here yet)' %></span>
+  </div>
+  <div class="panel-body">
+    <% if (preview.next) { %>
+      <div class="exam-next">
+        <span class="exam-next-ico">⏭</span>
+        <div>
+          <b>Next paper: <%= preview.next.subject %></b>
+          <small><%= preview.next.dateLong %><% if (preview.next.timeLabel) { %> · <%= preview.next.timeLabel %><% } %></small>
+        </div>
+      </div>
+    <% } else { %>
+      <p class="text-muted" style="margin:0; font-size:13px;">All papers of this date-sheet are over.</p>
+    <% } %>
+    <% if (!scope) { %>
+      <p class="text-muted" style="font-size:12.5px;margin:10px 0 0;">
+        This is the school-wide sheet. Pick a class above to see how one class reads it.
+      </p>
+    <% } %>
+  </div>
+</div>
+<% } %>
+
+<script>
+(function () {
+  var dlg = document.getElementById('ex-dialog');
+  // the “send to” select decides whether the class dropdown is needed
+  var sendScope = document.getElementById('ex-scope');
+  var classWrap = document.getElementById('ex-class-wrap');
+  if (sendScope && classWrap) {
+    var syncSend = function () {
+      classWrap.hidden = sendScope.value !== 'class';
+    };
+    sendScope.addEventListener('change', syncSend);
+    syncSend();
+  }
+  if (!dlg) return;
+  // A plain link opens the server-rendered dialog (?add=1 / ?paper=<id>) so the page
+  // works without JavaScript too; Escape and the backdrop close it.
+  function close() { dlg.hidden = true; }
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) close(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !dlg.hidden) close(); });
+  [].slice.call(dlg.querySelectorAll('[data-close]')).forEach(function (b) { b.addEventListener('click', close); });
+})();
+</script>
+<%- include('../partials/footer') %>

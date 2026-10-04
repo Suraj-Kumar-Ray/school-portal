@@ -1,0 +1,89 @@
+<%- include('../partials/public_nav', { title }) %>
+  <div class="page-head flex-between">
+    <div>
+      <h1><span class="rupee-glyph">₹</span> Fee Structure — Session <%= school.sessionLabel %></h1>
+      <p>Separate amounts for Day Scholars and Hostel students. Each class group has its own card with the full sheet details.</p>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <% if (hasFeePdf) { %>
+        <a href="/uploads/fee-structure.pdf" download class="btn btn-primary">⬇ Download Fee Structure PDF</a>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- SNAPSHOT CARDS (auto-updated from admin fee sheet) -->
+  <div class="cards">
+    <div class="card stat-card accent-blue"><div class="stat-label">Admission fee (day)</div><div class="stat-value"><%= snapshot.adm_day %></div><div class="stat-sub">one-time · form extra</div></div>
+    <div class="card stat-card accent-orange"><div class="stat-label">Admission fee (hostel)</div><div class="stat-value"><%= snapshot.adm_hostel %></div><div class="stat-sub">one-time · form extra</div></div>
+    <div class="card stat-card accent-green"><div class="stat-label">Tuition (day)</div><div class="stat-value"><%= snapshot.tuition_day %></div><div class="stat-sub">monthly, class-wise</div></div>
+    <div class="card stat-card accent-red"><div class="stat-label">Tuition (hostel)</div><div class="stat-value"><%= snapshot.tuition_hostel %></div><div class="stat-sub">monthly, class-wise</div></div>
+  </div>
+
+  <!-- CLASS-WISE FEE CARDS (admin editable → /admin/fee-structure) -->
+  <p class="text-muted" style="font-size:13px; margin:-6px 0 14px;">All cards list amounts in <b>Day / Hostel</b> order. Totals include the first month's tuition.</p>
+  <div class="fee-grid">
+    <% groups.forEach(g => { const r = g.classes[0]; const multi = g.classes.length > 1; %>
+    <div class="fee-card">
+      <div class="fee-head">
+        <b><%= g.label %></b>
+        <% if (multi) { %><span class="fee-sec"><%= g.classes.map(x => x.class).join(' & ') %></span><% } %>
+      </div>
+      <div class="fee-monthly">
+        <small>Tuition · monthly · day scholar</small>
+        <div class="fee-amount">₹<%= r.tuition_day.toLocaleString('en-IN') %><em>/mo</em></div>
+      </div>
+      <table class="fee-sheet-table">
+        <thead>
+          <tr><th>Particular</th><th class="text-right">Day ₹</th><th class="text-right">Hostel ₹</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Admission fee <small>(1-time)</small></td><td class="text-right"><b><%= r.adm_day.toLocaleString('en-IN') %></b></td><td class="text-right"><b><%= r.adm_hostel.toLocaleString('en-IN') %></b></td></tr>
+          <tr><td>Admission form <small>(1-time)</small></td><td class="text-right"><%= r.form_day.toLocaleString('en-IN') %></td><td class="text-right"><%= r.form_hostel.toLocaleString('en-IN') %></td></tr>
+          <tr><td>Annual fee <small>(yearly)</small></td><td class="text-right"><%= r.annual_day.toLocaleString('en-IN') %></td><td class="text-right"><%= r.annual_hostel.toLocaleString('en-IN') %></td></tr>
+          <tr><td>Miscellaneous <small>(yearly)</small></td><td class="text-right"><%= r.misc_day.toLocaleString('en-IN') %></td><td class="text-right"><%= r.misc_hostel.toLocaleString('en-IN') %></td></tr>
+          <tr><td>Tuition <small>(monthly)</small></td><td class="text-right"><b><%= r.tuition_day.toLocaleString('en-IN') %></b></td><td class="text-right"><b><%= r.tuition_hostel.toLocaleString('en-IN') %></b></td></tr>
+          <% if (r.reg_day) { %>
+          <tr><td>Registration <small>(9th/10th)</small></td><td class="text-right"><b><%= r.reg_day.toLocaleString('en-IN') %></b></td><td class="text-right"><b><%= r.reg_hostel.toLocaleString('en-IN') %></b></td></tr>
+          <% } %>
+        </tbody>
+      </table>
+      <div class="fee-lines">
+        <div class="fee-line"><span>Book set</span><b>₹<%= r.book_price ? r.book_price.toLocaleString('en-IN') : '—' %></b></div>
+        <div class="fee-line fee-total-line"><span>Total · new admission</span><b>₹<%= r.newDay.toLocaleString('en-IN') %> / ₹<%= r.newHostel.toLocaleString('en-IN') %></b></div>
+        <div class="fee-line fee-total-line"><span>Repeater total</span><b>₹<%= r.repDay.toLocaleString('en-IN') %> / ₹<%= r.repHostel.toLocaleString('en-IN') %></b></div>
+        <div class="fee-line"><span>Class teacher</span><b style="font-weight:600; color:var(--muted); font-size:12px;"><%= r.classTeacher || '—' %></b></div>
+      </div>
+      <a href="/apply" class="btn btn-primary">Apply for <%= g.label %></a>
+    </div>
+    <% }) %>
+    <% if (!groups.length) { %><p class="empty">No class listed yet — please ask the school office.</p><% } %>
+  </div>
+
+  <!-- BUS / CONVEYANCE -->
+  <div class="panel">
+    <div class="panel-head"><h3>🚌 Conveyance charges (bus) — monthly fare</h3><span class="text-muted">Day scholar · bus route wise</span></div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Route</th><th class="text-right">Fare (<%= school.currency %>)/month</th></tr></thead>
+          <tbody>
+            <% routes.forEach(r => { %>
+            <tr><td><b><%= r.route_name %></b></td><td class="text-right"><b><%= school.currency %><%= r.fare.toLocaleString('en-IN') %></b></td></tr>
+            <% }) %>
+            <% if (!routes.length) { %><tr><td colspan="2" class="empty">No bus route is published yet — please ask the school office.</td></tr><% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-body">
+      <p class="text-muted">📌 <b>Note:</b> Each card is the complete fee sheet for one class group — with separate amounts for <b>Day Scholars</b> and <b>Hostel students</b>. <b>Repeater</b> students don't pay the admission fee/form charge. Monthly tuition is due by the 10th of each month; annual &amp; miscellaneous charges are once a year. Paid/pending status for every month is visible on the parent portal.</p>
+    </div>
+  </div>
+
+  <div style="text-align:center; margin-top:8px;">
+    <a href="/apply" class="btn btn-primary">Apply for Admission</a>
+  </div>
+<%- include('../partials/public_footer') %>

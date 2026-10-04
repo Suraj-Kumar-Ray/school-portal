@@ -1,0 +1,545 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1><span class="rupee-glyph">₹</span> Fees</h1>
+    <p>One card per student. Open a card for the month-by-month ledger.</p>
+  </div>
+
+  <% if (payErr) { %><div class="alert error">⚠️ <%= payErr %></div><% } %>
+  <%# `data-flash-into` puts the answer back in the panel the office acted in (`admin-flash.js`),
+      which is why nothing has to scroll for it to be read. ---- %>
+  <% if (reminded !== undefined) { %>
+    <div class="alert success" data-flash="sent" data-flash-into=".remind-panel">
+      📲 Reminders sent to <b><%= remindedStudents || 0 %></b> student<%= Number(remindedStudents) == 1 ? '' : 's' %>
+      (<%= remindedWho === 'dues' ? 'everyone with a balance' : 'past the due date' %>)
+      — <b><%= notified || 0 %></b> parent portal message<%= (notified || 0) == 1 ? '' : 's' %> and
+      <b><%= reminded %></b> SMS/WhatsApp alert<%= reminded == 1 ? '' : 's' %> logged
+      (<a href="/admin/alerts">Parent Alerts</a>).
+    </div>
+  <% } %>
+  <%# the same one-family answer, when the send icon beside a name on THIS page was used ---- %>
+  <% if (remindErr) { %><div class="alert error">⚠️ <%= remindErr %></div><% } %>
+  <%# This one is about ONE row in a 336-card list, so it has no panel of its own: it rides the
+      on-screen toast — visible wherever the office is, and it moves nothing. ---- %>
+  <% if (remindedOne) { %>
+    <div class="alert success" data-flash="sent" data-flash-into="toast">
+      📲 Due message sent to <b><%= remindedOne %></b>'s parent —
+      <%= remindMonths || 0 %> month<%= Number(remindMonths) == 1 ? '' : 's' %> ·
+      ₹<%= Number(remindAmount || 0).toLocaleString('en-IN') %> pending.
+    </div>
+  <% } %>
+  <% if (created) { %><div class="alert success">🔗 <b><%= created %></b> monthly installment<%= created == 1 ? '' : 's' %> added for student<%= created == 1 ? '' : 's' %> who were not in the fee ledger yet.</div><% } %>
+  <% if (paid) { %><div class="alert success">✅ Marked as <b>Paid</b>.</div><% } %>
+  <% if (unpaid) { %><div class="alert success">↩️ Marked as <b>Unpaid</b>.</div><% } %>
+  <% if (claimRecorded) { %>
+    <div class="alert success">
+      ✅ Claim recorded for <b><%= claimRecorded %></b> — ₹<%= Number(paid || 0).toLocaleString('en-IN') %>
+      received<%= term ? ' for <b>' + term + '</b>' : '' %>. The parent has been notified.
+    </div>
+  <% } %>
+  <% if (claimRejected) { %>
+    <div class="alert">✖ The claim from <b><%= claimRejected %></b> was closed as “not received” — the parent was
+      asked to check the transaction.</div>
+  <% } %>
+
+  <%# ---- the four numbers the office came for, first on the page (school's request, 2026-09-15):
+      students · received · balance · overdue, then the reminder panel, then what parents say they
+      paid, and only then the search. `fee-cards` turns them 2×2 on a phone. ---- %>
+  <div class="cards fee-cards">
+    <div class="card stat-card accent-blue">
+      <div class="stat-label">Students (class &amp; search)</div>
+      <div class="stat-value"><%= totals.students %></div>
+      <div class="stat-sub"><%= totals.cleared %> fully paid · <%= totals.dueStudents %> with dues</div>
+    </div>
+    <div class="card stat-card accent-green">
+      <div class="stat-label">Received</div>
+      <div class="stat-value">₹<%= Math.round(totals.collected).toLocaleString('en-IN') %></div>
+      <div class="stat-sub">of ₹<%= Math.round(feesTotal).toLocaleString('en-IN') %> session total<%= totals.partialStudents ? ' · ' + totals.partialStudents + ' student(s) part paid' : '' %></div>
+      <div class="stat-sub stat-today">
+        <% if (collected.today) { %>+₹<%= Math.round(collected.today).toLocaleString('en-IN') %> today<% } else { %>nothing in today<% } %>
+        · ₹<%= Math.round(collected.month).toLocaleString('en-IN') %> in <%= collected.monthLabel %><%= collected.monthCount ? ' (' + collected.monthCount + ' receipt' + (collected.monthCount == 1 ? '' : 's') + ')' : '' %>
+      </div>
+    </div>
+    <div class="card stat-card accent-orange">
+      <div class="stat-label">Balance</div>
+      <div class="stat-value">₹<%= Math.round(totals.pending).toLocaleString('en-IN') %></div>
+      <div class="stat-sub">still to be collected<%= totals.fine ? ' · includes fine ₹' + Math.round(totals.fine).toLocaleString('en-IN') : '' %></div>
+    </div>
+    <div class="card stat-card accent-red">
+      <div class="stat-label">Overdue</div>
+      <div class="stat-value">₹<%= Math.round(totals.overdue).toLocaleString('en-IN') %></div>
+      <div class="stat-sub"><%= totals.overdueStudents %> student<%= totals.overdueStudents == 1 ? '' : 's' %> past the due date</div>
+    </div>
+  </div>
+
+  <%# ---- SEND FEE REMINDERS ---------------------------------------------------------
+      The school asked for this to stand on its own instead of sitting as a button in the page
+      heading with a paragraph next to it. The office now picks WHO gets it and sees the exact
+      numbers before pressing send: the two counts come from the same service the send route
+      uses (`feeLedger.dues`), so what is on screen is what goes out. ---- %>
+  <%# The form wraps the whole panel so the SEND button can sit at the BOTTOM of it — one clean
+      ROUND button (school's request, 2026-09-15: “make it like the scroll-up button”), moved down
+      out of the heading on 2026-09-15 (the school said it did not look right up there): you read the
+      two choices, then
+      the button to act on them is right underneath your thumb. No explanatory sentence: the
+      confirm dialog names what goes out, and the two reach cards already print the students and
+      the money. The badge follows the choice made above it. ---- %>
+  <div class="panel remind-panel">
+    <form method="POST" action="/admin/fees/remind" class="remind-form"
+          onsubmit="return confirm('Send fee reminders to the students you selected?\n\nEach parent gets a message in the parent portal and an SMS/WhatsApp alert.');">
+    <input type="hidden" name="class" value="<%= classId %>">
+    <div class="panel-head">
+      <h3>Send fee reminders</h3>
+    </div>
+    <div class="panel-body">
+        <div class="remind-scopes">
+          <label class="remind-scope">
+            <input type="radio" name="who" value="overdue" checked>
+            <span>
+              <b>Past the due date</b>
+              <small><%= dueCount %> student<%= dueCount == 1 ? '' : 's' %> · ₹<%= Math.round(dueAmount).toLocaleString('en-IN') %> pending</small>
+            </span>
+            <span class="remind-scope-tick" aria-hidden="true">✓</span>
+          </label>
+          <label class="remind-scope">
+            <input type="radio" name="who" value="dues">
+            <span>
+              <b>Everyone with a balance</b>
+              <small><%= allDueCount %> student<%= allDueCount == 1 ? '' : 's' %> · ₹<%= Math.round(allDueAmount).toLocaleString('en-IN') %> pending<%= classId ? '' : ' (whole school)' %></small>
+            </span>
+            <span class="remind-scope-tick" aria-hidden="true">✓</span>
+          </label>
+        </div>
+        <% if (!dueCount) { %>
+          <p class="remind-note">Nobody is past the due date<%= classId ? ' in this class' : '' %>. Pick the second option to remind everyone who still has a balance.</p>
+        <% } %>
+        <%# the action, under the choice it acts on — same round button as the scroll-up one ---- %>
+        <div class="remind-actions">
+          <button type="submit" class="remind-send-icon" id="remind-send"
+                  data-count-overdue="<%= dueCount %>" data-count-dues="<%= allDueCount %>"
+                  title="Send the reminder to the students you chose above">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2.5 11 13"/><path d="M21.5 2.5 15 21.5l-4-8.5-8.5-4z"/></svg>
+            <span class="rs-badge" id="remind-badge"><%= dueCount %></span>
+            <span class="sr-only">Send fee reminders</span>
+          </button>
+        </div>
+    </div>
+    </form>
+  </div>
+
+  <%# ---- PAYMENT CLAIMS: parents who say they have paid --------------------------
+      A parent pays from home and tells the app; nothing moves in the ledger until the
+      office decides here. “Record” runs the same money model as a counter payment
+      (the months the parent named first, then oldest first) and notifies them. ---- %>
+  <div class="panel claim-panel" id="claims">
+    <div class="panel-head">
+      <h3>🔔 Payment claims — parents who say they have paid</h3>
+      <span class="panel-head-note">
+        <% if (claims.length) { %>
+          <%= claims.length %> waiting · ₹<%= Math.round(claimAmount).toLocaleString('en-IN') %> · check the reference, then tap Record
+        <% } else { %>
+          nothing waiting · a parent who pays by UPI shows up here
+        <% } %>
+      </span>
+    </div>
+    <div class="panel-body<% if (claims.length) { %> no-pad<% } %>">
+      <% if (!claims.length) { %>
+        <p class="text-muted" style="font-size:13px;">
+          A parent who pays by UPI from home tells the app. It lands here with the amount and reference;
+          <b>Record</b> writes the receipt.
+        </p>
+      <% } %>
+      <% claims.forEach(cl => { %>
+        <div class="claim-row claim-pending">
+          <span class="claim-amt">₹<%= Math.round(cl.amount).toLocaleString('en-IN') %></span>
+          <span class="claim-who">
+            <a href="/admin/fees/<%= cl.student_id %>"><b><%= cl.full_name %></b></a>
+            <span class="text-muted"><%= cl.class_name %><%= cl.section ? ' ' + cl.section : '' %><%= cl.parent_name ? ' · parent ' + cl.parent_name : '' %><%= cl.parent_phone ? ' · ' + cl.parent_phone : '' %></span>
+          </span>
+          <span class="claim-meta">
+            <b><%= cl.mode %></b><% if (cl.reference) { %> · ref <%= cl.reference %><% } %>
+            <span class="text-muted">· paid <%= fmtDMY(cl.paid_on) %> · told us <%= fmtDateTime(cl.created_at) %><span class="tz-tag">IST</span></span>
+            <% if (cl.monthList && cl.monthList.length) { %>
+              <span class="text-muted">· meant for <%= cl.monthList.map(m => m.term).join(' · ') %></span>
+            <% } %>
+            <% if (cl.note) { %><span class="claim-note">“<%= cl.note %>”</span><% } %>
+          </span>
+          <% if (cl.photo) { %>
+            <a class="claim-shot" href="<%= cl.photo %>" target="_blank" rel="noopener" title="Open the payment screenshot">
+              <img src="<%= cl.photo %>" alt="Payment screenshot">
+              <span>screenshot</span>
+            </a>
+          <% } %>
+          <span class="claim-actions">
+            <form method="POST" action="/admin/fees/claims/<%= cl.id %>/record"
+                  onsubmit="return confirm('Record Rs.<%= Math.round(cl.amount) %> as received from <%= cl.full_name.replace(/'/g, "") %>?\n\nThe months are filled oldest first (or the months the parent named) and the parent is notified.');">
+              <input type="hidden" name="decision_note" value="">
+              <button type="submit" class="btn btn-primary btn-sm">✅ Record ₹<%= Math.round(cl.amount).toLocaleString('en-IN') %></button>
+            </form>
+            <form method="POST" action="/admin/fees/claims/<%= cl.id %>/reject"
+                  onsubmit="var n = this.elements.decision_note.value; if (!n) { n = prompt('Why is this not received? (shown to the parent)', 'Not found in our account'); if (n === null) return false; this.elements.decision_note.value = n; } return true;">
+              <input type="hidden" name="decision_note" value="">
+              <button type="submit" class="btn btn-outline btn-sm">✖ Not received</button>
+            </form>
+          </span>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>🔎 Find a student</h3>
+      <%# The same order the Students page settled on — pick a class, pick a status, type a name,
+          then Search. Nothing submits by itself: an auto-submitting class box threw away what had
+          just been typed. %>
+      <form method="GET" action="/admin/fees" class="fee-filter">
+        <div class="form-group ff-class">
+          <label for="f-class">Class</label>
+          <select id="f-class" name="class">
+            <option value="0">All classes</option>
+            <% classes.forEach(c => { %>
+              <option value="<%= c.id %>" <%= c.id === classId ? 'selected' : '' %>><%= c.name %><%= c.section ? ' ' + c.section : '' %></option>
+            <% }) %>
+          </select>
+        </div>
+        <div class="form-group ff-status">
+          <label for="f-status">Fee status</label>
+          <select id="f-status" name="status">
+            <option value="all" <%= status === 'all' ? 'selected' : '' %>>All students</option>
+            <option value="due" <%= status === 'due' ? 'selected' : '' %>>With pending months</option>
+            <option value="partial" <%= status === 'partial' ? 'selected' : '' %>>Part paid</option>
+            <option value="overdue" <%= status === 'overdue' ? 'selected' : '' %>>Overdue</option>
+            <option value="cleared" <%= status === 'cleared' ? 'selected' : '' %>>Fully paid</option>
+          </select>
+        </div>
+        <div class="form-group ff-name">
+          <label for="f-q">Name, roll no. or admission no.</label>
+          <input type="search" id="f-q" name="q" value="<%= q %>" placeholder="e.g. Aarav · 12 · ADM-1-1" autocomplete="off">
+        </div>
+        <button type="submit" class="btn btn-primary ff-go">🔎 Search</button>
+        <a href="/admin/fees" class="btn btn-outline ff-clear">Show everyone</a>
+      </form>
+    </div>
+    <div class="panel-body no-pad">
+      <p class="fee-list-count" id="fee-count">
+        Showing <b><%= students.length %></b> of <%= totals.students %> student<%= totals.students == 1 ? '' : 's' %><%= status === 'all' ? '' : ' · ' + { due: 'with pending months', partial: 'part paid', overdue: 'overdue', cleared: 'fully paid' }[status] %>
+      </p>
+      <div class="table-wrap">
+        <%# Same shared card block as Students/Teachers: below 900px each row becomes a card, its
+            cells naming themselves from `data-label`. One markup, two layouts. %>
+        <table class="card-table fee-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Months paid</th>
+              <th class="text-right">Received</th>
+              <th class="text-right">Balance</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% students.forEach(s => { %>
+              <% const barClass = s.percent === 100 ? '' : s.collected ? 'fee-bar-partial' : 'fee-bar-none'; %>
+              <% const openUrl = `/admin/fees/${s.id}?class=${classId || s.class_id}`; %>
+              <%# The row is NOT a link any more (school's request, 2026-09-15): the office kept
+                  landing on a ledger by accident. The name and the “Open months →” button are the
+                  two ways in, and the button is a real 44px target on a phone. ---- %>
+              <tr class="fee-row" data-search="<%= [s.full_name, s.admission_no, s.roll_no, s.parent_name, s.class_name].filter(Boolean).join(' ').toLowerCase() %>">
+                <td class="td-name" data-label="Student">
+                  <div class="fee-stu-name">
+                    <a href="/admin/fees/<%= s.id %>?class=<%= classId || s.class_id %>"><%= s.full_name %></a>
+                    <%# One tap, right beside the name at the desk and pinned to the card's TOP-RIGHT
+                        corner on a phone, chases that one family — the same round send button as the
+                        reminder panel and the child's own ledger, so the three read as one idea.
+                        Only where there is something to chase: no balance, no button. It answers
+                        back on THIS page (`back=list`) so the office keeps its place, and where the
+                        months have run past their due date the button BLINKS — the office can see
+                        which families are late without reading a single number. %>
+                    <% if (s.balance) { %>
+                      <form method="POST" action="/admin/fees/<%= s.id %>/remind" class="fee-name-send"
+                            onsubmit="return confirm('Send the due message to <%= String(s.parent_name || 'this parent').replace(/'/g, '') %>?\n\nIt lists the pending months and ₹<%= Math.round(s.balance).toLocaleString('en-IN') %>, and goes to the parent portal plus one SMS/WhatsApp alert.');">
+                        <input type="hidden" name="back" value="list">
+                        <input type="hidden" name="class" value="<%= classId %>">
+                        <button type="submit" class="remind-send-icon send-due-btn<%= s.overdueMonths ? ' is-overdue' : '' %>"
+                                title="Send <%= s.full_name %>'s due message · ₹<%= Math.round(s.balance).toLocaleString('en-IN') %> pending<%= s.overdueMonths ? ' · ' + s.overdueMonths + ' month' + (s.overdueMonths == 1 ? '' : 's') + ' past the due date' : '' %>">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2.5 11 13"/><path d="M21.5 2.5 15 21.5l-4-8.5-8.5-4z"/></svg>
+                          <span class="sr-only">Send the due message to <%= s.full_name %>'s parent</span>
+                        </button>
+                      </form>
+                    <% } %>
+                    <span class="fee-class-chip"><%= s.class_name %><%= s.section ? ' ' + s.section : '' %></span>
+                    <span class="roll">Roll No. <%= s.roll_no %></span>
+                  </div>
+                  <div class="fee-sub">
+                    <code><%= s.admission_no %></code>
+                    <% if (s.parent_phone) { %> · 📞 <%= s.parent_name ? s.parent_name + ' · ' : '' %><%= s.parent_phone %><% } %>
+                    <% if (s.fineTotal > 0) { %> · <span class="fee-fine-chip">fine ₹<%= Math.round(s.fineTotal).toLocaleString('en-IN') %></span><% } %>
+                    <% if (s.partialMonths) { %> · <span class="fee-part-chip"><%= s.partialMonths %> part paid</span><% } %>
+                  </div>
+                </td>
+                <td data-label="Months paid">
+                  <div class="fee-months">
+                    <b><%= s.paidMonths %>/<%= s.totalMonths || 12 %></b> settled
+                    <span class="text-muted">· ₹<%= s.months.length ? Math.round(s.months[0].amount).toLocaleString('en-IN') : 0 %>/mo</span>
+                  </div>
+                  <div class="fee-stu-bar <%= barClass %>"><span style="width: <%= s.paidPercent %>%"></span></div>
+                </td>
+                <td class="text-right fee-mono" data-label="Received">₹<%= Math.round(s.collected).toLocaleString('en-IN') %></td>
+                <td class="text-right fee-mono <%= s.balance ? 'fee-pending' : '' %>" data-label="Balance" title="<%= s.fineTotal ? 'includes fine ₹' + Math.round(s.fineTotal).toLocaleString('en-IN') : '' %>">
+                  <%= s.balance ? '₹' + Math.round(s.balance).toLocaleString('en-IN') : '—' %>
+                </td>
+                <td data-label="Status">
+                  <% if (s.status === 'cleared') { %><span class="badge cleared">✓ Fully paid</span>
+                  <% } else if (s.overdueMonths) { %><span class="badge overdue"><%= s.overdueMonths %> overdue</span>
+                  <% } else if (s.status === 'partial') { %><span class="badge partial">Part paid</span>
+                  <% } else { %><span class="badge due"><%= s.totalMonths - s.paidMonths %> due</span><% } %>
+                </td>
+                <td class="td-actions text-right">
+                  <a href="/admin/fees/<%= s.id %>?class=<%= classId || s.class_id %>" class="btn btn-outline btn-sm btn-open">Open months →</a>
+                </td>
+              </tr>
+            <% }) %>
+            <tr id="live-empty" class="is-empty" style="display:none;"><td colspan="6" class="empty">Nobody here matches that.</td></tr>
+            <% if (!students.length) { %>
+              <tr class="is-empty"><td colspan="6" class="empty">
+                No students match this filter.<%= q ? ' Try a different search.' : classId ? ' This class has no students yet.' : ' Add students and their monthly installments appear here automatically.' %>
+              </td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <%# ---- how a parent pays: the UPI / bank / QR block a family sees on its own fees page.
+      One form writes it all (src/services/payments.js); the parent page reads the same rows. ---- %>
+  <% if (paysaved) { %><div class="alert success">✅ Payment details saved — the parent's Fees page shows them from now on.</div><% } %>
+  <% if (paySaveErr) { %><div class="alert error">⚠️ <%= paySaveErr %></div><% } %>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>💳 How parents pay — UPI · bank · QR</h3>
+      <span class="text-muted"><%= pay.custom ? 'set by the school' : 'demo details — please replace them' %></span>
+    </div>
+    <div class="panel-body">
+      <div class="alert" style="background:#e0f2fe; border:1px solid #7dd3fc;">
+        A parent opens <b>Fees → 💳 Pay now</b> and sees exactly these details.<% if (!pay.custom) { %> <b>They are demo values</b> — replace them with the school's own. <% } %>
+      </div>
+
+      <form method="POST" action="/admin/fees/payment-details">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>UPI ID <span class="text-muted">(e.g. schoolname&#64;upi)</span></label>
+            <input type="text" name="payUpi" maxlength="60" value="<%= pay.payUpi %>" placeholder="schoolname&#64;upi">
+          </div>
+          <div class="form-group">
+            <label>UPI payee name <span class="text-muted">(what the parent's UPI app shows)</span></label>
+            <input type="text" name="payPayee" maxlength="80" value="<%= pay.payPayee %>">
+          </div>
+          <div class="form-group">
+            <label>Account holder name</label>
+            <input type="text" name="payAcName" maxlength="80" value="<%= pay.payAcName %>">
+          </div>
+          <div class="form-group">
+            <label>Bank account number</label>
+            <input type="text" name="payAcNo" maxlength="40" value="<%= pay.payAcNo %>">
+          </div>
+          <div class="form-group">
+            <label>IFSC code</label>
+            <input type="text" name="payIfsc" maxlength="20" value="<%= pay.payIfsc %>" style="text-transform:uppercase;">
+          </div>
+          <div class="form-group">
+            <label>Bank name</label>
+            <input type="text" name="payBank" maxlength="60" value="<%= pay.payBank %>">
+          </div>
+          <div class="form-group">
+            <label>Branch</label>
+            <input type="text" name="payBranch" maxlength="60" value="<%= pay.payBranch %>">
+          </div>
+          <div class="form-group">
+            <label>WhatsApp number for the payment screenshot</label>
+            <input type="text" name="payPhone" maxlength="20" value="<%= pay.payPhone %>" placeholder="<%= school.schoolPhone %>">
+          </div>
+        </div>
+        <%# ---- OPTIONAL second account: the parent page shows another bank block when this
+            is filled, and shows nothing extra while it is blank. ---- %>
+        <div class="form-grid" style="margin-top:6px; padding-top:12px; border-top:1px dashed var(--border);">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Second account <span class="text-muted">(hostel / mess — the school's own above)</span></label>
+            <div class="text-muted" style="font-size:12.5px;">
+              <%= pay.hasSecond ? '✅ Parents see this account as a second block.' : '🙈 Hidden — the numbers are kept, the block is just not shown.' %>
+            </div>
+            <label class="class-pick" style="margin-top:6px; max-width:340px;">
+              <input type="hidden" name="payAc2ShowSet" value="1">
+              <input type="checkbox" name="payAc2Show" value="1" <%= pay.payAc2Show ? 'checked' : '' %>>
+              <span>Show the second account to parents</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label>Label <span class="text-muted">(heading the parent reads)</span></label>
+            <input type="text" name="payAc2Label" maxlength="40" value="<%= pay.payAc2Label %>" placeholder="Hostel / mess account">
+          </div>
+          <div class="form-group">
+            <label>Account holder name</label>
+            <input type="text" name="payAc2Name" maxlength="80" value="<%= pay.payAc2Name %>">
+          </div>
+          <div class="form-group">
+            <label>Bank account number</label>
+            <input type="text" name="payAc2No" maxlength="40" value="<%= pay.payAc2No %>">
+          </div>
+          <div class="form-group">
+            <label>IFSC code</label>
+            <input type="text" name="payAc2Ifsc" maxlength="20" value="<%= pay.payAc2Ifsc %>" style="text-transform:uppercase;">
+          </div>
+          <div class="form-group">
+            <label>Bank name</label>
+            <input type="text" name="payAc2Bank" maxlength="60" value="<%= pay.payAc2Bank %>">
+          </div>
+          <div class="form-group">
+            <label>Branch</label>
+            <input type="text" name="payAc2Branch" maxlength="60" value="<%= pay.payAc2Branch %>">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>What the parent should do after paying <span class="text-muted">(simple English)</span></label>
+          <textarea name="payNote" rows="2" maxlength="400"><%= pay.payNote %></textarea>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Payment QR <span class="text-muted">(the school's own UPI QR image — JPG/PNG)</span></label>
+            <input type="file" id="payQrFile" accept="image/png,image/jpeg">
+            <input type="hidden" name="payQr" id="payQrData">
+            <input type="hidden" name="removeQr" id="payQrRemove">
+            <button type="button" class="btn btn-outline btn-sm" style="margin-top:8px;" id="payQrClear">🗑 Remove QR</button>
+            <div class="text-muted" style="font-size:12.5px; margin-top:6px;">
+              Upload replaces the QR. A plain QR photo from any UPI app works.
+              <% if (pay.demoQr) { %><br><b>Currently the demo QR</b> — upload the school's own.<% } %>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>QR the parents will see</label>
+            <img src="<%= pay.payQr %>" alt="Payment QR" style="width:150px; height:150px; object-fit:contain; border:1px solid var(--border); border-radius:12px; background:#fff; padding:6px;">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">💾 Save payment details</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // The send button's badge and its on/off state follow the choice made below it: “past the due
+    // date” and “everyone with a balance” are different numbers, and a class can have nobody late
+    // while plenty still carry a balance — the button used to stay off in that case.
+    (function () {
+      var form = document.querySelector('.remind-form');
+      if (!form) return;
+      var btn = document.getElementById('remind-send');
+      var badge = document.getElementById('remind-badge');
+      var radios = [].slice.call(form.querySelectorAll('input[name="who"]'));
+      if (!btn || !badge || !radios.length) return;
+      function sync() {
+        var picked = form.querySelector('input[name="who"]:checked');
+        var key = picked && picked.value === 'dues' ? 'data-count-dues' : 'data-count-overdue';
+        var n = Number(btn.getAttribute(key)) || 0;
+        badge.textContent = n;
+        btn.disabled = n === 0;
+        btn.title = n
+          ? 'Send the reminder to ' + n + ' student' + (n === 1 ? '' : 's')
+          : 'Nobody to remind with this choice';
+      }
+      radios.forEach(function (r) { r.addEventListener('change', sync); });
+      sync();
+    })();
+
+    // “Open months →”: the tap has to answer. On a phone the ledger takes over almost at once and
+    // an outline button shows nothing at all, so the pressed one turns solid indigo and stays that
+    // way while the page loads (and if the office comes back, it still shows which one it opened).
+    (function () {
+      [].slice.call(document.querySelectorAll('.fee-table a.btn-open')).forEach(function (a) {
+        a.addEventListener('click', function () { a.classList.add('is-open'); });
+      });
+    })();
+
+    // Typing narrows the list at once (the Search button still does a full server search).
+    (function () {
+      var input = document.getElementById('f-q');
+      var table = document.querySelector('.fee-table');
+      var count = document.getElementById('fee-count');
+      if (!input || !table) return;
+      var rows = [].slice.call(table.querySelectorAll('tbody tr')).filter(function (r) {
+        return r.id !== 'live-empty' && !r.querySelector('td.empty');
+      });
+      var original = count ? count.innerHTML : '';
+      var emptyRow = document.getElementById('live-empty');
+
+      // “10th” has to find Class 10 — the same normalisation the Students page uses, so the two
+      // boxes behave the same way (the server search is left exactly as it was).
+      function normalise(v) {
+        return v.toLowerCase().replace(/\bclass\b/g, ' ').replace(/(\d+)\s*(st|nd|rd|th)\b/g, '$1').replace(/\s+/g, ' ').trim();
+      }
+      // One pass per animation frame, stopping early on an unchanged term, and writing `display`
+      // only where it actually flips: a 336-row list must not be restyled on every keystroke.
+      var raf = 0;
+      var lastTerm = null;
+      var visible = rows.map(function () { return true; });
+
+      function pass() {
+        raf = 0;
+        var raw = input.value.trim();
+        var term = normalise(raw);
+        if (term === lastTerm) return;
+        lastTerm = term;
+        var shown = 0;
+        for (var i = 0; i < rows.length; i++) {
+          var r = rows[i];
+          // plain “contains” against everything the row carries (name, roll no., admission no.,
+          // parent, class) — a number here is a roll number as often as it is a class, so there is
+          // no class-only branch like the Students page has; “10th” still finds Class 10 because
+          // the term is normalised to “10” and never the other way round.
+          var hit = !term || (r.getAttribute('data-search') || '').indexOf(term) !== -1;
+          if (visible[i] !== hit) { r.style.display = hit ? '' : 'none'; visible[i] = hit; }
+          if (hit) shown++;
+        }
+        if (emptyRow) emptyRow.style.display = shown === 0 && rows.length ? '' : 'none';
+        if (count) {
+          count.innerHTML = !term || shown === rows.length
+            ? original
+            : 'Showing <b>' + shown + '</b> of ' + rows.length + ' student' + (rows.length === 1 ? '' : 's') + ' (matching “' + raw + '”)';
+        }
+      }
+      function run() { if (!raf) raf = requestAnimationFrame(pass); }
+      input.addEventListener('input', run);
+      lastTerm = '__start__';   // the first pass records the starting state, it hides nothing
+      run();
+    })();
+
+    // QR image → data URI (the same trick the fee-structure PDF upload uses), so the
+    // office never has to host a file — the image travels inside site_content.
+    (function () {
+      var file = document.getElementById('payQrFile');
+      var data = document.getElementById('payQrData');
+      var remove = document.getElementById('payQrRemove');
+      var clear = document.getElementById('payQrClear');
+      if (!file || !data) return;
+      file.addEventListener('change', function () {
+        var f = file.files[0];
+        if (!f) return;
+        if (!/^image\/(png|jpeg)$/i.test(f.type)) { alert('Please choose a PNG or JPG image of the QR.'); file.value = ''; return; }
+        if (f.size > 500 * 1024) { alert('That QR image is larger than 500KB — please choose a smaller one.'); file.value = ''; return; }
+        var reader = new FileReader();
+        reader.onload = function () { data.value = reader.result; if (remove) remove.value = ''; };
+        reader.readAsDataURL(f);
+      });
+      if (clear) clear.addEventListener('click', function () {
+        data.value = '';
+        if (remove) remove.value = '1';
+        file.value = '';
+        alert('The QR will be removed when you press “Save payment details”.');
+      });
+    })();
+  </script>
+<%- include('../partials/footer') %>

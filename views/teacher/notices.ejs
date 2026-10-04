@@ -1,0 +1,16 @@
+<%#
+  TEACHER NOTICES — the exact same cards a parent reads. One partial (partials/notices.ejs)
+  draws both portals, so the two lists can never look or behave differently. Teachers see
+  one extra thing: notices the office marked “Teachers only” (parents never get those).
+%>
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1>📢 Notices — <%= cls.label %></h1>
+    <p>The same school announcements parents read, plus anything the office sends only to teachers.</p>
+  </div>
+
+  <%# the other half of this section: 📨 Messages = only what the office sent him %>
+  <%- include('../partials/teacher_msg_tabs', { msgTab: 'notices', noticeCount }) %>
+
+  <%- include('../partials/notices', { notices }) %>
+<%- include('../partials/footer') %>

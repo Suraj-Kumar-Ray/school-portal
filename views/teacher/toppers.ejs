@@ -1,0 +1,121 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head">
+    <h1>🏆 Class Toppers — <%= cls.label %></h1>
+    <p>Fill the toppers of my own class. They show on the school website under “Our Class Toppers”.</p>
+  </div>
+
+  <% if (flash.saved) { %><div class="alert success">✅ Saved — the website is updated.</div><% } %>
+  <% if (flash.error) { %><div class="alert error">⚠️ <%= flash.error %></div><% } %>
+  <% if (!onWebsite) { %>
+    <div class="alert" style="background:#e0f2fe; border:1px solid #7dd3fc;">
+      ℹ️ <%= cls.name %> is not on the website class list yet, so this card will show there only after the school office adds the class.
+    </div>
+  <% } %>
+
+  <form method="POST" action="/teacher/toppers">
+    <input type="hidden" name="class_id" value="<%= viewClass.id %>">
+    <div class="panel">
+      <div class="panel-head"><h3>Topper card of <%= cls.name %></h3><span class="text-muted">leave a name blank to remove that rank</span></div>
+      <div class="panel-body">
+        <% ranks.forEach(r => { %>
+          <div class="topper-row" data-rank="<%= r.rank %>">
+            <div class="topper-rank">#<%= r.rank %></div>
+            <div class="topper-photo">
+              <% if (r.photo) { %>
+                <img src="<%= r.photo %>" alt="Rank <%= r.rank %> photo" class="topper-photo-img">
+              <% } else { %>
+                <span class="topper-photo-ph">📷</span>
+              <% } %>
+              <label class="topper-photo-btn" title="Choose a photo">
+                🖼️ Photo
+                <input type="file" accept="image/*" class="topper-file" style="display:none;">
+              </label>
+              <button type="button" class="topper-photo-remove" title="Remove the photo" <%= r.photo ? '' : 'hidden' %>>✕</button>
+              <%# both hidden fields are ALWAYS sent, one per rank, so the three ranks
+                  can never slip out of step with each other %>
+              <input type="hidden" name="photo" value="" data-rank-role="photo">
+              <input type="hidden" name="removePhoto" value="0" data-rank-role="remove">
+            </div>
+            <div class="topper-fields">
+              <div class="form-group">
+                <label>Student name</label>
+                <input type="text" name="name" maxlength="80" value="<%= r.name %>" placeholder="e.g. Aarav Sharma">
+              </div>
+              <div class="form-group">
+                <label>Percentage</label>
+                <input type="number" step="0.01" min="0" max="100" inputmode="decimal"
+                       name="percentage" value="<%= r.percentage === '' ? '' : r.percentage %>" placeholder="e.g. 92.5">
+              </div>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+      <div class="panel-body">
+        <button type="submit" class="btn btn-primary">💾 Save toppers</button>
+        <p class="text-muted" style="font-size:12.5px; margin:10px 0 0;">
+          Type the exact percentage — decimals are kept as they are (92.5 stays 92.5, it is not rounded).
+        </p>
+      </div>
+    </div>
+  </form>
+
+  <script>
+    // One rank's photo: pick a file → shrink to ≤400px → send it as a small JPEG
+    // (the same flow the office uses for student and teacher photos).
+    document.querySelectorAll('.topper-row').forEach(function (row) {
+      var file = row.querySelector('.topper-file');
+      var hidden = row.querySelector('[data-rank-role="photo"]');
+      var flag = row.querySelector('[data-rank-role="remove"]');
+      var removeBtn = row.querySelector('.topper-photo-remove');
+
+      function showPhoto(src) {
+        var img = row.querySelector('.topper-photo-img');
+        var ph = row.querySelector('.topper-photo-ph');
+        if (img) { img.src = src; }
+        else if (ph) {
+          var im = document.createElement('img');
+          im.className = 'topper-photo-img';
+          im.src = src;
+          ph.parentNode.replaceChild(im, ph);
+        }
+        if (removeBtn) removeBtn.hidden = false;
+      }
+
+      file.addEventListener('change', function () {
+        var f = file.files && file.files[0];
+        if (!f) return;
+        if (!/^image\//.test(f.type)) { alert('Please choose an image file (JPG/PNG).'); return; }
+        var img = new Image();
+        img.onload = function () {
+          var MAX = 400, w = img.width, h = img.height;
+          if (w > MAX || h > MAX) { var r = MAX / Math.max(w, h); w = Math.round(w * r); h = Math.round(h * r); }
+          var cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          hidden.value = cv.toDataURL('image/jpeg', 0.82);
+          flag.value = '0';            // a new photo means "do not remove"
+          showPhoto(hidden.value);
+        };
+        img.onerror = function () { alert('Could not read the image — please try again.'); };
+        img.src = URL.createObjectURL(f);
+      });
+
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function () {
+          var img = row.querySelector('.topper-photo-img');
+          if (img) img.remove();
+          var box = row.querySelector('.topper-photo');
+          if (!box.querySelector('.topper-photo-ph')) {
+            var ph = document.createElement('span');
+            ph.className = 'topper-photo-ph';
+            ph.textContent = '📷';
+            box.insertBefore(ph, box.firstChild);
+          }
+          hidden.value = '';
+          flag.value = '1';
+          removeBtn.hidden = true;
+        });
+      }
+    });
+  </script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,155 @@
+<%- include('../partials/header', { title }) %>
+  <div class="page-head flex-between">
+    <div>
+      <h1>🔑 Access — <%= String(teacher.full_name).trim() %></h1>
+      <p>
+        Class teacher of <b><%= teacher.class_name %><%= teacher.section ? ' ' + teacher.section : '' %></b>
+        · login <code><%= teacher.username %></code>
+        <% if (!teacher.can_login) { %><span class="badge red">login OFF</span><% } %>
+      </p>
+    </div>
+    <a href="/admin/teacher-access" class="btn btn-outline btn-sm">← All teachers</a>
+  </div>
+
+  <% if (saved) { %><div class="alert success">✅ Saved — <%= count %> of <%= keys.length %> sections are open for <%= String(teacher.full_name).trim() %>.
+    Classes: <b><%= scope || scopeLabel %></b>. He will see the change on his next tap.</div><% } %>
+  <% if (err) { %><div class="alert error">⚠️ <%= err %></div><% } %>
+
+  <div class="alert" style="background:#e0f2fe; border:1px solid #7dd3fc;">
+    ℹ️ Two choices, both yours: <b>which sections</b> his login may open, and <b>which classes</b>
+    he may work on. Tick nothing under Classes and he stays on his own class
+    (<b><%= teacher.class_name %><%= teacher.section ? ' ' + teacher.section : '' %></b>).
+    He has no way into the Admin panel either way.
+  </div>
+
+  <form method="POST" action="/admin/teachers/<%= teacher.id %>/permissions">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Sections he may open</h3>
+        <span class="text-muted"><%= granted.length %> of <%= keys.length %> open now</span>
+      </div>
+      <div class="panel-body">
+        <% groups.forEach(g => { %>
+          <div class="perm-group">
+            <div class="perm-group-name"><%= g.group %></div>
+            <% g.sections.forEach(s => { %>
+              <label class="perm-row">
+                <input type="checkbox" name="perm_<%= s.key %>" value="1" <%= granted.includes(s.key) ? 'checked' : '' %>>
+                <span class="perm-icon"><%= s.icon %></span>
+                <span class="perm-text">
+                  <b><%= s.label %></b>
+                  <small><%= s.hint %></small>
+                </span>
+                <span class="perm-key"><code><%= s.key %></code></span>
+              </label>
+            <% }) %>
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- WHICH classes those sections apply to. Part of the SAME form on purpose:
+           one Save writes both, so the two can never be saved half-and-half. -->
+      <div class="panel-head">
+        <h3>Classes he may work on</h3>
+        <span class="text-muted">now: <b><%= scopeLabel %></b></span>
+      </div>
+      <div class="panel-body">
+        <label class="perm-row">
+          <input type="checkbox" name="all_classes" value="1" <%= scopeAll ? 'checked' : '' %>>
+          <span class="perm-icon">🏫</span>
+          <span class="perm-text">
+            <b>All classes</b>
+            <small>Every class of the school — and any class the office adds later. Tick this for a teacher who handles the whole school.</small>
+          </span>
+          <span class="perm-key"><code>all</code></span>
+        </label>
+
+        <div class="class-grid" style="margin-top:14px;">
+          <% classes.forEach(c => { %>
+            <label class="class-pick<%= c.checked ? ' checked' : '' %>">
+              <input type="checkbox" name="class_<%= c.id %>" value="1" <%= c.checked ? 'checked' : '' %>>
+              <span><%= c.label %><% if (c.id === teacher.class_id) { %> <span class="cp-own">own class</span><% } %></span>
+            </label>
+          <% }) %>
+        </div>
+
+        <p class="text-muted" style="font-size:12.5px; margin:12px 0 0;">
+          Tick the classes this teacher handles (any class, not only his own) — for example a
+          subject teacher of Class 6, 7 and 8. <b>“All classes”</b> overrides the ticks.
+          Leave everything empty to keep him on his own class only.
+        </p>
+      </div>
+
+      <div class="panel-body">
+        <button type="submit" name="action" value="save" class="btn btn-primary">💾 Save access</button>
+        <button type="submit" name="action" value="all" class="btn btn-outline"
+                onclick="return confirm('Give <%= String(teacher.full_name).trim() %> ALL sections?');">Give all access</button>
+        <button type="submit" name="action" value="none" class="btn btn-danger"
+                onclick="return confirm('Remove ALL access for <%= String(teacher.full_name).trim() %>? His login stays, but nothing will open for him.');">Remove all access</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="panel">
+    <div class="panel-head"><h3>👩‍🏫 The teacher's own login</h3></div>
+    <div class="panel-body">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Username</th><th>Password (as handed out)</th><th>Login</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code><%= teacher.username %></code></td>
+              <td>
+                <% if (teacher.portal_password) { %>
+                  <code style="background:#fef9c3; padding:2px 7px; border-radius:5px;"><%= teacher.portal_password %></code>
+                <% } else { %><span class="text-muted">not set</span><% } %>
+              </td>
+              <td><% if (teacher.can_login) { %><span class="badge green">ON</span><% } else { %><span class="badge red">OFF</span><% } %></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-muted" style="font-size:12.5px; margin:12px 0 0;">
+        Change the password or switch the login off from
+        <a href="/admin/teacher-access">Teacher Access</a> → <b>Save</b> on his row.
+      </p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>👀 What he will see</h3></div>
+    <div class="panel-body">
+      <% if (!granted.length) { %>
+        <div class="empty">No section granted yet — his portal still opens with his profile, the timetable (read-only) and the school inbox, and says “ask the school office” everywhere else.</div>
+      <% } else { %>
+        <ul class="perm-preview">
+          <li>📊 <b>My Dashboard</b> — always there (class strength, today's periods)</li>
+          <li>🕒 <b>Timetable</b> — always there<%= granted.includes('timetable') ? '' : ' (read-only until you grant it)' %><%= granted.includes('timetable') ? ' — homework writing open' : '' %></li>
+          <li><%= granted.includes('messages') ? '📬' : '📨' %> <b><%= granted.includes('messages') ? 'Message parents' : 'School inbox' %></b> — always there<%= granted.includes('messages') ? ' — sending open' : ' (read-only until you grant it)' %></li>
+          <% groups.forEach(g => { g.sections.filter(s => granted.includes(s.key) && s.key !== 'timetable' && s.key !== 'messages').forEach(s => { %>
+            <li><%= s.icon %> <b><%= s.label %></b> <span class="text-muted">— <%= s.hint %></span></li>
+          <% }) }) %>
+        </ul>
+        <p class="text-muted" style="font-size:12.5px; margin:12px 0 0;">
+          Classes: <b><%= scopeLabel %></b>
+          <% if (!scopeAll && classes.filter(c => c.checked).length > 1) { %>
+            — every page above gets a class picker at the top, and he may open only these classes.
+          <% } %>
+        </p>
+      <% } %>
+      <p class="text-muted" style="font-size:12.5px; margin:12px 0 0;">
+        Menu of the teacher app: the dashboard plus exactly these <b><%= granted.length %></b> section(s) — nothing else is printed.
+      </p>
+    </div>
+  </div>
+
+<script>
+  // A class box ticks the card it sits in, so the office sees at a glance which
+  // classes are switched on without counting checkboxes.
+  document.querySelectorAll('.class-pick input[type="checkbox"]').forEach((box) => {
+    const sync = () => box.closest('.class-pick').classList.toggle('checked', box.checked);
+    box.addEventListener('change', sync);
+    sync();
+  });
+</script>
+<%- include('../partials/footer') %>

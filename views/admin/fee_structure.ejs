@@ -1,0 +1,185 @@
+<%- include('../partials/header') %>
+  <div class="page-head flex-between">
+    <div>
+      <h1><span class="rupee-glyph">₹</span> Fee Structure</h1>
+      <p>Complete fee sheet for every class — separate amounts for <b>Day Scholars</b> and <b>Hostel Students</b>. Saving updates the public fee page instantly.</p>
+    </div>
+    <a href="/fee-structure" target="_blank" class="btn btn-outline btn-sm">👀 View public fee page →</a>
+  </div>
+
+  <% if (saved) { %><div class="alert success">✅ Fee structure saved — the public page is updated.<% if (Number(repriced) > 0) { %> <b><%= repriced %></b> unpaid installment<%= Number(repriced) == 1 ? '' : 's' %> in Fee Management were re-priced to the new monthly tuition.<% } %></div><% } %>
+  <% if (created) { %><div class="alert success">✅ New class added. Now set its fees in the table below.</div><% } %>
+  <% if (deleted) { %><div class="alert success">🗑️ Class deleted.</div><% } %>
+  <% if (routesaved) { %><div class="alert success">✅ Bus route added.</div><% } %>
+  <% if (routedeleted) { %><div class="alert success">🗑️ Bus route removed.</div><% } %>
+  <% if (pdfsaved) { %><div class="alert success">✅ Fee structure PDF uploaded — it is now available for download on the public fee page.</div><% } %>
+  <% if (pdfremoved) { %><div class="alert success">🗑️ Fee structure PDF removed.</div><% } %>
+  <% if (err) { %><div class="alert error">⚠️ <%= err %></div><% } %>
+
+  <form method="POST" action="/admin/fee-structure">
+    <div class="panel">
+      <div class="panel-head">
+        <h3>Class-wise fee sheet (<%= classes.length %> classes)</h3>
+        <span class="text-muted">₹ amounts — Day and Hostel in every row</span>
+      </div>
+      <div class="panel-body no-pad">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th rowspan="2">Class</th>
+                <th colspan="2">Admission fee<br><small>one-time</small></th>
+                <th colspan="2">Form<br><small>one-time</small></th>
+                <th colspan="2">Annual<br><small>yearly</small></th>
+                <th colspan="2">Misc.<br><small>yearly</small></th>
+                <th colspan="2">Tuition<br><small>monthly</small></th>
+                <th colspan="2">Reg. (9-10)<br><small>one-time</small></th>
+                <th rowspan="2">Books<br><small>set</small></th>
+                <th rowspan="2"></th>
+              </tr>
+              <tr>
+                <th>Day</th><th>Hostel</th>
+                <th>Day</th><th>Hostel</th>
+                <th>Day</th><th>Hostel</th>
+                <th>Day</th><th>Hostel</th>
+                <th>Day</th><th>Hostel</th>
+                <th>Day</th><th>Hostel</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% classes.forEach(c => { %>
+              <tr>
+                <td><b><%= c.name %></b> <span class="text-muted"><%= c.section ? '(' + c.section + ')' : '' %></span><br><small style="color:var(--muted)"><%= c.class_teacher || '—' %></small></td>
+                <td><input type="number" name="adm_day_<%= c.id %>" value="<%= c.adm_day %>" min="0" step="50" style="width:82px;"></td>
+                <td><input type="number" name="adm_hostel_<%= c.id %>" value="<%= c.adm_hostel %>" min="0" step="50" style="width:82px;"></td>
+                <td><input type="number" name="form_day_<%= c.id %>" value="<%= c.form_day %>" min="0" step="50" style="width:82px;"></td>
+                <td><input type="number" name="form_hostel_<%= c.id %>" value="<%= c.form_hostel %>" min="0" step="50" style="width:82px;"></td>
+                <td><input type="number" name="annual_day_<%= c.id %>" value="<%= c.annual_day %>" min="0" step="50" style="width:82px;"></td>
+                <td><input type="number" name="annual_hostel_<%= c.id %>" value="<%= c.annual_hostel %>" min="0" step="50" style="width:82px;"></td>
+                <td><input type="number" name="misc_day_<%= c.id %>" value="<%= c.misc_day %>" min="0" step="50" style="width:82px;"></td>
+                <td><input type="number" name="misc_hostel_<%= c.id %>" value="<%= c.misc_hostel %>" min="0" step="50" style="width:82px;"></td>
+                <td><input type="number" name="tuition_day_<%= c.id %>" value="<%= c.tuition_day %>" min="0" step="50" style="width:82px;"></td>
+                <td><input type="number" name="tuition_hostel_<%= c.id %>" value="<%= c.tuition_hostel %>" min="0" step="50" style="width:82px;"></td>
+                <td><input type="number" name="reg_day_<%= c.id %>" value="<%= c.reg_day %>" min="0" step="100" style="width:82px;"></td>
+                <td><input type="number" name="reg_hostel_<%= c.id %>" value="<%= c.reg_hostel %>" min="0" step="100" style="width:82px;"></td>
+                <td><input type="number" name="book_<%= c.id %>" value="<%= c.book_price %>" min="0" step="10" style="width:82px;"></td>
+                <td class="text-right" style="white-space:nowrap;">
+                  <form method="POST" action="/admin/classes/<%= c.id %>/delete" onsubmit="return confirm('Delete <%= c.name %><%= c.section ? ' ' + c.section : '' %>? This only works when the class has no students.');">
+                    <button type="submit" class="btn btn-danger btn-sm" title="Delete class (only if empty)">🗑</button>
+                  </form>
+                </td>
+              </tr>
+              <% }) %>
+              <% if (!classes.length) { %><tr><td colspan="15" class="empty">No classes yet — add a class first.</td></tr><% } %>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel-body" style="border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <p class="text-muted" style="margin:0; font-size:13px;">💡 These are the amounts shown in the Day/Hostel columns on the public page. Tuition = monthly, the rest are one-time/yearly.</p>
+          <button class="btn btn-primary" type="submit">💾 Save Fee Sheet</button>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <div class="panel">
+    <div class="panel-head"><h3>➕ Add class</h3><span class="text-muted">Create a new class — set its fees in the table below</span></div>
+    <div class="panel-body">
+      <form method="POST" action="/admin/classes/new" style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+        <div class="form-group">
+          <label>Class name *</label>
+          <input type="text" name="name" required placeholder="e.g. Class 11 or Nursery" style="min-width:200px;">
+        </div>
+        <div class="form-group">
+          <label>Section</label>
+          <input type="text" name="section" value="A" style="width:80px;">
+        </div>
+        <button type="submit" class="btn btn-primary">➕ Add Class</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>📄 Fee Structure PDF (public download)</h3>
+      <span class="text-muted"><%= hasFeePdf ? '✅ PDF uploaded' : 'No PDF uploaded yet' %></span>
+    </div>
+    <div class="panel-body">
+      <p class="text-muted" style="font-size:13px; margin-bottom:12px;">This PDF is shown on the public fee page's <b>⬇ Download Fee Structure PDF</b> button. Uploading a new one replaces the old file. Only <b>.pdf</b> files (max 8MB).</p>
+      <% if (hasFeePdf) { %>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+        <a href="/uploads/fee-structure.pdf" target="_blank" rel="noopener" class="btn btn-outline btn-sm">👀 View current PDF</a>
+        <form method="POST" action="/admin/fee-structure/pdf" onsubmit="return confirm('Delete the current PDF? The public download button will be removed.');">
+          <input type="hidden" name="action" value="remove">
+          <button type="submit" class="btn btn-danger btn-sm">🗑 Remove PDF</button>
+        </form>
+      </div>
+      <% } %>
+      <form method="POST" action="/admin/fee-structure/pdf" id="pdfUploadForm" onsubmit="return uploadPdf(event)">
+        <input type="hidden" name="action" value="upload">
+        <input type="hidden" name="fee_pdf" id="feePdfData">
+        <div class="form-group" style="max-width:480px;">
+          <label>Fee structure PDF <span style="color:var(--muted); font-weight:400;">(only .pdf)</span></label>
+          <input type="file" id="feePdfFile" accept="application/pdf,.pdf" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" style="margin-top:10px;">⬆ Upload PDF</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function uploadPdf(e) {
+      var file = document.getElementById('feePdfFile').files[0];
+      if (!file) return false;
+      if (!/^application\/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) {
+        alert('Please upload only a PDF file.'); e.preventDefault(); return false;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        alert('The PDF is larger than 8MB — please choose a smaller file.'); e.preventDefault(); return false;
+      }
+      var reader = new FileReader();
+      reader.onload = function () {
+        document.getElementById('feePdfData').value = reader.result;
+        document.getElementById('pdfUploadForm').submit();
+      };
+      reader.readAsDataURL(file);
+      return false;
+    }
+  </script>
+
+  <div class="panel">
+    <div class="panel-head"><h3>🚌 Bus / conveyance routes</h3><span class="text-muted">Shown on the public fee page</span></div>
+    <div class="panel-body no-pad">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Route</th><th class="text-right">Fare (₹/month)</th><th></th></tr></thead>
+          <tbody>
+            <% routes.forEach(r => { %>
+            <tr>
+              <td><b><%= r.route_name %></b></td>
+              <td class="text-right"><b>₹<%= r.fare.toLocaleString('en-IN') %></b></td>
+              <td class="text-right">
+                <form method="POST" action="/admin/bus-routes/<%= r.id %>/delete" onsubmit="return confirm('Delete this bus route? Students on it keep their details.');">
+                  <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+                </form>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body" style="border-top:1px solid var(--border);">
+        <form method="POST" action="/admin/bus-routes" style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+          <div class="form-group">
+            <label>Route name</label>
+            <input type="text" name="route_name" required placeholder="e.g. Madrauni">
+          </div>
+          <div class="form-group">
+            <label>Fare (₹/month)</label>
+            <input type="number" name="fare" min="0" step="50" required style="width:120px;">
+          </div>
+          <button type="submit" class="btn btn-primary">➕ Add Route</button>
+        </form>
+      </div>
+    </div>
+  </div>
+<%- include('../partials/footer') %>

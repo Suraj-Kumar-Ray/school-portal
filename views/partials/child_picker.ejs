@@ -1,0 +1,14 @@
+<% if (children.length > 1) { %>
+  <div class="child-picker">
+    <% children.forEach(c => { %>
+      <a href="?child=<%= c.id %>" class="<%= c.id === childId ? 'active' : '' %>">
+        <% if (c.photo) { %>
+          <img src="<%= c.photo %>" alt="<%= c.full_name %>" class="picker-photo">
+        <% } else { %>
+          <span class="picker-photo picker-photo-ph"><%= c.full_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() %></span>
+        <% } %>
+        <span class="picker-text"><%= c.full_name %> · <%= c.class_name %><%= c.section ? ' ' + c.section : '' %></span>
+      </a>
+    <% }) %>
+  </div>
+<% } %>

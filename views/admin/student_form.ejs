@@ -1,0 +1,303 @@
+<%- include('../partials/header', { title }) %>
+<%
+  // `values` holds what the office just typed (so a validation error never wipes the form)
+  const v = values || student || {};
+  // older records only had one "parent name" / "parent phone" — show those in Father's Name / Mobile No.
+  const fatherName = String(v.father_name || '').trim() || String(v.parent_name || '').trim();
+  const mobile = String(v.parent_phone || '').trim();
+  const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  const categories = ['General', 'OBC', 'SC', 'ST', 'EWS', 'Other'];
+  const back = filterClass ? '/admin/students?class=' + filterClass : '/admin/students';
+  // ---- day scholar or hostel student ----
+  // The four stay answers. A record saved before this feature has no `stay` at all and
+  // reads as a day scholar, which is what every existing student is.
+  // read through `locals` on purpose: a local `const stayOptions` would shadow the render
+  // data of the same name and EJS would throw "cannot access before initialization".
+  const stayList = (locals && locals.stayOptions) || [];
+  const stayMonthList = (locals && locals.stayTerms) || [];
+  const isBoarder = String(v.stay || '').trim() === 'hostel';
+%>
+  <div class="page-head">
+    <h1><%= student ? '✏️ Edit Student' : '➕ Add Student' %></h1>
+    <p><%= student ? 'Update details for ' + student.full_name : 'Create a new student account with the full admission record.' %></p>
+  </div>
+
+  <% if (error) { %><div class="alert error">⚠️ <%= error %></div><% } %>
+
+  <form method="POST" action="<%= student ? '/admin/students/' + student.id : '/admin/students' %>">
+    <input type="hidden" name="filter_class" value="<%= filterClass || 0 %>">
+    <%# the child's profile opens this form (2026-09-20) and asks to be returned to — EJS locals
+        are not shared by every caller, so an absent one must fall back, never 500 the page %>
+    <input type="hidden" name="back_to" value="<%= typeof backTo !== 'undefined' ? backTo : '' %>">
+
+    <div class="panel">
+      <div class="panel-head"><h3>🎓 Student details</h3></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Full Name *</label>
+            <input type="text" name="full_name" required value="<%= v.full_name || '' %>" placeholder="e.g. Aarav Sharma">
+          </div>
+          <div class="form-group">
+            <label>Admission No. *</label>
+            <input type="text" name="admission_no" value="<%= v.admission_no || suggestedAdmission || '' %>" placeholder="e.g. ADM2026058">
+            <small class="text-muted">Type your own number — leave it blank and the next number is used automatically.</small>
+          </div>
+          <div class="form-group">
+            <label>Class *</label>
+            <select name="class_id" id="class_id" required>
+              <% classes.forEach(c => { %>
+                <option value="<%= c.id %>" <%= Number(v.class_id) === c.id ? 'selected' : '' %>><%= c.name %><%= c.section ? ' ' + c.section : '' %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Roll No. *</label>
+            <input type="number" name="roll_no" id="roll_no" required min="1" value="<%= v.roll_no || (typeof suggestedRoll === 'number' ? suggestedRoll : '') %>" placeholder="1">
+            <small class="text-muted" id="rollHint"><%= typeof suggestedRoll === 'number' ? 'Roll No. ' + suggestedRoll + ' is free in this class — or type any free number.' : 'Pick a class above and a free Roll No. is suggested.' %></small>
+          </div>
+          <div class="form-group">
+            <label>Date of Birth</label>
+            <input type="date" name="dob" value="<%= v.dob || '' %>">
+          </div>
+          <div class="form-group">
+            <label>Blood Group</label>
+            <select name="blood_group">
+              <option value="">— select —</option>
+              <% bloodGroups.forEach(bg => { %>
+                <option value="<%= bg %>" <%= v.blood_group === bg ? 'selected' : '' %>><%= bg %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Student Aadhaar No.</label>
+            <input type="text" name="aadhaar" inputmode="numeric" maxlength="14"
+                   value="<%= fmtAadhaar(v.aadhaar, '') %>" placeholder="1234 5678 9012">
+            <small class="text-muted">12 digits — spaces are fine, they are removed on save.</small>
+          </div>
+          <div class="form-group">
+            <label>Caste</label>
+            <input type="text" name="caste" value="<%= v.caste || '' %>" placeholder="e.g. Yadav">
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <select name="category">
+              <option value="">— select —</option>
+              <% categories.forEach(cat => { %>
+                <option value="<%= cat %>" <%= v.category === cat ? 'selected' : '' %>><%= cat %></option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <%# ---- day scholar or hostel student (2026-09-16) ----
+        The box that decides the whole fee: a day scholar is charged the class's day
+        column, a boarder the hostel column — and only from the month he joined, so a
+        child who moves into the hostel in July keeps April–June at the day rate. %>
+    <div class="panel">
+      <div class="panel-head">
+        <h3>🏠 Stay — is this child in the hostel?</h3>
+        <span class="text-muted">Decides which fee column every month is charged from</span>
+      </div>
+      <div class="panel-body">
+        <div class="stay-pick">
+          <% stayList.forEach(o => { %>
+            <label class="stay-option<%= String(v.stay || 'day') === o.key ? ' checked' : '' %>">
+              <input type="radio" name="stay" value="<%= o.key %>" <%= String(v.stay || 'day') === o.key ? 'checked' : '' %>>
+              <span class="stay-option-body">
+                <b><%= o.icon %> <%= o.label %></b>
+                <small><%= o.hint %></small>
+              </span>
+            </label>
+          <% }) %>
+        </div>
+
+        <%# the hostel boxes only matter for a boarder — shown only then (the page's own
+            tiny script toggles this, and the server blanks them again for a day scholar) %>
+        <div class="stay-hostel" id="stayHostel" <%= isBoarder ? '' : 'hidden' %>>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>In the hostel from</label>
+              <select name="hostel_from">
+                <option value="">Since the session began (April)</option>
+                <% stayMonthList.forEach(t => { %>
+                  <option value="<%= t %>" <%= String(v.hostel_from || '') === t ? 'selected' : '' %>><%= t %></option>
+                <% }) %>
+              </select>
+              <small class="text-muted">Months before this one stay at the day-scholar rate.</small>
+            </div>
+            <div class="form-group">
+              <label>Left the hostel after</label>
+              <select name="hostel_until">
+                <option value="">Still in the hostel</option>
+                <% stayMonthList.forEach(t => { %>
+                  <option value="<%= t %>" <%= String(v.hostel_until || '') === t ? 'selected' : '' %>><%= t %></option>
+                <% }) %>
+              </select>
+              <small class="text-muted">Months after this one go back to the day-scholar rate.</small>
+            </div>
+            <div class="form-group">
+              <label>Bed No.</label>
+              <input type="text" name="hostel_bed" maxlength="20" value="<%= v.hostel_bed || '' %>" placeholder="e.g. 12">
+              <small class="text-muted">His bed in the hostel dormitory — shown to his parents in the app.</small>
+            </div>
+          </div>
+          <p class="stay-note">💡 A boarder's monthly fee follows the hostel column of the class fee sheet
+            (<a href="/admin/fee-structure" target="_blank">Fee Structure</a>), and only for the months above —
+            the months before (or after) the hostel stay keep the day-scholar rate. Changing this re-prices
+            every month that has not received money yet; a month already paid is never touched.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>👨‍👩‍👦 Father, mother &amp; income</h3></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Father's Name</label>
+            <input type="text" name="father_name" value="<%= fatherName %>" placeholder="e.g. Ramesh Sharma">
+          </div>
+          <div class="form-group">
+            <label>Father's Occupation</label>
+            <input type="text" name="father_occupation" value="<%= v.father_occupation || '' %>" placeholder="e.g. Farmer / Shopkeeper">
+          </div>
+          <div class="form-group">
+            <label>Father's Aadhaar No.</label>
+            <input type="text" name="father_aadhaar" inputmode="numeric" maxlength="14"
+                   value="<%= fmtAadhaar(v.father_aadhaar, '') %>" placeholder="1234 5678 9012">
+          </div>
+          <div class="form-group">
+            <label>Mother's Name</label>
+            <input type="text" name="mother_name" value="<%= v.mother_name || '' %>" placeholder="e.g. Sunita Sharma">
+          </div>
+          <div class="form-group">
+            <label>Mother's Occupation</label>
+            <input type="text" name="mother_occupation" value="<%= v.mother_occupation || '' %>" placeholder="e.g. Homemaker">
+          </div>
+          <div class="form-group">
+            <label>Mother's Aadhaar No.</label>
+            <input type="text" name="mother_aadhaar" inputmode="numeric" maxlength="14"
+                   value="<%= fmtAadhaar(v.mother_aadhaar, '') %>" placeholder="1234 5678 9012">
+          </div>
+          <div class="form-group">
+            <label>Annual Income</label>
+            <input type="text" name="annual_income" inputmode="numeric" value="<%= v.annual_income || '' %>" placeholder="e.g. 350000">
+            <small class="text-muted">Yearly family income in rupees.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>📞 Contact numbers</h3></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Mobile No.</label>
+            <input type="text" name="parent_phone" inputmode="numeric" value="<%= mobile %>" placeholder="e.g. 9876543210">
+            <small class="text-muted">Main number — used for calls, WhatsApp alerts and fee reminders.</small>
+          </div>
+          <div class="form-group">
+            <label>Alternate Mobile No.</label>
+            <input type="text" name="alt_phone" inputmode="numeric" value="<%= v.alt_phone || '' %>" placeholder="e.g. 9876500000">
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Home Address</label>
+            <textarea name="address" rows="2" maxlength="250" placeholder="Village / town, district, PIN"><%= v.address || '' %></textarea>
+            <small class="text-muted">Shown to the parent on the child's details card, and printed on the A4 students sheet.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🏠 Local guardian <span class="text-muted" style="font-weight:500; font-size:13px;">(optional)</span></h3></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Guardian's Name</label>
+            <input type="text" name="guardian_name" value="<%= v.guardian_name || '' %>" placeholder="e.g. Mahesh Verma">
+          </div>
+          <div class="form-group">
+            <label>Relation with Student</label>
+            <input type="text" name="guardian_relation" value="<%= v.guardian_relation || '' %>" placeholder="e.g. Uncle">
+          </div>
+          <div class="form-group">
+            <label>Guardian's Phone</label>
+            <input type="text" name="guardian_phone" inputmode="numeric" value="<%= v.guardian_phone || '' %>" placeholder="e.g. 9876511111">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3>🔑 Parent login for this child</h3></div>
+      <div class="panel-body">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Login Username <%= student ? '' : '*' %></label>
+            <input type="text" name="username" <%= student ? '' : 'required' %>
+              value="<%= v.username || (studentUser && studentUser.username) || '' %>" placeholder="e.g. s13r1">
+            <small class="text-muted">The parent signs in with this on the login page (choose “Parent”) and sees the child’s result, timetable, fees and notices. Students do not log in.</small>
+          </div>
+          <div class="form-group">
+            <label>Login Password</label>
+            <input type="text" name="password" value="<%= v.password || (student && student.portal_password) || '' %>"
+              placeholder="<%= student ? 'leave as it is to keep the same' : 'default: parent123' %>">
+            <small class="text-muted">Kept in the admin panel only, so you can hand it out any time.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <button type="submit" class="btn btn-primary"><%= student ? 'Save Changes' : 'Add Student' %></button>
+      <a href="<%= back %>" class="btn btn-outline">Cancel</a>
+    </div>
+  </form>
+
+  <%# The hostel boxes belong to the hostel answer only: switching back to "Day scholar"
+      hides them (the server blanks them too, so a day scholar can never keep a stale
+      hostel month that would price a fee later). %>
+  <script>
+  (function () {
+    var box = document.getElementById('stayHostel');
+    if (!box) return;
+    var radios = document.querySelectorAll('input[name="stay"]');
+    function paint() {
+      var pick = document.querySelector('input[name="stay"]:checked');
+      var isHostel = !!pick && pick.value === 'hostel';
+      box.hidden = !isHostel;
+      radios.forEach(function (r) {
+        var label = r.closest('.stay-option');
+        if (label) label.classList.toggle('checked', r.checked);
+      });
+    }
+    radios.forEach(function (r) { r.addEventListener('change', paint); });
+    paint();
+  })();
+
+  // ---- Roll No. follows the class: change the class and a free Roll No. is
+  // suggested on the spot (the first slot the class still has open — after a
+  // FULL delete of Roll No. 1 the form offers 1 again straight away).
+  (function () {
+    var classSel = document.getElementById('class_id');
+    var rollInput = document.getElementById('roll_no');
+    var hint = document.getElementById('rollHint');
+    if (!classSel || !rollInput) return;
+    classSel.addEventListener('change', function () {
+      fetch('/admin/students/next-roll?class=' + classSel.value)
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d || typeof d.roll !== 'number') return;
+          if (!rollInput.value) rollInput.value = d.roll;
+          if (hint) hint.textContent = 'Roll No. ' + d.roll + ' is free in this class — or type any free number.';
+        })
+        .catch(function () {});
+    });
+  })();
+  </script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,403 @@
+<%- include('../partials/header', { title }) %>
+  <%# The head carries the BIG BELL (school's request, 2026-09-16): the same dock every other
+      office page has in its corner, here at the top-right where the office looks first. It blinks
+      while anything is waiting and opens the same list. The floating corner dock is skipped on
+      this one page (partials/footer.ejs) so there are never two bells on one screen. %>
+  <div class="page-head page-head-bell">
+    <div class="page-head-main">
+      <h1>📊 Admin Dashboard</h1>
+      <p>School overview · <%= fmtDayDate(new Date()) %> <span class="tz-tag">IST</span></p>
+    </div>
+    <%- include('../partials/office_dock', { inline: true }) %>
+  </div>
+
+  <div class="cards">
+    <%# the count IS the door (school's request, 2026-09-20): tapping the Students card opens the
+        Students list, where every child's row opens the whole profile in one more tap. %>
+    <a class="card stat-card stat-card-link accent-blue" href="/admin/students"
+       title="Open the Students list — every child's row opens their full profile">
+      <div class="stat-label">Total Students</div>
+      <div class="stat-value"><%= stats.totalStudents %></div>
+      <div class="stat-sub">across <%= stats.totalClasses %> classes · <b>open the list →</b></div>
+    </a>
+    <div class="card stat-card accent-orange">
+      <div class="stat-label">Fees Collected</div>
+      <div class="stat-value">₹<%= stats.feesCollected.toLocaleString('en-IN') %></div>
+      <div class="stat-sub">of ₹<%= stats.feesTotal.toLocaleString('en-IN') %></div>
+    </div>
+    <div class="card stat-card accent-orange">
+      <div class="stat-label">Pending Admissions</div>
+      <div class="stat-value"><%= stats.pendingApps %></div>
+      <div class="stat-sub"><a href="/admin/admissions">review now →</a></div>
+    </div>
+    <div class="card stat-card accent-red">
+      <div class="stat-label">Notices Posted</div>
+      <div class="stat-value"><%= stats.noticesCount %></div>
+      <div class="stat-sub"><%= stats.totalTeachers %> class teachers</div>
+    </div>
+    <%# day scholars and boarders are two kinds of family in the same class, and the hostel
+        has its own fee column, menu and routine — so the office counts them apart (the count
+        comes from services/hostel.js, the one reader of the stay column) %>
+    <div class="card stat-card accent-green">
+      <div class="stat-label">Hostel Students</div>
+      <div class="stat-value"><%= stats.boarders %></div>
+      <div class="stat-sub">
+        of <%= stats.totalStudents %> students live in the hostel
+        <% if (stats.hostelChargedMonths) { %>· <b><%= stats.hostelChargedMonths %></b> hostel month<%= stats.hostelChargedMonths === 1 ? '' : 's' %> billed<% } %>
+        · <a href="/admin/hostel">menu &amp; roster →</a>
+      </div>
+    </div>
+    <%# books, uniform and stationery: money the school is owed outside the monthly fee %>
+    <div class="card stat-card <%= stats.storeBalance ? 'accent-orange' : 'accent-green' %>">
+      <div class="stat-label">Store · books &amp; uniform</div>
+      <div class="stat-value">₹<%= Math.round(stats.storeBalance).toLocaleString('en-IN') %></div>
+      <div class="stat-sub">
+        <% if (stats.storeOwing) { %><%= stats.storeOwing %> student<%= stats.storeOwing === 1 ? '' : 's' %> to collect from · <% } %>
+        <a href="/admin/store">open the store →</a>
+      </div>
+    </div>
+    <div class="card stat-card accent-blue">
+      <div class="stat-label">Results entered</div>
+      <div class="stat-value"><%= stats.studentsWithMarks %></div>
+      <div class="stat-sub">
+        of <%= stats.totalStudents %> students · <%= stats.marksEntered %> marks
+        <% if (stats.classesWithoutMarks) { %>· <b><%= stats.classesWithoutMarks %></b> class<%= stats.classesWithoutMarks === 1 ? '' : 'es' %> pending<% } %>
+        · <a href="/admin/marks">enter marks →</a>
+      </div>
+    </div>
+    <div class="card stat-card <%= stats.pendingClaims ? 'accent-orange' : 'accent-green' %>">
+      <div class="stat-label">Payment claims</div>
+      <div class="stat-value"><%= stats.pendingClaims %></div>
+      <div class="stat-sub">
+        <% if (stats.pendingClaims) { %>
+          ₹<%= Math.round(stats.claimAmount).toLocaleString('en-IN') %> to check · <a href="/admin/fees#claims">record now →</a>
+        <% } else { %>
+          nothing waiting
+        <% } %>
+      </div>
+    </div>
+    <%# what a parent may open in the app — the office owns these switches %>
+    <div class="card stat-card <%= stats.parentLock ? 'accent-red' : 'accent-blue' %>">
+      <div class="stat-label">Parent Access</div>
+      <div class="stat-value"><%= stats.parentOpen %>/<%= stats.parentTotal %></div>
+      <div class="stat-sub">
+        sections open for parents
+        <% if (stats.parentLock) { %>· 🔒 fee rule <b>ON</b><% } %>
+        · <a href="/admin/parent-access">change →</a>
+      </div>
+    </div>
+  </div>
+
+  <%# a parent pays from home and tells the school — this is the office's one-tap way in %>
+  <% if (stats.pendingClaims) { %>
+  <div class="alert" style="background:#fff7ed; border:1px solid #fdba74; margin-bottom:20px;">
+    🔔 <b><%= stats.pendingClaims %> parent<%= stats.pendingClaims === 1 ? ' says' : 's say' %> they have paid</b>
+    (₹<%= Math.round(stats.claimAmount).toLocaleString('en-IN') %> in total). Open them, check the reference / photo and
+    <a href="/admin/fees#claims">record the receipt →</a>
+    <div class="claim-mini-list">
+      <% recentClaims.forEach(c => { %>
+        <span class="claim-mini">
+          <b><%= c.full_name %></b> · ₹<%= Math.round(c.amount).toLocaleString('en-IN') %> · <%= c.mode %><% if (c.reference) { %> · <%= c.reference %><% } %>
+          <span class="text-muted">(<%= c.class_name %><%= c.section ? ' ' + c.section : '' %> · <%= fmtDMY(c.paid_on) %>)</span>
+        </span>
+      <% }) %>
+    </div>
+  </div>
+  <% } %>
+
+  <%# ---- THE HOSTEL, AS THE OFFICE WATCHES IT EVERY MORNING (school's request, 2026-09-16) ----
+      Four glance cards (boarders · today's meals · the day's routine · hostel charges), then
+      today's four meals and who boards. Every number is a reader of services/hostel.js, so this
+      panel and Admin → Hostel can never disagree; the round icons are the same shape used by the
+      send-reminder button and the parent app's hostel cards. ---- %>
+  <div class="panel" id="hostel">
+    <div class="panel-head">
+      <h3>🏠 Hostel today</h3>
+      <span class="panel-head-note">
+        <%= hostelPanel.today ? hostelPanel.today.name : '—' %>
+        · <a href="/admin/hostel">open the hostel →</a>
+      </span>
+    </div>
+    <div class="panel-body">
+      <div class="hostel-glance">
+        <a class="hg-card" href="/admin/hostel#boarders">
+          <span class="hg-ico" aria-hidden="true">🛏️</span>
+          <span class="hg-text">
+            <b><%= hostelPanel.count %> boarder<%= hostelPanel.count === 1 ? '' : 's' %></b>
+            <small>live in the hostel · charged the hostel column</small>
+          </span>
+        </a>
+        <a class="hg-card" href="/admin/hostel#mess">
+          <span class="hg-ico" aria-hidden="true">🍽️</span>
+          <span class="hg-text">
+            <b><%= hostelPanel.mealsSet %> / 28 meals set</b>
+            <small>7 days × breakfast, lunch, snacks, dinner</small>
+          </span>
+        </a>
+        <a class="hg-card" href="/admin/hostel#routine">
+          <span class="hg-ico" aria-hidden="true">🕗</span>
+          <span class="hg-text">
+            <b><%= hostelPanel.routine.length %> routine entr<%= hostelPanel.routine.length === 1 ? 'y' : 'ies' %></b>
+            <small><%= hostelPanel.routine.length ? hostelPanel.routine[0].label + ' → ' + hostelPanel.routine[hostelPanel.routine.length - 1].label : 'not set yet' %></small>
+          </span>
+        </a>
+        <a class="hg-card" href="/admin/hostel#boarders">
+          <span class="hg-ico rupee-glyph" aria-hidden="true">₹</span>
+          <span class="hg-text">
+            <b>₹<%= Math.round(hostelPanel.roster.totals.pending).toLocaleString('en-IN') %> to collect</b>
+            <small>
+              <% if (hostelPanel.roster.totals.owing) { %>
+                <% if (hostelPanel.roster.totals.overdue) { %><%= hostelPanel.roster.totals.overdue %> past the due date · <% } %>
+                hostel fee + books, on the roster
+              <% } else { %>
+                hostel fee + books · every family is settled
+              <% } %>
+            </small>
+          </span>
+        </a>
+        <a class="hg-card" href="/admin/hostel">
+          <span class="hg-ico" aria-hidden="true">🧾</span>
+          <span class="hg-text">
+            <b>₹<%= Math.round(hostelPanel.monthlyTotal).toLocaleString('en-IN') %> a month</b>
+            <small>hostel + mess charges per boarder</small>
+          </span>
+        </a>
+      </div>
+
+      <div class="hostel-dash-grid">
+        <div class="hostel-dash-card">
+          <div class="hdc-head">Today's meals<span class="text-muted">what they eat, right now</span></div>
+          <% if (hostelPanel.today) { %>
+            <div class="hostel-meals">
+              <% hostelPanel.today.meals.forEach(m => { %>
+                <div class="hostel-meal<%= m.set ? '' : ' is-off' %>">
+                  <span class="hostel-meal-ico"><%= m.icon %></span>
+                  <div class="hostel-meal-text">
+                    <b><%= m.key %></b>
+                    <small><%= m.time %></small>
+                    <span><%= m.set ? m.items : 'Not set yet' %></span>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          <% } else { %>
+            <p class="text-muted" style="margin:0;">The mess menu is not set yet — open the hostel and fill the week in.</p>
+          <% } %>
+        </div>
+
+        <div class="hostel-dash-card">
+          <%# the families who OWE come first — that is the order the office works in — and the
+              round send button beside a name is the same one the fees list and Admin → Hostel
+              use, so a boarder can be chased from the dashboard without opening anything. It
+              blinks where a month has run past its due date. %>
+          <% const owingFirst = hostelPanel.roster.list.slice().sort((a, b) =>
+               (b.overdueMonths - a.overdueMonths) || (b.pending - a.pending) || (a.id - b.id)); %>
+          <div class="hdc-head">
+            Who boards
+            <span class="text-muted">
+              <% if (hostelPanel.roster.totals.pending) { %>
+                <b>₹<%= Math.round(hostelPanel.roster.totals.pending).toLocaleString('en-IN') %></b>
+                to collect from <%= hostelPanel.roster.totals.owing %>
+              <% } else { %>all settled<% } %>
+            </span>
+          </div>
+          <% if (owingFirst.length) { %>
+            <div class="hdc-list">
+              <% owingFirst.slice(0, 6).forEach(b => { %>
+                <div class="hdc-row">
+                  <%# the name opens the child's whole profile — the office most often comes here
+                      to look after a family that is behind, not to edit a field (2026-09-20) %>
+                  <a class="hdc-name" href="/admin/students/<%= b.id %>" title="Open <%= b.full_name %>'s full profile">
+                    <b><%= b.full_name %></b>
+                    <small><%= b.class_label %><% if (b.hostel_bed) { %> · Bed <%= b.hostel_bed %><% } %><% if (b.parent_phone) { %> · 📞 <%= b.parent_phone %><% } %></small>
+                  </a>
+                  <% if (b.pending) { %>
+                    <span class="badge <%= b.overdueMonths ? 'overdue' : 'orange' %>">
+                      ₹<%= Math.round(b.pending).toLocaleString('en-IN') %><%= b.overdueMonths ? ' · ' + b.overdueMonths + ' late' : '' %>
+                    </span>
+                    <form method="POST" action="/admin/fees/<%= b.id %>/remind" class="fee-name-send dash-name-send"
+                          onsubmit="return confirm('Send the due message to <%= String(b.parent_name || 'this parent').replace(/'/g, '') %>?\n\nIt names ₹<%= Math.round(b.pending).toLocaleString('en-IN') %> pending, and goes to the parent portal plus one SMS/WhatsApp alert.');">
+                      <input type="hidden" name="back" value="hostel">
+                      <button type="submit" class="remind-send-icon send-due-btn<%= b.overdueMonths ? ' is-overdue' : '' %>"
+                              title="Send <%= b.full_name %>'s due message · ₹<%= Math.round(b.pending).toLocaleString('en-IN') %> pending">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 2.5 11 13"/><path d="M21.5 2.5 15 21.5l-4-8.5-8.5-4z"/></svg>
+                        <span class="sr-only">Send the due message to <%= b.full_name %>'s parent</span>
+                      </button>
+                    </form>
+                  <% } else { %>
+                    <span class="badge green">✓ settled</span>
+                  <% } %>
+                </div>
+              <% }) %>
+              <% if (owingFirst.length > 6) { %>
+                <a class="hdc-row hdc-more" href="/admin/hostel#boarders">+ <%= owingFirst.length - 6 %> more →</a>
+              <% } %>
+            </div>
+          <% } else { %>
+            <p class="text-muted" style="margin:0;">
+              Nobody is in the hostel. Open a child in <a href="/admin/students">Students</a> and pick
+              <b>🏠 Hostel student</b> — his hostel months, bed, the menu and the hostel fee all follow from that.
+            </p>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <%# ---- RESULT ANALYSIS (whole school) ------------------------------------------------
+      The school average as one big circle, then one circle per class, best first — which
+      doubles as the list of classes whose results are still to be entered. Every number
+      comes from src/services/analysis.js, the same service the parent's Result page uses,
+      so a class average here and on a parent's page can never disagree. ---- %>
+  <div class="panel">
+    <div class="panel-head">
+      <h3>📊 Result analysis — whole school</h3>
+      <span class="panel-head-note">
+        <% if (result.hasMarks) { %>
+          <%= result.totals.classes - result.totals.pendingClasses %> of <%= result.totals.classes %> classes have marks
+          <% if (result.totals.pendingClasses) { %>· <%= result.totals.pendingClasses %> still to enter<% } %>
+        <% } else { %>
+          waiting for the first marks
+        <% } %>
+      </span>
+    </div>
+    <div class="panel-body">
+      <p class="result-line"><%= result.line %></p>
+      <%- include('../partials/result_rings', {
+        big: result.overall, rings: result.classes, legend: true,
+        empty: 'No marks have been entered anywhere yet — open 📝 Marks Entry, save a class\'s marks and this fills in.',
+      }) %>
+      <% if (result.hasMarks) { %>
+        <div class="result-more">
+          Each circle is one class, best class first<% if (result.topClass) { %> — <b><%= result.topClass.label %></b> is leading with <%= result.topClass.value %>%<% } %>.
+          <% if (result.bestSubject) { %>The school is strongest in <b><%= result.bestSubject.label %></b> (<%= result.bestSubject.value %>%)<% if (result.weakestSubject) { %> and weakest in <b><%= result.weakestSubject.label %></b> (<%= result.weakestSubject.value %>%)<% } %>.<% } %>
+          <% if (result.totals.pendingClasses) { %>
+            <br>Results still to enter: <b><%= result.pendingClassNames.join(' · ') %></b>.
+          <% } %>
+          <br><a href="/admin/marks">📝 Open Marks Entry →</a>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <% if (stats.unreadMail > 0) { %>
+  <div class="alert" style="background:#e0f2fe; border:1px solid #7dd3fc; margin-bottom:20px;">📬 <b><%= stats.unreadMail %> new notification(s)</b> in the <a href="/admin/inbox">School Inbox</a> — including admission applications and parent logins.</div>
+  <% } %>
+
+  <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap:20px;">
+    <div class="panel">
+      <div class="panel-head"><h3>🎓 Students per Class</h3></div>
+      <div class="panel-body no-pad">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Class</th><th class="text-right">Students</th></tr></thead>
+            <tbody>
+              <% classWise.forEach(c => { %>
+              <tr>
+                <td><b><%= c.name %></b></td>
+                <td class="text-right"><%= c.students %></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="panel">
+        <div class="panel-head"><h3>📋 Recent Applications</h3></div>
+        <div class="panel-body">
+          <% recentApps.forEach(a => { %>
+          <div class="notice-item">
+            <div class="flex-between">
+              <div>
+                <div class="notice-title"><%= a.child_name %> <span style="font-size:12px; color:var(--muted);">(<%= a.class_name %>)</span></div>
+                <div class="notice-meta"><%= a.application_no %> · <%= a.parent_phone %></div>
+              </div>
+              <span class="badge <%= a.status === 'Pending' ? 'orange' : a.status === 'Approved' ? 'green' : 'red' %>"><%= a.status %></span>
+            </div>
+          </div>
+          <% }) %>
+          <% if (!recentApps.length) { %><div class="empty">No applications yet.</div><% } %>
+          <a href="/admin/admissions" class="btn btn-outline btn-sm mt-2">View all →</a>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>📢 Latest Notices</h3></div>
+        <div class="panel-body">
+          <% recentNotices.forEach(n => { %>
+          <div class="notice-item">
+            <div class="notice-title"><%= n.title %></div>
+            <div class="notice-meta"><%= fmtShortDate(n.created_at) %></div>
+          </div>
+          <% }) %>
+          <% if (!recentNotices.length) { %><div class="empty">No notices yet.</div><% } %>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>🔑 Parent logins (ID &amp; password)</h3></div>
+        <div class="panel-body">
+          <p class="text-muted" style="font-size:13px; margin:0 0 10px;">
+            One login per child, and the <b>parent</b> uses it at
+            <a href="/login?role=parent">the login page → “Parent”</a> — the child's result,
+            timetable, fees and notices all open there. Students never sign in themselves.
+            ID shape: <b>s&lt;class&gt;r&lt;roll no.&gt;</b> (e.g. <code>s13r1</code>), password <b>vvs@&lt;admission no.&gt;</b>.
+            Change either one any time from the student’s <b>Edit</b> page.
+          </p>
+          <input type="text" id="login-search" placeholder="🔎 Search by name, roll no., ID or password…"
+                 style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; margin-bottom:10px;">
+          <%# the office reads this as a table inside a 360px scroll box; on a phone it is one card
+              per child (see .card-table in style.css) inside a taller (62vh) box — the list holds
+              every child in the school, so it must stay bounded whatever the screen %>
+          <div class="login-scroll">
+            <table id="login-table" class="card-table">
+              <thead><tr><th>Child</th><th>Class</th><th>Roll No.</th><th>Parent login ID</th><th>Password</th><th></th></tr></thead>
+              <tbody>
+                <% studentLogins.forEach(l => { %>
+                <tr data-e="<%= [l.class_name, l.roll_no, l.full_name, l.username, l.portal_password].filter(Boolean).join(' ').toLowerCase() %>">
+                  <td class="td-name" data-label="Child"><a href="/admin/students/<%= l.id %>" class="stu-name-link"><b><%= l.full_name %></b></a></td>
+                  <td data-label="Class"><%= l.class_name %><%= l.section ? ' ' + l.section : '' %></td>
+                  <td data-label="Roll No."><span class="roll"><%= l.roll_no %></span></td>
+                  <td data-label="Parent login ID"><code><%= l.username %></code></td>
+                  <td data-label="Password"><code><%= l.portal_password || '—' %></code></td>
+                  <td class="td-actions text-right"><a href="/admin/students/<%= l.id %>/edit" class="btn btn-outline btn-sm">Change</a></td>
+                </tr>
+                <% }) %>
+                <% if (!studentLogins.length) { %><tr class="is-empty"><td colspan="6" class="empty">No students yet.</td></tr><% } %>
+              </tbody>
+            </table>
+          </div>
+          <div class="text-muted" style="font-size:12.5px; margin-top:8px;">
+            <b><%= studentLogins.length %></b> parent login(s) ·
+            <a href="/admin/students">open the students page →</a>
+          </div>
+        </div>
+        <script>
+          (function () {
+            var input = document.getElementById('login-search');
+            var table = document.getElementById('login-table');
+            if (!input || !table) return;
+            var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr'));
+            input.addEventListener('input', function () {
+              var term = input.value.trim().toLowerCase();
+              rows.forEach(function (tr) {
+                if (!tr.getAttribute('data-e')) return;
+                tr.style.display = !term || tr.getAttribute('data-e').indexOf(term) !== -1 ? '' : 'none';
+              });
+            });
+          })();
+        </script>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>⚡ Quick Actions</h3></div>
+        <div class="panel-body" style="display:flex; flex-direction:column; gap:10px;">
+          <a href="/admin/marks" class="btn btn-primary">📝 Enter Marks</a>
+          <a href="/admin/timetable" class="btn btn-outline">🕒 Time Table</a>
+          <a href="/admin/students/new" class="btn btn-outline">➕ Add Student</a>
+          <a href="/admin/notices" class="btn btn-outline">📢 Post Notice</a>
+        </div>
+      </div>
+    </div>
+  </div>
+<%- include('../partials/footer') %>

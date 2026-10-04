@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title ? title + ' · ' : '' %><%= school.schoolName %></title>
+  <link rel="stylesheet" href="/css/style.css">
+  <%# the build this page came from — public/js/app-update.js (loaded by partials/public_footer)
+      compares it with /app-release.json, so a tab left open on the website also learns the app
+      has moved on (src/services/release.js). %>
+  <meta name="app-release" content="<%= typeof appRelease === 'undefined' ? '' : appRelease %>">
+  <%# FIRST VISIT, NO STYLES: the tunnel's warning page can answer even this page's stylesheet
+      request (a mobile browser UA gets text/html for /css/style.css), and the browser throws it
+      away. This script wins the tunnel's visit cookie quietly on the very first page load, so
+      every request after it goes through without a wall and without ONE tap from the visitor.
+      No-op once the cookie is in the jar; harmless without the tunnel. %>
+  <script src="/js/visit.js" defer></script>
+</head>
+<body>
+<div class="public-page">
+  <!-- top contact bar: phone / address / email — tap to call or email -->
+  <div class="top-contact">
+    <div class="top-contact-inner">
+      <span class="tc-phone-wrap">
+        <a class="tc-item" href="tel:<%= String(school.schoolPhones[0].number || school.schoolPhones[0]).replace(/\s+/g, '') %>">📱 <span class="tc-strong"><%= school.schoolPhones[0].number || school.schoolPhones[0] %></span><span class="tc-caret" title="All numbers">▾</span></a>
+        <span class="tc-menu" id="tcPhoneMenu">
+          <span class="tc-menu-head">📞 Call the school</span>
+          <% school.schoolPhones.forEach(p => { const num = p.number || p; %>
+            <a href="tel:<%= String(num).replace(/\s+/g, '') %>">📱 <%= num %></a>
+          <% }) %>
+        </span>
+      </span>
+      <span class="tc-item tc-addr">📍 <%= school.schoolAddress %></span>
+      <a class="tc-item" href="mailto:<%= school.schoolEmail %>">✉️ <%= school.schoolEmail %></a>
+    </div>
+  </div>
+  <header class="public-nav">
+    <div class="public-nav-inner">
+      <a href="/" class="public-brand">
+        <img src="<%= school.logo %>" alt="<%= school.schoolName %> logo" class="school-logo">
+        <span class="public-brand-text">
+          <b><%= school.schoolName %></b>
+          <small><%= school.schoolTypeLine %></small>
+        </span>
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="Menu" aria-expanded="false" aria-controls="publicLinks">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="public-links" id="publicLinks">
+        <a href="/" class="<%= currentPath === '/' ? 'active' : '' %>">Home</a>
+        <a href="/about" class="<%= currentPath === '/about' ? 'active' : '' %>">About Us</a>
+        <a href="/fee-structure" class="<%= currentPath === '/fee-structure' ? 'active' : '' %>">Fee Structure</a>
+        <a href="/hostel" class="<%= currentPath === '/hostel' ? 'active' : '' %>">Hostel</a>
+        <a href="/teachers" class="<%= currentPath === '/teachers' ? 'active' : '' %>">Our Teachers</a>
+        <a href="/contact" class="<%= currentPath === '/contact' ? 'active' : '' %>">Contact</a>
+        <div class="public-cta-mobile">
+          <a href="/apply" class="btn btn-primary btn-sm">Apply Now</a>
+          <a href="/login" class="btn btn-outline btn-sm">Login</a>
+        </div>
+      </nav>
+      <div class="public-cta">
+        <a href="/apply" class="btn btn-primary btn-sm">Apply Now</a>
+        <a href="/login" class="btn btn-outline btn-sm">Login</a>
+      </div>
+    </div>
+  </header>
+  <script>
+    (function () {
+      var btn = document.getElementById('navToggle');
+      var links = document.getElementById('publicLinks');
+      if (!btn || !links) return;
+      function closeMenu() {
+        if (!links.classList.contains('open')) return;
+        links.classList.remove('open');
+        btn.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = links.classList.toggle('open');
+        btn.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      // close when a menu link is tapped (mobile)
+      links.addEventListener('click', function (e) {
+        if (e.target.closest('a')) closeMenu();
+      });
+      // close when tapping anywhere outside the menu / toggle
+      document.addEventListener('click', function (e) {
+        if (!links.classList.contains('open')) return;
+        if (btn.contains(e.target) || links.contains(e.target)) return;
+        closeMenu();
+      });
+      // close when the page scrolls (menu should not stay open while moving)
+      window.addEventListener('scroll', function () {
+        closeMenu();
+      }, { passive: true });
+      // close on Escape key
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeMenu();
+      });
+      // safety: never restore an open menu from the back/forward cache
+      window.addEventListener('pageshow', function () { closeMenu(); });
+
+      // top-bar phone dropdown: the main number calls, the caret reveals the rest
+      var wrap = document.querySelector('.tc-phone-wrap');
+      var menu = document.getElementById('tcPhoneMenu');
+      var caret = document.querySelector('.tc-caret');
+      if (wrap && menu) {
+        caret.addEventListener('click', function (e) {
+          e.preventDefault(); e.stopPropagation();
+          menu.classList.toggle('open');
+        });
+        document.addEventListener('click', function (e) {
+          if (!wrap.contains(e.target)) menu.classList.remove('open');
+        });
+      }
+    })();
+  </script>
+
+  <!-- ADMISSION POSTER: floating bell on the screen opens it; ✕ cancels it -->
+  <% if (typeof posterShow === 'undefined' ? true : posterShow) { %>
+  <button type="button" class="poster-fab" id="posterBell" aria-label="Admission poster" title="Admission poster">
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span class="bell-dot">!</span>
+  </button>
+  <div class="poster-modal" id="posterModal" aria-hidden="true">
+    <div class="poster-box" role="dialog" aria-modal="true" aria-label="School posters">
+      <div class="poster-top">
+        <div class="poster-title">🎓 School Posters</div>
+        <button type="button" class="poster-close" id="posterClose" aria-label="Close poster">✕</button>
+      </div>
+      <div class="poster-stage">
+        <button type="button" class="ps-nav ps-prev" id="psPrev" aria-label="Previous poster">❮</button>
+        <div class="poster-track" id="posterTrack">
+          <% posterSlides.forEach((src, i) => { %>
+          <div class="poster-slide"><img src="/images/<%= src %>" alt="School poster <%= i + 1 %>"></div>
+          <% }) %>
+        </div>
+        <button type="button" class="ps-nav ps-next" id="psNext" aria-label="Next poster">❯</button>
+      </div>
+      <div class="ps-dots" id="psDots"></div>
+      <div class="poster-foot">
+        <a href="/apply" class="btn btn-primary">Apply Now →</a>
+        <a href="#" class="poster-download" id="psDownload" download="school-poster-1.png" aria-label="Download this poster" title="Download poster">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var bell = document.getElementById('posterBell');
+      var modal = document.getElementById('posterModal');
+      var closeBtn = document.getElementById('posterClose');
+      var box = modal.querySelector('.poster-box');
+      if (!bell || !modal) return;
+      // sliding poster window — swipe, arrows and dots
+      var track = document.getElementById('posterTrack');
+      var dotsWrap = document.getElementById('psDots');
+      var prevBtn = document.getElementById('psPrev');
+      var nextBtn = document.getElementById('psNext');
+      var downloadBtn = document.getElementById('psDownload');
+      var slides = track ? Array.prototype.slice.call(track.children) : [];
+      var idx = 0, startX = 0, dragging = false;
+      function buildDots() {
+        if (!dotsWrap) return;
+        dotsWrap.innerHTML = '';
+        slides.forEach(function (_, i) {
+          var d = document.createElement('button');
+          d.type = 'button'; d.className = 'ps-dot' + (i === 0 ? ' on' : '');
+          d.setAttribute('aria-label', 'Go to poster ' + (i + 1));
+          d.addEventListener('click', function () { go(i); });
+          dotsWrap.appendChild(d);
+        });
+      }
+      function updateDownload() {
+        if (!downloadBtn || !slides.length) return;
+        var img = slides[idx].querySelector('img');
+        if (!img) return;
+        var src = img.getAttribute('src');
+        var file = src.split('/').pop() || ('school-poster-' + (idx + 1) + '.jpg');
+        downloadBtn.href = src;
+        downloadBtn.setAttribute('download', file);
+      }
+      function go(i) {
+        if (!slides.length) return;
+        idx = (i + slides.length) % slides.length;
+        if (track) track.style.transform = 'translateX(-' + idx * 100 + '%)';
+        if (dotsWrap) dotsWrap.querySelectorAll('.ps-dot').forEach(function (d, j) { d.classList.toggle('on', j === idx); });
+        updateDownload();
+      }
+      updateDownload();
+      if (track && slides.length > 1) {
+        track.style.display = 'flex';
+        buildDots();
+        if (prevBtn) prevBtn.addEventListener('click', function () { go(idx - 1); });
+        if (nextBtn) nextBtn.addEventListener('click', function () { go(idx + 1); });
+        // touch swipe
+        track.addEventListener('touchstart', function (e) { startX = e.touches[0].clientX; dragging = true; }, { passive: true });
+        track.addEventListener('touchend', function (e) {
+          if (!dragging) return; dragging = false;
+          var dx = e.changedTouches[0].clientX - startX;
+          if (Math.abs(dx) > 45) go(idx + (dx < 0 ? 1 : -1));
+        }, { passive: true });
+      } else if (dotsWrap) {
+        dotsWrap.style.display = 'none';
+      }
+      // poster pops out of the bell icon and shrinks back into it on close
+      function setOrigin(el) {
+        if (!el || !el.getBoundingClientRect || !box) return;
+        var r = el.getBoundingClientRect();
+        var x = (r.left + r.width / 2) - box.offsetLeft;
+        var y = (r.top + r.height / 2) - box.offsetTop;
+        x = Math.max(0, Math.min(x, box.offsetWidth));
+        y = Math.max(0, Math.min(y, box.offsetHeight));
+        box.style.setProperty('--po-x', Math.round(x) + 'px');
+        box.style.setProperty('--po-y', Math.round(y) + 'px');
+      }
+      function openPoster() {
+        setOrigin(bell);
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+      }
+      function closePoster() {
+        // shrink back into the bell icon
+        setOrigin(bell);
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+      }
+      bell.addEventListener('click', openPoster);
+      closeBtn.addEventListener('click', closePoster);
+      modal.addEventListener('click', function (e) { if (e.target === modal) closePoster(); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePoster(); });
+
+      /* ---- the bell is the visitor's to PLACE (school's request, 2026-09-18) ----
+         On a phone it used to sit under the hamburger and over the Call/WhatsApp pills,
+         covering one or the other. Two fixes, together:
+           1. CSS pins it lower on the right (clear of both) — see .poster-fab in style.css.
+           2. It is DRAGGABLE: a press-and-move carries it anywhere on screen (the chosen
+              spot survives reloads in localStorage), while a still press opens the poster
+              exactly as the tap always did. A drag that ends more than 8px from where it
+              began counts as a move, not a tap. */
+      (function makeBellDraggable() {
+        var PINNED_KEY = 'schoolBellSpot';
+        var moved = false, sx = 0, sy = 0, ox = 0, oy = 0, dragging = false;
+        function px(n) { return Math.round(n) + 'px'; }
+        function applySpot(left, top) {
+          // keep the whole button on screen, with a small margin
+          var w = bell.offsetWidth || 46, h = bell.offsetHeight || 46;
+          var m = 8;
+          left = Math.max(m, Math.min(left, window.innerWidth - w - m));
+          top = Math.max(m, Math.min(top, window.innerHeight - h - m));
+          bell.style.left = px(left); bell.style.top = px(top);
+          bell.style.right = 'auto'; bell.style.bottom = 'auto';
+        }
+        function restore() {
+          try {
+            var spot = JSON.parse(localStorage.getItem(PINNED_KEY) || 'null');
+            if (spot && typeof spot.left === 'number' && typeof spot.top === 'number') applySpot(spot.left, spot.top);
+          } catch (e) { /* a lost spot simply leaves the bell at its CSS corner */ }
+        }
+        function remember() {
+          try {
+            var r = bell.getBoundingClientRect();
+            localStorage.setItem(PINNED_KEY, JSON.stringify({ left: r.left, top: r.top }));
+          } catch (e) { /* storage unavailable: the spot just does not survive */ }
+        }
+        restore();
+        bell.addEventListener('touchstart', function (e) {
+          var t = e.touches[0]; sx = t.clientX; sy = t.clientY;
+          var r = bell.getBoundingClientRect(); ox = r.left; oy = r.top;
+          moved = false; dragging = true;
+        }, { passive: true });
+        bell.addEventListener('touchmove', function (e) {
+          if (!dragging) return;
+          var t = e.touches[0];
+          var dx = t.clientX - sx, dy = t.clientY - sy;
+          if (!moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;   // still a tap so far
+          if (!moved) { moved = true; bell.style.transition = 'none'; }
+          e.preventDefault();                                            // keep the page from scrolling under the finger
+          applySpot(ox + dx, oy + dy);
+        }, { passive: false });
+        bell.addEventListener('touchend', function () {
+          if (!dragging) return; dragging = false;
+          if (moved) { bell.style.transition = ''; remember(); e_handled = true; setTimeout(function () { e_handled = false; }, 0); }
+        });
+        // a drag must not OPEN the poster: the click after a move is swallowed once
+        var e_handled = false;
+        bell.addEventListener('click', function (e) {
+          if (e_handled) { e.stopImmediatePropagation(); e.preventDefault(); e_handled = false; }
+        }, true);
+        // desktop gets the same freedom with the mouse
+        bell.addEventListener('mousedown', function (e) {
+          sx = e.clientX; sy = e.clientY;
+          var r = bell.getBoundingClientRect(); ox = r.left; oy = r.top;
+          moved = false;
+          function onMove(ev) {
+            var dx = ev.clientX - sx, dy = ev.clientY - sy;
+            if (!moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+            if (!moved) { moved = true; bell.style.transition = 'none'; }
+            ev.preventDefault();
+            applySpot(ox + dx, oy + dy);
+          }
+          function onUp() {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            if (moved) { bell.style.transition = ''; remember(); e_handled = true; setTimeout(function () { e_handled = false; }, 0); }
+          }
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        });
+      })();
+      // show the poster automatically once per session on the landing page,
+      // but ONLY on big screens (laptop / desktop). On phones it stays closed —
+      // the bell is always there, so a mobile visitor opens it whenever they want.
+      // Is this a phone? Auto-open is switched OFF for phones (the bell stays,
+      // so a mobile visitor can still open the poster whenever they like).
+      function isPhoneDevice() {
+        var ua = navigator.userAgent || '';
+        try {
+          var mobileUa = /Android|iPhone|iPod|Mobile|Windows Phone|Opera Mini|BlackBerry/i.test(ua);
+          var smallTouch = window.matchMedia && window.matchMedia('(max-width: 600px)').matches && 'ontouchstart' in window;
+          return mobileUa || smallTouch;
+        } catch (e) {
+          return /Android|iPhone|Mobile/i.test(ua);
+        }
+      }
+      window.__isPhoneDevice = isPhoneDevice; // quick device check for support/testing
+      try {
+        if (!isPhoneDevice() && window.location.pathname === '/' && sessionStorage.getItem('posterSeen') !== '1') {
+          sessionStorage.setItem('posterSeen', '1');
+          setTimeout(openPoster, 400);
+        }
+      } catch (e) { /* storage unavailable */ }
+      // bell follows the page: keep it visible while scrolling
+      var fab = document.getElementById('posterBell');
+      if (fab) { fab.classList.add('show'); }
+    })();
+  </script>
+  <% } %>
+
+  <!-- QUICK CONTACT: floating call + WhatsApp actions for mobile visitors -->
+  <%
+    const quickCallSource = school.schoolPhones && school.schoolPhones[0] ? school.schoolPhones[0] : school.schoolPhone;
+    const quickCallNumber = quickCallSource && (quickCallSource.number || quickCallSource);
+    const quickCallDigits = String(quickCallNumber || '').replace(/\D/g, '');
+    const quickWhatsappSource = (school.schoolPhones || []).find(function (p) { return p && p.whatsapp; }) || quickCallSource;
+    const quickWhatsappNumber = quickWhatsappSource && (quickWhatsappSource.number || quickWhatsappSource);
+    const quickWhatsappDigits = String(quickWhatsappNumber || '').replace(/\D/g, '');
+    const quickWhatsappMessage = encodeURIComponent(`Hello, I would like some information about ${school.schoolName}.`);
+  %>
+  <div class="quick-contact" aria-label="Quick contact options">
+    <a class="quick-contact-btn quick-call" href="tel:<%= quickCallDigits %>" aria-label="Call the school" title="Call the school">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.63a2 2 0 0 1-.45 2.11L8 9.73a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.85.29 1.73.5 2.63.62A2 2 0 0 1 22 16.92z"/>
+      </svg>
+      <span>Call</span>
+    </a>
+    <a class="quick-contact-btn quick-whatsapp" href="https://wa.me/<%= quickWhatsappDigits %>?text=<%= quickWhatsappMessage %>" target="_blank" rel="noopener" aria-label="Message the school on WhatsApp" title="Message on WhatsApp">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+        <path d="M20.52 3.48A11.86 11.86 0 0 0 12.08 0C5.53 0 .2 5.33.2 11.89c0 2.1.55 4.15 1.6 5.96L.1 24l6.3-1.65a11.9 11.9 0 0 0 5.68 1.45h.01c6.55 0 11.89-5.33 11.9-11.89a11.86 11.86 0 0 0-3.47-8.43Zm-8.44 18.27h-.01a9.9 9.9 0 0 1-5.04-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.87 9.87 0 0 1-1.51-5.23c0-5.45 4.44-9.88 9.9-9.88a9.84 9.84 0 0 1 6.99 2.9 9.83 9.83 0 0 1 2.89 6.99c0 5.45-4.44 9.88-9.88 9.88Zm5.42-7.4c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.64.07-.3-.15-1.26-.46-2.39-1.47-.89-.79-1.48-1.76-1.66-2.06-.17-.3-.02-.46.13-.61.14-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.22 3.08c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2.01-1.41.25-.69.25-1.29.17-1.41-.07-.13-.27-.2-.57-.35Z"/>
+      </svg>
+      <span>WhatsApp</span>
+    </a>
+  </div>
+  <main class="public-main">

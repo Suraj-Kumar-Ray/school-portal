@@ -1,0 +1,210 @@
+<%- include('../partials/header', { title }) %>
+<%
+  // ============================================================================
+  // HOLIDAYS — the days the school is SHUT besides Sunday (school's request, 2026-09-17)
+  //
+  // “Suppose today is Vishwakarma Puja — the school should be able to update it, and the
+  //  timetable should show a holiday and ‘Happy Vishwakarma Puja’.”
+  //
+  // One row per DATE (services/holidays.js). The moment a date is marked here:
+  //   • the parents' and the teachers' Timetable page shows the holiday card instead of
+  //     the periods, and the day strip marks the day,
+  //   • the parent's home page carries the warm line,
+  //   • and 📲 Tell parents sends the portal message + the SMS/WhatsApp alert.
+  // Sunday is a holiday without a row — never add one for it.
+  // ============================================================================
+  const h = editor ? editor.holiday : null;
+%>
+  <div class="page-head">
+    <h1>🎉 Holidays</h1>
+    <p>
+      Mark a festival or a day the school stays closed. Parents and teachers then see a
+      <b>holiday card</b> on the Timetable page instead of the periods — and you can send the
+      news to every parent in one tap. <b>Sunday needs no entry</b> — it is always a holiday.
+    </p>
+  </div>
+
+  <% if (err) { %><div class="alert error">⚠️ <%= err %></div><% } %>
+  <% if (saved === 'new') { %><div class="alert success">✅ Holiday saved — it shows on the timetable right away.</div><% } %>
+  <% if (saved === 'updated') { %><div class="alert success">✅ Holiday updated.</div><% } %>
+  <% if (deleted) { %><div class="alert success">✅ Holiday removed — that day is a normal school day again.</div><% } %>
+  <% if (nosend) { %><div class="alert error">⚠️ No parent login found to send to.</div><% } %>
+  <% if (told) { %>
+    <div class="alert success">📲 Sent to <b><%= told %></b> parent<%= String(told) === '1' ? '' : 's' %> in the portal<%= alerts ? ` · ${alerts} SMS/WhatsApp alert${String(alerts) === '1' ? '' : 's'} logged` : '' %>.</div>
+  <% } %>
+
+  <%# ---- TODAY, at the top: is the school open or shut? ---- %>
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Today</h3>
+      <span class="panel-head-note"><%= state.long %></span>
+    </div>
+    <div class="panel-body">
+      <% if (state.isClosed) { %>
+        <div class="hol-today is-closed">
+          <span class="hol-today-ico">🎉</span>
+          <div>
+            <b><%= state.holiday ? (state.greeting || ('Holiday: ' + state.name)) : "It's Sunday — school closed" %></b>
+            <small>
+              School is shut today<% if (state.holiday) { %> for <b><%= state.name %></b><% } %>.
+              <% if (state.holiday && state.note) { %><%= state.note %> <% } %>
+              <% if (nextOpen) { %>It opens again on <b><%= nextOpen.long %></b>.<% } %>
+            </small>
+          </div>
+        </div>
+      <% } else { %>
+        <div class="hol-today">
+          <span class="hol-today-ico">🏫</span>
+          <div>
+            <b>School is open today</b>
+            <small>
+              Nothing is marked for today — the timetable runs as usual.
+              <%# `nextOpen` is the next day the school OPENS (services/holidays.js), so it can
+                  never be called a “next holiday”; the upcoming list is what comes next. -- %>
+              <% if (upcoming.length) { %>Next holiday: <b><%= upcoming[0].name %></b> on <%= upcoming[0].dateLong %>.<% } else { %>Nothing is marked for the days ahead.<% } %>
+            </small>
+          </div>
+        </div>
+      <% } %>
+      <p class="hol-quick">
+        <%# one tap for the common case: “today is a holiday, name it later” %>
+        <a class="btn btn-primary" href="/admin/holidays?add=1&amp;on=<%= todayISO %>">➕ Mark a holiday</a>
+        <% if (nextOpen && !state.isClosed) { %>
+          <span class="text-muted">Today is a school day, so nothing has to be changed.</span>
+        <% } %>
+      </p>
+    </div>
+  </div>
+
+  <%# ---- the form: one holiday ---- %>
+  <% if (editor) { %>
+    <div class="panel">
+      <div class="panel-head"><h3><%= editor.isNew ? '➕ New holiday' : '✏️ Edit holiday' %></h3></div>
+      <div class="panel-body">
+        <form method="POST" action="/admin/holidays" class="form-grid">
+          <% if (h && h.id) { %><input type="hidden" name="id" value="<%= h.id %>"><% } %>
+          <div class="form-group">
+            <label for="hol-date">Date</label>
+            <input type="date" id="hol-date" name="date" required
+                   value="<%= h && h.date ? h.date : (query.on && /^\d{4}-\d{2}-\d{2}$/.test(query.on) ? query.on : todayISO) %>">
+            <small class="text-muted">The day the school stays closed. One row per date.</small>
+          </div>
+          <div class="form-group">
+            <label for="hol-name">Holiday name</label>
+            <input type="text" id="hol-name" name="name" maxlength="60" required
+                   placeholder="Vishwakarma Puja" value="<%= h ? h.name : '' %>">
+            <small class="text-muted">Shown on the parent's timetable and in the message.</small>
+          </div>
+          <div class="form-group">
+            <label for="hol-greet">Wish for the parents <span class="text-muted">(optional)</span></label>
+            <input type="text" id="hol-greet" name="greeting" maxlength="80"
+                   placeholder="Happy Vishwakarma Puja!" value="<%= h ? h.greeting : '' %>">
+            <small class="text-muted">The warm line the parents read on top of the holiday card.</small>
+          </div>
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label for="hol-note">Note <span class="text-muted">(optional)</span></label>
+            <input type="text" id="hol-note" name="note" maxlength="300"
+                   placeholder="Puja in the morning — no classes, no hostel mess change." value="<%= h ? h.note : '' %>">
+          </div>
+          <div class="mt-3" style="grid-column: 1 / -1;">
+            <button type="submit" class="btn btn-primary">💾 Save holiday</button>
+            <a class="btn btn-outline" href="/admin/holidays">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  <% } %>
+
+  <%# ---- what is coming ---- %>
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Coming up</h3>
+      <span class="panel-head-note"><%= upcoming.length %> holiday<%= upcoming.length === 1 ? '' : 's' %> from today</span>
+    </div>
+    <div class="panel-body no-pad">
+      <% if (!upcoming.length) { %>
+        <p class="empty">No holiday is marked for a coming date. Sundays are holidays on their own.</p>
+      <% } else { %>
+        <div class="table-wrap">
+          <%# the SAME row turns into one card per holiday on a phone (`.card-table`): the
+              office marks holidays at the desk, but it also cancels one from a phone. -- %>
+          <table class="card-table">
+            <thead>
+              <tr><th>Date</th><th>Holiday</th><th>Parents see</th><th class="text-right">Actions</th></tr>
+            </thead>
+            <tbody>
+              <% upcoming.forEach(x => { %>
+                <tr<%= x.isToday ? ' class="hol-row-today"' : '' %>>
+                  <td data-label="Date">
+                    <b><%= x.dateShort %></b>
+                    <% if (x.isToday) { %><span class="badge red">TODAY</span><% } else { %><small class="text-muted"><%= x.when %></small><% } %>
+                  </td>
+                  <td data-label="Holiday">
+                    <b><%= x.name %></b>
+                    <% if (x.note) { %><small class="text-muted"><%= x.note %></small><% } %>
+                  </td>
+                  <td data-label="Parents see">
+                    <small><%= x.greeting || ('Holiday: ' + x.name) %></small>
+                    <% if (x.opensOn) { %><small class="text-muted">Opens again <%= x.opensOn %></small><% } %>
+                  </td>
+                  <td class="text-right" data-label="Actions">
+                    <div class="hol-row-actions">
+                      <a class="btn btn-sm btn-outline" href="/admin/holidays?holiday=<%= x.id %>">✏️ Edit</a>
+                      <form method="POST" action="/admin/holidays/tell"
+                            data-confirm-title="Send this holiday to every parent?"
+                            data-confirm-msg="Every parent gets a portal message and an SMS/WhatsApp alert about <%= x.name %>."
+                            data-confirm-ok="Yes, send it">
+                        <input type="hidden" name="id" value="<%= x.id %>">
+                        <button type="submit" class="btn btn-sm btn-primary" title="Send the holiday news to every parent">📲 Tell parents</button>
+                      </form>
+                      <form method="POST" action="/admin/holidays/delete">
+                        <input type="hidden" name="id" value="<%= x.id %>">
+                        <button type="submit" class="btn btn-sm btn-danger">🗑 Remove</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <%# ---- what has gone (kept as the year's record) ---- %>
+  <% if (past.length) { %>
+    <details class="panel">
+      <summary class="panel-head"><h3>Past holidays (<%= past.length %>)</h3></summary>
+      <div class="panel-body no-pad">
+        <div class="table-wrap">
+          <table class="card-table">
+            <thead><tr><th>Date</th><th>Holiday</th><th class="text-right">Actions</th></tr></thead>
+            <tbody>
+              <% past.forEach(x => { %>
+                <tr>
+                  <td data-label="Date"><b><%= x.dateShort %></b> <small class="text-muted"><%= x.dateLong %></small></td>
+                  <td data-label="Holiday"><%= x.name %></td>
+                  <td class="text-right" data-label="Actions">
+                    <div class="hol-row-actions">
+                      <a class="btn btn-sm btn-outline" href="/admin/holidays?holiday=<%= x.id %>">✏️ Edit</a>
+                      <form method="POST" action="/admin/holidays/delete">
+                        <input type="hidden" name="id" value="<%= x.id %>">
+                        <button type="submit" class="btn btn-sm btn-danger">🗑 Remove</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+  <% } %>
+
+  <p class="text-muted" style="font-size:13px">
+    🕒 These dates also reach the Timetable page the office prints (Admin → Timetable) and the
+    teacher's own timetable — one row here, everywhere else.
+  </p>
+<%- include('../partials/footer') %>
