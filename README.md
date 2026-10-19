@@ -1,7 +1,15 @@
 # 🎓 School Management Portal
 
+[![CI](https://github.com/Suraj-Kumar-Ray/school-portal/actions/workflows/ci.yml/badge.svg)](https://github.com/Suraj-Kumar-Ray/school-portal/actions/workflows/ci.yml)
+[![Live demo](https://img.shields.io/badge/live%20demo-school--portal--demo--cgjm.onrender.com-0b7285?logo=render&logoColor=white)](https://school-portal-demo-cgjm.onrender.com)
+![Node](https://img.shields.io/badge/Node-18%2B-339933?logo=nodedotjs&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-one%20file-003B57?logo=sqlite&logoColor=white)
+![License: MIT](https://img.shields.io/badge/license-MIT-3da639)
+
 A complete school platform — a public website **plus** separate portals for the office, teachers
 and parents — built with **Node.js, Express, EJS and SQLite**.
+
+> **Try it:** [school-portal-demo-cgjm.onrender.com](https://school-portal-demo-cgjm.onrender.com) — the free tier sleeps, so the first visit can take about a minute. Demo logins are under [Demo logins](#-demo-logins); the database reseeds itself on every deploy, so nothing you do in the demo is permanent.
 
 > **This is a sanitised showcase build.** The school it was written for is a real one, but this
 > repository ships **only fictional demo data** (see [Demo data](#-demo-data)). No student, parent
