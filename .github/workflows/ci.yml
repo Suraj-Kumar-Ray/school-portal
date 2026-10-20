@@ -37,69 +37,8 @@ jobs:
             | xargs -0 -n1 node --check
           echo "all .js files parse"
 
-      - name: Boot the portal (auto-seeds a throwaway demo database)
-        run: |
-          set -euo pipefail
-          node server.js > /tmp/server.log 2>&1 &
-          echo $! > /tmp/server.pid
-          for i in $(seq 1 60); do
-            if curl -fsS "http://localhost:$PORT/healthz" -o /tmp/healthz.json; then
-              echo "ready after ${i}s: $(cat /tmp/healthz.json)"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "::error::server never became ready"
-          cat /tmp/server.log
-          exit 1
-
-      - name: Drive it over HTTP
-        run: |
-          set -euo pipefail
-          BASE="http://localhost:$PORT"
-          fail() { echo "::error::$1"; echo "--- server log"; cat /tmp/server.log; exit 1; }
-
-          status() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
-
-          # 1. health check reads the database, not just the process
-          grep -q '"ok":true' /tmp/healthz.json || fail "healthz did not report ok:true"
-
-          # 2. the public site renders
-          [ "$(status "$BASE/")" = "200" ] || fail "home page did not return 200"
-          curl -fsS "$BASE/" | grep -qi "green valley" || fail "home page lost the school name"
-
-          # 3. the demo database really was seeded (logins exist)
-          [ "$(status "$BASE/login?role=parent")" = "200" ] || fail "parent login page did not return 200"
-
-          # 4. a wrong password is rejected, not silently accepted
-          [ "$(status -X POST "$BASE/login" \
-              -d 'username=parent1' -d 'password=wrong-password' -d 'role=parent')" = "401" ] \
-            || fail "a wrong password was not rejected with 401"
-
-          # 5. one sign-in per role lands on that role's home page
-          #    role:username:password:landing-page
-          for pair in \
-            "admin:admin:admin123:/admin" \
-            "parent:parent1:parent123:/parent" \
-            "teacher:teacher1:teacher123:/teacher"; do
-            role="${pair%%:*}"; rest="${pair#*:}"
-            user="${rest%%:*}"; rest="${rest#*:}"
-            pass="${rest%%:*}"; home="${rest#*:}"
-            jar="/tmp/cookies-$role.txt"
-            headers=$(curl -s -o /dev/null -D - -c "$jar" -X POST "$BASE/login" \
-              -d "username=$user" -d "password=$pass" -d "role=$role" | tr -d '\r')
-            code=$(printf '%s\n' "$headers" | head -1 | awk '{print $2}')
-            location=$(printf '%s\n' "$headers" | awk 'tolower($1)=="location:"{print $2}')
-            [ "$code" = "302" ] || fail "$role sign-in returned $code, expected 302"
-            [ "$location" = "$home" ] || fail "$role sign-in redirected to '$location', expected '$home'"
-            [ "$(status -b "$jar" "$BASE$home")" = "200" ] || fail "$home did not open with a signed-in session"
-            echo "$role -> $home"
-          done
-
-          echo "public site, rejected password and all three portals behave"
-
-      - name: Server log
-        if: always()
-        run: |
-          echo "--- server.log"; cat /tmp/server.log || true
-          kill "$(cat /tmp/server.pid)" 2>/dev/null || true
+      # Boots the server (auto-seeds a throwaway demo database), waits for /healthz,
+      # then drives the public site and all three logins over HTTP. Same file you can
+      # run locally: `npm run smoke`.
+      - name: Smoke test — boot the portal and sign in to every role
+        run: npm run smoke
