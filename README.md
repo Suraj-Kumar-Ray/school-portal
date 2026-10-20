@@ -71,6 +71,18 @@ time it boots with no database present.
 
 Students never sign in — a child's record is reached through the parent's login.
 
+## ✅ Tests
+
+```bash
+npm run smoke      # boots the app, then drives the public site and every login over HTTP
+```
+
+`scripts/smoke.mjs` starts the real server (auto-seeded database), waits for `/healthz`, then
+asserts that the home page renders, a wrong password returns **401**, and admin, parent and teacher
+each sign in, land on their own home page and open it with the session cookie. It exits non-zero on
+the first broken check, so CI runs exactly this file on every push — the green badge means the app
+boots and signs users in, not just that the source parses.
+
 ## 🧪 Demo data
 
 `db/seed.js` generates the whole fake school deterministically: 52 students across
